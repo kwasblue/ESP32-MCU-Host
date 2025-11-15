@@ -12,6 +12,7 @@
 #include "modules/LoggingModule.h"
 #include "config/WifiSecrets.h"   
 #include "core/BleTransport.h"
+#include "modules/IdentityModule.h"
 
 // === WiFi config ===
 // STA = your home / main network
@@ -35,6 +36,7 @@ MCUHost         g_host(g_bus, &g_router);
 // Modules
 HeartbeatModule g_heartbeat(g_bus);
 LoggingModule   g_logger(g_bus);
+IdentityModule g_identity(g_bus, g_multiTransport, "kwasi-bot");
 
 // For periodic debug printing
 uint32_t g_lastIpPrintMs = 0;
@@ -81,7 +83,7 @@ void setupWifiDualMode() {
 }
 void setupOta() {
     // Use the same hostname everywhere
-    ArduinoOTA.setHostname("kwasi-bot");
+    ArduinoOTA.setHostname("ESP32-bot");
 
     // Optional: set a password if you want
     // ArduinoOTA.setPassword("someStrongPassword");
@@ -137,6 +139,8 @@ void setup() {
 
     g_host.addModule(&g_heartbeat);
     g_host.addModule(&g_logger);
+    g_host.addModule(&g_identity);
+
     g_host.setup();
 
     Serial.println("[MCU] Setup complete.");
@@ -150,15 +154,15 @@ void loop() {
     g_host.loop(now_ms);
 
     // Periodically print IPs so you always know how to connect
-    if (now_ms - g_lastIpPrintMs >= 5000) {
-        g_lastIpPrintMs = now_ms;
+    //if (now_ms - g_lastIpPrintMs >= 5000) {
+    //    g_lastIpPrintMs = now_ms;
 
-        Serial.print("[WiFi][STA] IP: ");
-        Serial.println(WiFi.localIP());    // 0.0.0.0 if not connected
+        //Serial.print("[WiFi][STA] IP: ");
+        //Serial.println(WiFi.localIP());    // 0.0.0.0 if not connected
 
-        Serial.print("[WiFi][AP ] IP: ");
-        Serial.println(WiFi.softAPIP());   // usually 192.168.4.1
-    }
+        //Serial.print("[WiFi][AP ] IP: ");
+        //Serial.println(WiFi.softAPIP());   // usually 192.168.4.1
+    //}
 
     delay(1);
 }

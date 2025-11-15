@@ -5,6 +5,7 @@ enum class EventType : uint8_t {
     HEARTBEAT = 0,
     PING,
     PONG,
+    WHOMAI_REQUEST,
 };
 
 struct EventPayload {

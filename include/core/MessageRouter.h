@@ -4,6 +4,7 @@
 #include "EventBus.h"
 #include "ITransport.h"
 #include "Protocol.h"
+#include "Messages.h"
 
 class MessageRouter {
 public:
@@ -47,6 +48,16 @@ private:
             bus_.publish(evt);
             break;
         }
+        // In MessageRouter.cpp (inside switch(msg_type))
+        case static_cast<uint8_t>(MsgType::WHOAMI): {
+            Event evt;
+            evt.type         = EventType::WHOMAI_REQUEST;
+            evt.timestamp_ms = millis();
+            evt.payload      = {};  // nothing needed for now
+            bus_.publish(evt);
+            break;
+        }
+
         default:
             break;
         }
