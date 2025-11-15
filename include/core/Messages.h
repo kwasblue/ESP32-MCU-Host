@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <ArduinoJson.h>
+#include "config/CommandDefs.h"
 
 enum class MsgType : uint8_t {
     // ---- Low-level transport primitives ----
@@ -32,7 +33,7 @@ enum class MsgType : uint8_t {
     ERROR       = 0x7F,
 };
 
-// ---- High-level JSON classification ----
+// === High-level JSON message classification ===
 enum class MsgKind {
     CMD,
     TELEMETRY,
@@ -51,25 +52,48 @@ inline MsgKind msgKindFromString(const std::string& s) {
     return MsgKind::UNKNOWN;
 }
 
-// ---- Command types for robot side ----
-enum class CmdType {
-    SET_MODE,
-    SET_VEL,
-    STOP,
-    ESTOP,
-    CLEAR_ESTOP,
-    UNKNOWN,
-    LED_ON,         
-    LED_OFF,       
+// High-level JSON message representation (robot-side view)
+struct JsonMessage {
+    MsgKind     kind      = MsgKind::UNKNOWN;
+    CmdType     cmdType   = CmdType::UNKNOWN;  // from CommandDefs.h
+    std::string typeStr;                       // raw "type" field (e.g. "CMD_SET_MODE")
+    uint32_t    seq       = 0;
+    JsonDocument payload;                      // ArduinoJson v7 document
+
+    explicit JsonMessage()
+        : payload() {}                         // default-constructed JsonDocument
 };
 
-inline CmdType cmdTypeFromString(const std::string& s) {
-    if (s == "CMD_SET_MODE")    return CmdType::SET_MODE;
-    if (s == "CMD_SET_VEL")     return CmdType::SET_VEL;
-    if (s == "CMD_STOP")        return CmdType::STOP;
-    if (s == "CMD_ESTOP")       return CmdType::ESTOP;
-    if (s == "CMD_CLEAR_ESTOP") return CmdType::CLEAR_ESTOP;
-    if (s == "CMD_LED_ON")      return CmdType::LED_ON;   
-    if (s == "CMD_LED_OFF")     return CmdType::LED_OFF; 
-    return CmdType::UNKNOWN;
+// Parse a JSON string into JsonMessage
+inline bool parseJsonToMessage(const std::string& jsonStr, JsonMessage& outMsg) {
+    JsonDocument doc;  // ArduinoJson v7: dynamic doc managed internally
+
+    auto err = deserializeJson(doc, jsonStr);
+    if (err) {
+        // Optionally: Serial.printf("[CMD] JSON parse error: %s\n", err.c_str());
+        return false;
+    }
+
+    const char* kindStr = doc["kind"] | "unknown";
+    const char* typeStr = doc["type"] | "UNKNOWN";
+
+    outMsg.kind    = msgKindFromString(kindStr);
+    outMsg.typeStr = typeStr ? typeStr : "UNKNOWN";
+
+    // Use generated function from CommandDefs.h
+    outMsg.cmdType = (outMsg.kind == MsgKind::CMD)
+        ? cmdTypeFromString(outMsg.typeStr)
+        : CmdType::UNKNOWN;
+
+    outMsg.seq = doc["seq"] | 0;
+
+    JsonVariant payload = doc["payload"];
+    if (!payload.isNull()) {
+        // has payload
+        outMsg.payload = payload;
+    } else {
+        // no payload present
+    }
+
+    return true;
 }

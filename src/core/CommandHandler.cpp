@@ -4,66 +4,110 @@
 #include "core/MotionController.h"
 #include "core/SafetyManager.h"
 #include "config/PinConfig.h"
-#include <Arduino.h>   // for strcmp, millis, etc.
+#include "core/Event.h"
 
+#include <Arduino.h>   // for strcmp, millis, Serial, etc.
 using namespace ArduinoJson;
+CommandHandler* CommandHandler::s_instance = nullptr;
+
+CommandHandler::CommandHandler(EventBus&         bus,
+                               ModeManager&      mode,
+                               MotionController& motion,
+                               SafetyManager&    safety,
+                               GpioManager&      gpio,
+                               PwmManager&       pwm,
+                               ServoManager&     servo,
+                               StepperManager&   stepper)
+    : bus_(bus)
+    , mode_(mode)
+    , motion_(motion)
+    , safety_(safety)
+    , gpio_(gpio)
+    , pwm_(pwm)
+    , servo_(servo)
+    , stepper_(stepper)
+{
+    // nothing else needed here; subscription happens in setup()
+    s_instance = this;
+}
 
 void CommandHandler::onJsonCommand(const std::string& jsonStr) {
-    ArduinoJson::JsonDocument doc;
-    auto err = deserializeJson(doc, jsonStr);
-    if (err) {
-        // TODO: publish a LOG or ERROR event if you want
-        // e.g., LOG: "JSON parse failed: <err.c_str()>"
+    JsonMessage msg;
+    if (!parseJsonToMessage(jsonStr, msg)) {
+        Serial.print("[CMD] Failed to parse JSON: ");
+        Serial.println(jsonStr.c_str());
         return;
     }
 
-    const char* kindStr = doc["kind"] | "cmd";
-    const char* typeStr = doc["type"] | "UNKNOWN";
-
-    MsgKind kind   = msgKindFromString(kindStr);
-    CmdType cmd    = cmdTypeFromString(typeStr);
-
-    if (kind != MsgKind::CMD) {
-        // For now, ignore non-command JSON messages
+    if (msg.kind != MsgKind::CMD) {
+        Serial.print("[CMD] Ignoring non-command JSON kind: ");
+        Serial.println(msg.typeStr.c_str());
         return;
     }
 
-    JsonVariantConst payload = doc["payload"];
+    // Payload as a const view (nice for read-only access)
+    JsonVariantConst payload = msg.payload.as<JsonVariantConst>();
 
-    switch (cmd) {
-        case CmdType::SET_MODE:
-            handleSetMode(payload);
-            break;
-        case CmdType::SET_VEL:
-            handleSetVel(payload);
-            break;
-        case CmdType::STOP:
-            handleStop();
-            break;
-        case CmdType::ESTOP:
-            handleEstop();
-            break;
-        case CmdType::CLEAR_ESTOP:
-            handleClearEstop();
-            break;
-        case CmdType::LED_ON:
-            handleLedOn();
-            break;
+    switch (msg.cmdType) {
+        // Core robot behavior
+        case CmdType::SET_MODE:          handleSetMode(payload);          break;
+        case CmdType::SET_VEL:           handleSetVel(payload);           break;
+        case CmdType::STOP:              handleStop();                    break;
+        case CmdType::ESTOP:             handleEstop();                   break;
+        case CmdType::CLEAR_ESTOP:       handleClearEstop();              break;
 
-        case CmdType::LED_OFF:
-            handleLedOff();
-            break;
+        // Simple LED control
+        case CmdType::LED_ON:            handleLedOn();                   break;
+        case CmdType::LED_OFF:           handleLedOff();                  break;
+
+        // GPIO / PWM / Servo / Stepper
+        case CmdType::GPIO_WRITE:        handleGpioWrite(payload);        break;
+        case CmdType::PWM_SET:           handlePwmSet(payload);           break;
+
+        case CmdType::SERVO_ATTACH:      handleServoAttach(payload);      break;
+        case CmdType::SERVO_DETACH:      handleServoDetach(payload);      break;
+        case CmdType::SERVO_SET_ANGLE:   handleServoSetAngle(payload);    break;
+
+        case CmdType::STEPPER_MOVE_REL:  handleStepperMoveRel(payload);   break;
+        case CmdType::STEPPER_STOP:      handleStepperStop(payload);      break;
 
         default:
-            // Unknown command type – ignore or log
+            Serial.print("[CMD] Unknown cmdType for typeStr=");
+            Serial.println(msg.typeStr.c_str());
             break;
     }
 }
+// ==== setup ======
+void CommandHandler::setup() {
+    Serial.println("[CMD] CommandHandler::setup() subscribing (static)");
+
+    // EventBus::Handler is now a plain function pointer: void (*)(const Event&)
+    bus_.subscribe(&CommandHandler::handleEventStatic);
+
+    Serial.println("[CMD] CommandHandler::setup() done");
+}
+
+void CommandHandler::handleEventStatic(const Event& evt) {
+    if (s_instance) {
+        s_instance->handleEvent(evt);
+    }
+}
+
+void CommandHandler::handleEvent(const Event& evt) {
+    if (evt.type != EventType::JSON_MESSAGE_RX) {
+        return;
+    }
+
+    // Raw JSON from MessageRouter
+    onJsonCommand(evt.payload.json);
+}
+
+
+// === Core robot behaviors ===
 
 void CommandHandler::handleSetMode(JsonVariantConst payload) {
     const char* modeStr = payload["mode"] | "IDLE";
 
-    // Ask ModeManager what modes are
     RobotMode newMode = mode_.mode();
 
     if (strcmp(modeStr, "IDLE") == 0) {
@@ -73,12 +117,14 @@ void CommandHandler::handleSetMode(JsonVariantConst payload) {
     } else if (strcmp(modeStr, "ACTIVE") == 0) {
         newMode = RobotMode::ACTIVE;
     } else {
-        // unsupported mode string
+        Serial.print("[CMD] Unsupported mode string: ");
+        Serial.println(modeStr);
         return;
     }
 
     // If we're in ESTOP, only CLEAR_ESTOP is allowed to change state
     if (mode_.mode() == RobotMode::ESTOP) {
+        Serial.println("[CMD] Ignoring SET_MODE while in ESTOP");
         return;
     }
 
@@ -89,34 +135,36 @@ void CommandHandler::handleSetMode(JsonVariantConst payload) {
 void CommandHandler::handleSetVel(JsonVariantConst payload) {
     // Basic safety gates
     if (!mode_.canMove() || safety_.isEstopActive()) {
+        Serial.println("[CMD] SET_VEL blocked by mode or ESTOP");
         return;
     }
 
     float vx    = payload["vx"]    | 0.0f;
     float omega = payload["omega"] | 0.0f;
 
-    // Optionally clamp values here, e.g.:
+    // Optional clamping
     // vx    = constrain(vx, -0.5f, 0.5f);
     // omega = constrain(omega, -1.0f, 1.0f);
 
     motion_.setVelocity(vx, omega);
-
-    // TODO later:
-    // - store last command time for timeout safety (zero velocity if stale)
+    // TODO: later add velocity command timeout safety
 }
 
 void CommandHandler::handleStop() {
+    Serial.println("[CMD] STOP");
     motion_.stop();
 }
 
 void CommandHandler::handleEstop() {
+    Serial.println("[CMD] ESTOP");
     safety_.estop();
     motion_.stop();
     mode_.setMode(RobotMode::ESTOP);
-    // TODO: publish STATUS_ESTOP if you want
+    // TODO: publish STATUS_ESTOP if desired
 }
 
 void CommandHandler::handleClearEstop() {
+    Serial.println("[CMD] CLEAR_ESTOP");
     safety_.clearEstop();
     motion_.stop();
     mode_.setMode(RobotMode::IDLE);
@@ -130,4 +178,72 @@ void CommandHandler::handleLedOn() {
 void CommandHandler::handleLedOff() {
     Serial.println("[CMD] LED OFF");
     digitalWrite(Pins::LED_STATUS, LOW);
+}
+
+// === GPIO / PWM / Servo / Stepper delegation ===
+
+void CommandHandler::handleGpioWrite(JsonVariantConst payload) {
+    int channel = payload["channel"] | 0;
+    int value   = payload["value"]   | 0;
+
+    Serial.printf("[CMD] GPIO_WRITE ch=%d value=%d\n", channel, value);
+    gpio_.write(channel, value);
+}
+
+void CommandHandler::handlePwmSet(JsonVariantConst payload) {
+    int   channel = payload["channel"] | 0;
+    float duty    = payload["duty"]    | 0.0f;
+    float freq    = payload["freq_hz"] | 0.0f;  // 0 = use default
+
+    Serial.printf("[CMD] PWM_SET ch=%d duty=%.3f freq=%.1f\n",
+                  channel, duty, freq);
+
+    pwm_.set(channel, duty, freq);
+}
+
+void CommandHandler::handleServoAttach(JsonVariantConst payload) {
+    int servoId  = payload["servo_id"] | 0;
+    int channel  = payload["channel"]  | 0;
+    int minUs    = payload["min_us"]   | 1000;
+    int maxUs    = payload["max_us"]   | 2000;
+
+    Serial.printf("[CMD] SERVO_ATTACH id=%d ch=%d min=%dus max=%dus\n",
+                  servoId, channel, minUs, maxUs);
+
+    servo_.attach(servoId, channel, minUs, maxUs);
+}
+
+void CommandHandler::handleServoDetach(JsonVariantConst payload) {
+    int servoId = payload["servo_id"] | 0;
+
+    Serial.printf("[CMD] SERVO_DETACH id=%d\n", servoId);
+    servo_.detach(servoId);
+}
+
+void CommandHandler::handleServoSetAngle(JsonVariantConst payload) {
+    int   servoId = payload["servo_id"]  | 0;
+    float angle   = payload["angle_deg"] | 0.0f;
+
+    Serial.printf("[CMD] SERVO_SET_ANGLE id=%d angle=%.1f\n",
+                  servoId, angle);
+
+    servo_.setAngle(servoId, angle);
+}
+
+void CommandHandler::handleStepperMoveRel(JsonVariantConst payload) {
+    int   motorId      = payload["motor_id"]      | 0;
+    int   steps        = payload["steps"]         | 0;
+    float speedSteps_s = payload["speed_steps_s"] | 1000.0f;
+
+    Serial.printf("[CMD] STEPPER_MOVE_REL motor=%d steps=%d speed=%.1f steps/s\n",
+                  motorId, steps, speedSteps_s);
+
+    stepper_.moveRelative(motorId, steps, speedSteps_s);
+}
+
+void CommandHandler::handleStepperStop(JsonVariantConst payload) {
+    int motorId = payload["motor_id"] | 0;
+
+    Serial.printf("[CMD] STEPPER_STOP motor=%d\n", motorId);
+    stepper_.stop(motorId);
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <string>
 
 enum class EventType : uint8_t {
     HEARTBEAT = 0,

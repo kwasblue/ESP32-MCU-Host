@@ -18,9 +18,12 @@
 #include "core/SafetyManager.h"
 #include "core/MotionController.h"
 #include "config/PinConfig.h"
+#include "managers/GpioManager.h"
+#include "managers/PwmManager.h"
+#include "managers/ServoManager.h"
+#include "managers/StepperManager.h"
 
 // Optional fallback defaults if WifiSecrets.h isn't set up yet
-// (You can delete these if WIFI_STA_SSID/WIFI_STA_PASSWORD are defined)
 #ifndef WIFI_STA_SSID
 #define WIFI_STA_SSID "YourHomeSSID"
 #endif
@@ -43,24 +46,40 @@ SafetyManager    g_safetyManager;
 
 // Transports
 MultiTransport   g_multiTransport;
-UartTransport    g_uart(Serial, 115200);
-WifiTransport    g_wifi(3333);        // TCP port, listens on both AP + STA IPs
+
+// Dedicated UART1 for protocol
+HardwareSerial   SerialPort(1);              // UART1
+UartTransport    g_uart(SerialPort, 115200); // protocol over UART1 pins
+
+WifiTransport    g_wifi(3333);               // TCP port
 BleTransport     g_ble("ESP32-SPP");
 
 // Router + host
 MessageRouter    g_router(g_bus, g_multiTransport);
 MCUHost          g_host(g_bus, &g_router);
 
-// Command handler (JSON → mode/motion/safety)
-CommandHandler   g_cmdHandler(g_bus,
-                              g_modeManager,
-                              g_motionController,
-                              g_safetyManager);
+// Hardware managers
+GpioManager    g_gpioManager;
+PwmManager     g_pwmManager;
+ServoManager   g_servoManager;
+StepperManager g_stepperManager;
+
+// Command handler (JSON → mode/motion/safety/IO)
+CommandHandler   g_commandHandler(
+    g_bus,
+    g_modeManager,
+    g_motionController,
+    g_safetyManager,
+    g_gpioManager,
+    g_pwmManager,
+    g_servoManager,
+    g_stepperManager
+);
 
 // Modules
 HeartbeatModule  g_heartbeat(g_bus);
 LoggingModule    g_logger(g_bus);
-IdentityModule   g_identity(g_bus, g_multiTransport, "kwasi-bot");
+IdentityModule   g_identity(g_bus, g_multiTransport, "ESP32-bot");
 
 // For periodic debug printing
 uint32_t g_lastIpPrintMs = 0;
@@ -77,7 +96,7 @@ void setupWifiDualMode() {
 
     WiFi.begin(WIFI_STA_SSID, WIFI_STA_PASSWORD);
 
-    uint32_t start      = millis();
+    uint32_t start           = millis();
     const uint32_t timeoutMs = 10000; // 10s timeout
 
     while (WiFi.status() != WL_CONNECTED && millis() - start < timeoutMs) {
@@ -140,9 +159,18 @@ void setupOta() {
 }
 
 void setup() {
+    // 1) USB Serial for logs
     Serial.begin(115200);
     delay(500);
-    Serial.println("\n[MCU] Booting with UART + WiFi (AP+STA)...");
+    Serial.println("\n[MCU] Booting with UART1 + WiFi (AP+STA)...");
+
+    // 2) UART1 for protocol (binary frames on pins)
+    SerialPort.begin(
+        115200,
+        SERIAL_8N1,
+        Pins::UART1_RX,   // RX pin from pins.json
+        Pins::UART1_TX    // TX pin from pins.json
+    );
 
     // Bring up WiFi in dual mode (STA + AP)
     setupWifiDualMode();
@@ -150,28 +178,28 @@ void setup() {
     // Setup OTA
     setupOta();
 
-    // Compose transports: UART + WiFi + BLE
-    g_multiTransport.addTransport(&g_uart);
+    // Compose transports: UART1 + WiFi + BLE
+    g_multiTransport.addTransport(&g_uart);   // binary on SerialPort (UART1)
     g_multiTransport.addTransport(&g_wifi);
     g_multiTransport.addTransport(&g_ble);
 
-    // 1) CommandHandler subscribes to JSON_MESSAGE_RX
-    g_cmdHandler.setup();
+    // CommandHandler subscribes to JSON_MESSAGE_RX
+    g_commandHandler.setup();
 
-    // 2) Router sets frame handler and begins transports
+    // Router sets frame handler and begins transports
     g_router.setup();
 
-    // 3) Hook router loop into MCUHost
+    // Hook router loop into MCUHost
     g_host.setRouterLoop([&]() {
         g_router.loop();
     });
 
-    // 4) Register host modules
+    // Register host modules
     g_host.addModule(&g_heartbeat);
     g_host.addModule(&g_logger);
     g_host.addModule(&g_identity);
 
-    // 5) Setup host (modules, timers, etc.)
+    // Setup host (modules, timers, etc.)
     g_host.setup();
 
     Serial.println("[MCU] Setup complete.");
@@ -179,7 +207,6 @@ void setup() {
     // Hardware stuff
     pinMode(Pins::LED_STATUS, OUTPUT);
     digitalWrite(Pins::LED_STATUS, LOW);
-
 }
 
 void loop() {
@@ -190,19 +217,6 @@ void loop() {
 
     // Let host run its modules and router loop
     g_host.loop(now_ms);
-
-    // Optional periodic IP print
-    /*
-    if (now_ms - g_lastIpPrintMs >= 5000) {
-        g_lastIpPrintMs = now_ms;
-
-        Serial.print("[WiFi][STA] IP: ");
-        Serial.println(WiFi.localIP());
-
-        Serial.print("[WiFi][AP ] IP: ");
-        Serial.println(WiFi.softAPIP());
-    }
-    */
 
     delay(1);
 }
