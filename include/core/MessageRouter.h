@@ -52,8 +52,31 @@ private:
         case static_cast<uint8_t>(MsgType::WHOAMI): {
             Event evt;
             evt.type         = EventType::WHOMAI_REQUEST;
-            evt.timestamp_ms = millis();
+            evt.timestamp_ms = now_ms;
             evt.payload      = {};  // nothing needed for now
+            bus_.publish(evt);
+            break;
+        }
+
+        // === NEW: high-level JSON command case ===
+        case static_cast<uint8_t>(MsgType::CMD_JSON): {
+            if (len <= 1) {
+                // no payload, ignore or log
+                return;
+            }
+
+            // frame[0] = msgType, rest is JSON payload
+            const uint8_t* jsonData = frame + 1;
+            size_t jsonLen          = len - 1;
+
+            std::string jsonStr(reinterpret_cast<const char*>(jsonData), jsonLen);
+
+            Event evt;
+            evt.type         = EventType::JSON_MESSAGE_RX;
+            evt.timestamp_ms = now_ms;
+            evt.payload      = {};
+            evt.payload.json = std::move(jsonStr);   // store raw JSON in payload
+
             bus_.publish(evt);
             break;
         }

@@ -6,12 +6,15 @@ enum class EventType : uint8_t {
     PING,
     PONG,
     WHOMAI_REQUEST,
+    JSON_MESSAGE_RX,
 };
 
 struct EventPayload {
     int32_t  i32 = 0;
     float    f32 = 0.0f;
     uint8_t  u8  = 0;
+
+    std::string json;
 };
 
 struct Event {

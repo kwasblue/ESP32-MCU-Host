@@ -19,4 +19,5 @@ public:
 
 private:
     std::vector<Handler> handlers_;
+    std::string json;
 };
