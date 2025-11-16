@@ -17,6 +17,7 @@ enum class CmdType {
     SERVO_ATTACH,
     SERVO_DETACH,
     SERVO_SET_ANGLE,
+    SET_LOG_LEVEL,
     SET_MODE,
     SET_VEL,
     STEPPER_MOVE_REL,
@@ -38,6 +39,7 @@ inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_SERVO_ATTACH") return CmdType::SERVO_ATTACH;
     if (s == "CMD_SERVO_DETACH") return CmdType::SERVO_DETACH;
     if (s == "CMD_SERVO_SET_ANGLE") return CmdType::SERVO_SET_ANGLE;
+    if (s == "CMD_SET_LOG_LEVEL") return CmdType::SET_LOG_LEVEL;
     if (s == "CMD_SET_MODE") return CmdType::SET_MODE;
     if (s == "CMD_SET_VEL") return CmdType::SET_VEL;
     if (s == "CMD_STEPPER_MOVE_REL") return CmdType::STEPPER_MOVE_REL;
@@ -60,6 +62,7 @@ inline const char* cmdTypeToString(CmdType c) {
         case CmdType::SERVO_ATTACH: return "CMD_SERVO_ATTACH";
         case CmdType::SERVO_DETACH: return "CMD_SERVO_DETACH";
         case CmdType::SERVO_SET_ANGLE: return "CMD_SERVO_SET_ANGLE";
+        case CmdType::SET_LOG_LEVEL: return "CMD_SET_LOG_LEVEL";
         case CmdType::SET_MODE: return "CMD_SET_MODE";
         case CmdType::SET_VEL: return "CMD_SET_VEL";
         case CmdType::STEPPER_MOVE_REL: return "CMD_STEPPER_MOVE_REL";

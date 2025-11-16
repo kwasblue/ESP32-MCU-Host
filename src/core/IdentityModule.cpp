@@ -1,4 +1,5 @@
 #include "modules/IdentityModule.h"
+#include "core/Debug.h"      // <-- add this
 #include <Arduino.h>
 
 IdentityModule* IdentityModule::s_instance = nullptr;
@@ -6,6 +7,8 @@ IdentityModule* IdentityModule::s_instance = nullptr;
 void IdentityModule::setup() {
     s_instance = this;
     bus_.subscribe(&IdentityModule::onEventStatic);
+
+    DBG_PRINTLN("[IdentityModule] setup complete");
 }
 
 void IdentityModule::loop(uint32_t /*now_ms*/) {
@@ -19,10 +22,12 @@ void IdentityModule::onEventStatic(const Event& evt) {
 }
 
 void IdentityModule::handleEvent(const Event& evt) {
-    // This should mirror the logic you previously had in the lambda.
     if (evt.type == EventType::WHOMAI_REQUEST) {
-        // Example: respond via transports_ with HELLO / identity info
-        Serial.println("[IDENTITY] WHOAMI request received");
-        // send HELLO frame, etc.
+        DBG_PRINTLN("[IDENTITY] WHOAMI request received");
+
+        // TODO: Send identity/HELLO frame if desired.
+        // Example (uncomment when implemented):
+        // transport_.sendHello("ESP32-BOT", FW_VERSION);
     }
 }
+

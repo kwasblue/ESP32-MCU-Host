@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "core/Debug.h"     // <-- add this
 
 class GpioManager {
 public:
@@ -13,13 +14,13 @@ public:
 
     void registerChannel(int ch, int pin, int mode = OUTPUT) {
         if (ch < 0 || ch >= MAX_CHANNELS) {
-            Serial.printf("[GPIO] registerChannel: invalid ch=%d (max=%d)\n",
-                          ch, MAX_CHANNELS - 1);
+            DBG_PRINTF("[GPIO] registerChannel: invalid ch=%d (max=%d)\n",
+                       ch, MAX_CHANNELS - 1);
             return;
         }
 
-        Serial.printf("[GPIO] registerChannel: ch=%d pin=%d mode=%d\n",
-                      ch, pin, mode);
+        DBG_PRINTF("[GPIO] registerChannel: ch=%d pin=%d mode=%d\n",
+                   ch, pin, mode);
 
         pinMode(pin, mode);
         pinForChannel_[ch] = static_cast<int8_t>(pin);
@@ -34,7 +35,7 @@ public:
 
     void write(int ch, int value) {
         if (!hasChannel(ch)) {
-            Serial.printf("[GPIO] write: Unknown channel %d\n", ch);
+            DBG_PRINTF("[GPIO] write: Unknown channel %d\n", ch);
             return;
         }
         uint8_t pin = static_cast<uint8_t>(pinForChannel_[ch]);
@@ -43,7 +44,7 @@ public:
 
     int read(int ch) const {
         if (!hasChannel(ch)) {
-            Serial.printf("[GPIO] read: Unknown channel %d\n", ch);
+            DBG_PRINTF("[GPIO] read: Unknown channel %d\n", ch);
             return -1; // sentinel for "unknown"
         }
         uint8_t pin = static_cast<uint8_t>(pinForChannel_[ch]);
@@ -52,7 +53,7 @@ public:
 
     void toggle(int ch) {
         if (!hasChannel(ch)) {
-            Serial.printf("[GPIO] toggle: Unknown channel %d\n", ch);
+            DBG_PRINTF("[GPIO] toggle: Unknown channel %d\n", ch);
             return;
         }
         uint8_t pin = static_cast<uint8_t>(pinForChannel_[ch]);

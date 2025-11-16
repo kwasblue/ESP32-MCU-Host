@@ -5,8 +5,10 @@
 #include "core/SafetyManager.h"
 #include "config/PinConfig.h"
 #include "core/Event.h"
+#include "modules/LoggingModule.h"   // <-- NEW
 
-#include <Arduino.h>  // for strcmp, millis, Serial, etc.
+#include <Arduino.h>      // for strcmp, millis, etc.
+#include "core/Debug.h"   // debug macros
 
 using namespace ArduinoJson;
 
@@ -39,10 +41,10 @@ CommandHandler::CommandHandler(EventBus&         bus,
 // Setup / Event subscription
 // -----------------------------------------------------------------------------
 void CommandHandler::setup() {
-    Serial.println("[CMD] CommandHandler::setup() subscribing (static)");
+    DBG_PRINTLN("[CMD] CommandHandler::setup() subscribing (static)");
     // EventBus::Handler is now a plain function pointer: void (*)(const Event&)
     bus_.subscribe(&CommandHandler::handleEventStatic);
-    Serial.println("[CMD] CommandHandler::setup() done");
+    DBG_PRINTLN("[CMD] CommandHandler::setup() done");
 }
 
 void CommandHandler::handleEventStatic(const Event& evt) {
@@ -64,29 +66,29 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
     // ----------------------------------------------------
     // Debug: show raw JSON received
     // ----------------------------------------------------
-    Serial.print("[CMD] raw JSON: ");
-    Serial.println(jsonStr.c_str());
+    DBG_PRINT("[CMD] raw JSON: ");
+    DBG_PRINTLN(jsonStr.c_str());
 
     JsonMessage msg;
     if (!parseJsonToMessage(jsonStr, msg)) {
-        Serial.print("[CMD] Failed to parse JSON: ");
-        Serial.println(jsonStr.c_str());
+        DBG_PRINT("[CMD] Failed to parse JSON: ");
+        DBG_PRINTLN(jsonStr.c_str());
         return;
     }
 
     // ----------------------------------------------------
     // Debug: show parsed message classification
     // ----------------------------------------------------
-    Serial.print("[CMD] kind=");    
-    Serial.print((int)msg.kind);  // numeric enum value
-    Serial.print(" typeStr=");    
-    Serial.print(msg.typeStr.c_str());
-    Serial.print(" cmdType=");    
-    Serial.println((int)msg.cmdType);
+    DBG_PRINT("[CMD] kind=");
+    DBG_PRINT((int)msg.kind);  // numeric enum value
+    DBG_PRINT(" typeStr=");
+    DBG_PRINT(msg.typeStr.c_str());
+    DBG_PRINT(" cmdType=");
+    DBG_PRINTLN((int)msg.cmdType);
 
     if (msg.kind != MsgKind::CMD) {
-        Serial.print("[CMD] Ignoring non-command JSON kind: ");
-        Serial.println(msg.typeStr.c_str());
+        DBG_PRINT("[CMD] Ignoring non-command JSON kind: ");
+        DBG_PRINTLN(msg.typeStr.c_str());
         return;
     }
 
@@ -120,9 +122,12 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         case CmdType::STEPPER_MOVE_REL:       handleStepperMoveRel(payload);     break;
         case CmdType::STEPPER_STOP:           handleStepperStop(payload);        break;
 
+        // --- Logging control ---
+        case CmdType::SET_LOG_LEVEL:          handleSetLogLevel(payload);        break;
+
         default:
-            Serial.print("[CMD] Unknown cmdType for typeStr=");
-            Serial.println(msg.typeStr.c_str());
+            DBG_PRINT("[CMD] Unknown cmdType for typeStr=");
+            DBG_PRINTLN(msg.typeStr.c_str());
             break;
     }
 }
@@ -142,14 +147,14 @@ void CommandHandler::handleSetMode(JsonVariantConst payload) {
     } else if (strcmp(modeStr, "ACTIVE") == 0) {
         newMode = RobotMode::ACTIVE;
     } else {
-        Serial.print("[CMD] Unsupported mode string: ");
-        Serial.println(modeStr);
+        DBG_PRINT("[CMD] Unsupported mode string: ");
+        DBG_PRINTLN(modeStr);
         return;
     }
 
     // If we're in ESTOP, only CLEAR_ESTOP is allowed to change state
     if (mode_.mode() == RobotMode::ESTOP) {
-        Serial.println("[CMD] Ignoring SET_MODE while in ESTOP");
+        DBG_PRINTLN("[CMD] Ignoring SET_MODE while in ESTOP");
         return;
     }
 
@@ -160,48 +165,71 @@ void CommandHandler::handleSetMode(JsonVariantConst payload) {
 void CommandHandler::handleSetVel(JsonVariantConst payload) {
     // Basic safety gates
     if (!mode_.canMove() || safety_.isEstopActive()) {
-        Serial.println("[CMD] SET_VEL blocked by mode or ESTOP");
+        DBG_PRINTLN("[CMD] SET_VEL blocked by mode or ESTOP");
         return;
     }
 
     float vx    = payload["vx"]    | 0.0f;
     float omega = payload["omega"] | 0.0f;
 
-    // Optional clamping
-    // vx    = constrain(vx, -0.5f, 0.5f);
-    // omega = constrain(omega, -1.0f, 1.0f);
-
     motion_.setVelocity(vx, omega);
-    // TODO: later add velocity command timeout safety
 }
 
+// -----------------------------------------------------------------------------
+// Logging control
+// -----------------------------------------------------------------------------
+void CommandHandler::handleSetLogLevel(JsonVariantConst payload) {
+    const char* levelStr = payload["level"] | "info";
+
+    if (LoggingModule::instance()) {
+        LoggingModule::instance()->setLogLevel(levelStr);
+    }
+
+    JsonDocument resp;  // dont change these anymore this is the not depricated
+    resp["src"]   = "mcu"; 
+    resp["cmd"]   = "LOG_LEVEL_ACK";
+    resp["level"] = levelStr;
+    resp["ok"]    = true;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
+}
+
+
+// -----------------------------------------------------------------------------
+// STOP / ESTOP / CLEAR_ESTOP / LED / etc.
+// -----------------------------------------------------------------------------
 void CommandHandler::handleStop() {
-    Serial.println("[CMD] STOP");
+    DBG_PRINTLN("[CMD] STOP");
     motion_.stop();
 }
 
 void CommandHandler::handleEstop() {
-    Serial.println("[CMD] ESTOP");
+    DBG_PRINTLN("[CMD] ESTOP");
     safety_.estop();
     motion_.stop();
     mode_.setMode(RobotMode::ESTOP);
-    // TODO: publish STATUS_ESTOP if desired
 }
 
 void CommandHandler::handleClearEstop() {
-    Serial.println("[CMD] CLEAR_ESTOP");
+    DBG_PRINTLN("[CMD] CLEAR_ESTOP");
     safety_.clearEstop();
     motion_.stop();
     mode_.setMode(RobotMode::IDLE);
 }
 
 void CommandHandler::handleLedOn() {
-    Serial.println("[CMD] LED ON");
+    DBG_PRINTLN("[CMD] LED ON");
     digitalWrite(Pins::LED_STATUS, HIGH);
 }
 
 void CommandHandler::handleLedOff() {
-    Serial.println("[CMD] LED OFF");
+    DBG_PRINTLN("[CMD] LED OFF");
     digitalWrite(Pins::LED_STATUS, LOW);
 }
 
@@ -213,8 +241,8 @@ void CommandHandler::handlePwmSet(JsonVariantConst payload) {
     float duty    = payload["duty"]    | 0.0f;
     float freq    = payload["freq_hz"] | 0.0f;  // 0 = use default
 
-    Serial.printf("[CMD] PWM_SET ch=%d duty=%.3f freq=%.1f\n",
-                  channel, duty, freq);
+    DBG_PRINTF("[CMD] PWM_SET ch=%d duty=%.3f freq=%.1f\n",
+               channel, duty, freq);
 
     pwm_.set(channel, duty, freq);
 }
@@ -227,23 +255,18 @@ void CommandHandler::handleServoAttach(JsonVariantConst payload) {
     int minUs    = payload["min_us"]   | 1000;
     int maxUs    = payload["max_us"]   | 2000;
 
-    // Map servoId -> actual GPIO pin from Pins::
     uint8_t pin = 0;
     switch (servoId) {
         case 0:
-            pin = Pins::SERVO1_SIG;   // <-- 18 from PinConfig.h
+            pin = Pins::SERVO1_SIG;
             break;
-
-        // later you can add:
-        // case 1: pin = Pins::SERVO2_SIG; break;
-        // case 2: pin = Pins::SERVO3_SIG; break;
         default:
-            Serial.printf("[CMD] SERVO_ATTACH: unknown servoId=%d\n", servoId);
+            DBG_PRINTF("[CMD] SERVO_ATTACH: unknown servoId=%d\n", servoId);
             return;
     }
 
-    Serial.printf("[CMD] SERVO_ATTACH id=%d pin=%d min=%dus max=%dus\n",
-                  servoId, pin, minUs, maxUs);
+    DBG_PRINTF("[CMD] SERVO_ATTACH id=%d pin=%d min=%dus max=%dus\n",
+               servoId, pin, minUs, maxUs);
 
     servo_.attach(servoId, pin, minUs, maxUs);
 }
@@ -251,7 +274,7 @@ void CommandHandler::handleServoAttach(JsonVariantConst payload) {
 void CommandHandler::handleServoDetach(JsonVariantConst payload) {
     int servoId = payload["servo_id"] | 0;
 
-    Serial.printf("[CMD] SERVO_DETACH id=%d\n", servoId);
+    DBG_PRINTF("[CMD] SERVO_DETACH id=%d\n", servoId);
     servo_.detach(servoId);
 }
 
@@ -259,8 +282,8 @@ void CommandHandler::handleServoSetAngle(JsonVariantConst payload) {
     int   servoId = payload["servo_id"]  | 0;
     float angle   = payload["angle_deg"] | 0.0f;
 
-    Serial.printf("[CMD] SERVO_SET_ANGLE id=%d angle=%.1f\n",
-                  servoId, angle);
+    DBG_PRINTF("[CMD] SERVO_SET_ANGLE id=%d angle=%.1f\n",
+               servoId, angle);
 
     servo_.setAngle(servoId, angle);
 }
@@ -273,8 +296,8 @@ void CommandHandler::handleStepperMoveRel(JsonVariantConst payload) {
     int   steps        = payload["steps"]         | 0;
     float speedSteps_s = payload["speed_steps_s"] | 1000.0f;
 
-    Serial.printf("[CMD] STEPPER_MOVE_REL motor=%d steps=%d speed=%.1f steps/s\n",
-                  motorId, steps, speedSteps_s);
+    DBG_PRINTF("[CMD] STEPPER_MOVE_REL motor=%d steps=%d speed=%.1f steps/s\n",
+               motorId, steps, speedSteps_s);
 
     stepper_.moveRelative(motorId, steps, speedSteps_s);
 }
@@ -282,7 +305,7 @@ void CommandHandler::handleStepperMoveRel(JsonVariantConst payload) {
 void CommandHandler::handleStepperStop(JsonVariantConst payload) {
     int motorId = payload["motor_id"] | 0;
 
-    Serial.printf("[CMD] STEPPER_STOP motor=%d\n", motorId);
+    DBG_PRINTF("[CMD] STEPPER_STOP motor=%d\n", motorId);
     stepper_.stop(motorId);
 }
 
@@ -298,7 +321,7 @@ void CommandHandler::handleGpioWrite(JsonVariantConst payload) {
         gpio_.write(ch, val);
     }
 
-    DynamicJsonDocument resp(256);
+    JsonDocument resp;
     resp["src"]     = "mcu";
     resp["cmd"]     = "GPIO_WRITE_ACK";
     resp["channel"] = ch;
@@ -313,7 +336,7 @@ void CommandHandler::handleGpioWrite(JsonVariantConst payload) {
     evt.payload.json = out;
     bus_.publish(evt);
 
-    Serial.printf("[GPIO_WRITE] ch=%d val=%d ok=%d\n", ch, val, (int)ok);
+    DBG_PRINTF("[GPIO_WRITE] ch=%d val=%d ok=%d\n", ch, val, (int)ok);
 }
 
 void CommandHandler::handleGpioRead(JsonVariantConst payload) {
@@ -327,11 +350,11 @@ void CommandHandler::handleGpioRead(JsonVariantConst payload) {
 
     bool valOk = (val == 0 || val == 1);
 
-    DynamicJsonDocument resp(256);
+    JsonDocument resp;
     resp["src"]     = "mcu";
     resp["cmd"]     = "GPIO_READ_ACK";
     resp["channel"] = ch;
-    resp["value"]   = val;   // -1 means unknown/error
+    resp["value"]   = val;
     resp["ok"]      = ok && valOk;
 
     std::string out;
@@ -342,7 +365,8 @@ void CommandHandler::handleGpioRead(JsonVariantConst payload) {
     evt.payload.json = out;
     bus_.publish(evt);
 
-    Serial.printf("[GPIO_READ] ch=%d val=%d ok=%d\n", ch, val, (int)(ok && valOk));
+    DBG_PRINTF("[GPIO_READ] ch=%d val=%d ok=%d\n",
+               ch, val, (int)(ok && valOk));
 }
 
 void CommandHandler::handleGpioToggle(JsonVariantConst payload) {
@@ -353,7 +377,7 @@ void CommandHandler::handleGpioToggle(JsonVariantConst payload) {
         gpio_.toggle(ch);
     }
 
-    DynamicJsonDocument resp(256);
+    JsonDocument resp;
     resp["src"]     = "mcu";
     resp["cmd"]     = "GPIO_TOGGLE_ACK";
     resp["channel"] = ch;
@@ -367,17 +391,10 @@ void CommandHandler::handleGpioToggle(JsonVariantConst payload) {
     evt.payload.json = out;
     bus_.publish(evt);
 
-    Serial.printf("[GPIO_TOGGLE] ch=%d ok=%d\n", ch, (int)ok);
+    DBG_PRINTF("[GPIO_TOGGLE] ch=%d ok=%d\n", ch, (int)ok);
 }
 
 void CommandHandler::handleGpioRegisterChannel(JsonVariantConst payload) {
-    // {
-    //   "cmd": "CMD_GPIO_REGISTER_CHANNEL",
-    //   "channel": 0,
-    //   "pin": 2,
-    //   "mode": "output" | "input" | "input_pullup"
-    // }
-
     int         ch      = payload["channel"] | -1;
     int         pin     = payload["pin"]     | -1;
     const char* modeStr = payload["mode"]    | "output";
@@ -394,7 +411,7 @@ void CommandHandler::handleGpioRegisterChannel(JsonVariantConst payload) {
         gpio_.registerChannel(ch, pin, mode);
     }
 
-    DynamicJsonDocument resp(256);
+    JsonDocument resp;
     resp["src"]     = "mcu";
     resp["cmd"]     = "GPIO_REGISTER_CHANNEL_ACK";
     resp["channel"] = ch;
@@ -410,6 +427,6 @@ void CommandHandler::handleGpioRegisterChannel(JsonVariantConst payload) {
     evt.payload.json = out;
     bus_.publish(evt);
 
-    Serial.printf("[GPIO_REGISTER_CHANNEL] ch=%d pin=%d mode=%s ok=%d\n",
-                  ch, pin, modeStr, (int)ok);
+    DBG_PRINTF("[GPIO_REGISTER_CHANNEL] ch=%d pin=%d mode=%s ok=%d\n",
+               ch, pin, modeStr, (int)ok);
 }

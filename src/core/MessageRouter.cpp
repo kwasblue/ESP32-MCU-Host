@@ -1,4 +1,5 @@
 #include "core/MessageRouter.h"
+#include "core/Debug.h"   // <-- add this
 
 MessageRouter* MessageRouter::s_instance = nullptr;
 
@@ -92,12 +93,12 @@ void MessageRouter::onEvent(const Event& evt) {
     case EventType::JSON_MESSAGE_TX: {
         const std::string& json = evt.payload.json;
         if (json.empty()) {
-            Serial.println("[Router] JSON_MESSAGE_TX with empty payload");
+            DBG_PRINTLN("[Router] JSON_MESSAGE_TX with empty payload");
             return;
         }
 
-        Serial.printf("[Router] TX JSON (%u bytes): %s\n",
-                      (unsigned)json.size(), json.c_str());
+        DBG_PRINTF("[Router] TX JSON (%u bytes): %s\n",
+                   (unsigned)json.size(), json.c_str());
 
         // Encode as CMD_JSON frame: [MsgType::CMD_JSON][json bytes...]
         txBuffer_.clear();
@@ -111,7 +112,7 @@ void MessageRouter::onEvent(const Event& evt) {
         if (!txBuffer_.empty()) {
             transport_.sendBytes(txBuffer_.data(), txBuffer_.size());
         } else {
-            Serial.println("[Router] encode() produced empty buffer");
+            DBG_PRINTLN("[Router] encode() produced empty buffer");
         }
         break;
     }

@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <ESP32Servo.h>
+#include "core/Debug.h"   // <-- add this
 
 class ServoManager {
 public:
@@ -8,8 +9,8 @@ public:
 
     void attach(int servoId, int pin, int minUs = 500, int maxUs = 2400) {
         if (servoId != 0) {
-            Serial.printf("[ServoManager] attach: unsupported servoId=%d (only 0 allowed)\n",
-                          servoId);
+            DBG_PRINTF("[ServoManager] attach: unsupported servoId=%d (only 0 allowed)\n",
+                       servoId);
             return;
         }
 
@@ -17,16 +18,16 @@ public:
         minUs_ = minUs;
         maxUs_ = maxUs;
 
-        Serial.printf("[ServoManager] attach id=%d pin=%d min=%d max=%d\n",
-                      servoId, pin, minUs, maxUs);
+        DBG_PRINTF("[ServoManager] attach id=%d pin=%d min=%d max=%d\n",
+                   servoId, pin, minUs, maxUs);
 
-        // IMPORTANT: no setPeriodHertz() here – it’s optional and was breaking your program.
+        // IMPORTANT: no setPeriodHertz() here – it was breaking your program.
         int ch = servo_.attach(pin, minUs, maxUs);
-        Serial.printf("[ServoManager] attach returned channel=%d\n", ch);
+        DBG_PRINTF("[ServoManager] attach returned channel=%d\n", ch);
 
         attached_ = (ch >= 0);
         if (!attached_) {
-            Serial.println("[ServoManager] attach FAILED");
+            DBG_PRINTLN("[ServoManager] attach FAILED");
         }
     }
 
@@ -34,7 +35,8 @@ public:
         if (servoId != 0) return;
         if (!attached_)  return;
 
-        Serial.printf("[ServoManager] detach id=%d\n", servoId);
+        DBG_PRINTF("[ServoManager] detach id=%d\n", servoId);
+
         servo_.detach();
         attached_ = false;
         pin_ = -1;
@@ -43,27 +45,26 @@ public:
     void setAngle(int servoId, float angleDeg) {
         if (servoId != 0) return;
         if (!attached_) {
-            Serial.println("[ServoManager] setAngle ignored, not attached");
+            DBG_PRINTLN("[ServoManager] setAngle ignored, not attached");
             return;
         }
 
-        // Optional logical calibration
         float logical = angleDeg;
 
-        // Apply offset/scale if you want:
+        // logicalAngle → internal = offset + scale * angle
         logical = offsetDeg_ + scale_ * logical;
 
-        // Clamp to [0, 180] for the servo library
+        // Clamp for servo library [0, 180]
         if (logical < 0.0f)   logical = 0.0f;
         if (logical > 180.0f) logical = 180.0f;
 
-        Serial.printf("[ServoManager] setAngle id=%d cmd=%.1f internal=%.1f on pin=%d\n",
-                      servoId, angleDeg, logical, pin_);
+        DBG_PRINTF("[ServoManager] setAngle id=%d cmd=%.1f internal=%.1f on pin=%d\n",
+                   servoId, angleDeg, logical, pin_);
 
         servo_.write(logical);
     }
 
-    // If you want to tweak behavior at runtime later:
+    // Optional calibration APIs
     void setOffset(float offsetDeg) { offsetDeg_ = offsetDeg; }
     void setScale(float scale)      { scale_ = scale; }
 
@@ -74,7 +75,6 @@ private:
     int   minUs_    = 500;
     int   maxUs_    = 2400;
 
-    // logicalAngle → internalAngle = offsetDeg_ + scale_ * logicalAngle
     float offsetDeg_ = 0.0f;
-    float scale_     = 1.0f; 
+    float scale_     = 1.0f;
 };

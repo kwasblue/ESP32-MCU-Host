@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "core/Debug.h"   // <-- add this (adjust path if needed)
 
 class DcMotorManager {
 public:
@@ -20,7 +21,7 @@ public:
     bool attach(uint8_t id, int in1Pin, int in2Pin, int pwmPin,
                 int pwmChannel, int freq = 20000, int resolutionBits = 8) {
         if (id >= MAX_MOTORS) {
-            Serial.printf("[DcMotorManager] attach failed, id=%u out of range\n", id);
+            DBG_PRINTF("[DcMotorManager] attach failed, id=%u out of range\n", id);
             return false;
         }
 
@@ -40,7 +41,7 @@ public:
         motors_[id].attached  = true;
         motors_[id].lastSpeed = 0.0f;
 
-        Serial.printf(
+        DBG_PRINTF(
             "[DcMotorManager] attach id=%u in1=%d in2=%d pwm=%d ch=%d\n",
             id, in1Pin, in2Pin, pwmPin, pwmChannel
         );
@@ -54,7 +55,7 @@ public:
     // speed: -1.0 (full reverse) .. 0 .. +1.0 (full forward)
     bool setSpeed(uint8_t id, float speed) {
         if (id >= MAX_MOTORS || !motors_[id].attached) {
-            Serial.printf("[DcMotorManager] setSpeed ignored, id=%u not attached\n", id);
+            DBG_PRINTF("[DcMotorManager] setSpeed ignored, id=%u not attached\n", id);
             return false;
         }
 
@@ -80,7 +81,7 @@ public:
         }
 
         ledcWrite(m.pwmChan, duty);
-        Serial.printf("[DcMotorManager] id=%u speed=%.2f duty=%d\n", id, speed, duty);
+        DBG_PRINTF("[DcMotorManager] id=%u speed=%.2f duty=%d\n", id, speed, duty);
         return true;
     }
 

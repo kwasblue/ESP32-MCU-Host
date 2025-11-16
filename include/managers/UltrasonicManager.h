@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "core/Debug.h"   // <-- add this
 
 class UltrasonicManager {
 public:
@@ -16,7 +17,7 @@ public:
 
     bool attach(uint8_t id, int trigPin, int echoPin) {
         if (id >= MAX_SENSORS) {
-            Serial.printf("[UltrasonicManager] attach failed, id=%u out of range\n", id);
+            DBG_PRINTF("[UltrasonicManager] attach failed, id=%u out of range\n", id);
             return false;
         }
 
@@ -27,10 +28,9 @@ public:
         sensors_[id].echoPin  = echoPin;
         sensors_[id].attached = true;
 
-        Serial.printf(
-            "[UltrasonicManager] attach id=%u trig=%d echo=%d\n",
-            id, trigPin, echoPin
-        );
+        DBG_PRINTF("[UltrasonicManager] attach id=%u trig=%d echo=%d\n",
+                   id, trigPin, echoPin);
+
         return true;
     }
 
@@ -41,7 +41,7 @@ public:
     // Returns distance (cm), or negative on error/timeout
     float readDistanceCm(uint8_t id) {
         if (id >= MAX_SENSORS || !sensors_[id].attached) {
-            Serial.printf("[UltrasonicManager] read ignored, id=%u not attached\n", id);
+            DBG_PRINTF("[UltrasonicManager] read ignored, id=%u not attached\n", id);
             return -1.0f;
         }
 
@@ -58,12 +58,15 @@ public:
         unsigned long duration = pulseIn(s.echoPin, HIGH, 30000);
 
         if (duration == 0) {
-            // timeout / no echo
+            DBG_PRINTF("[UltrasonicManager] id=%u timeout/no echo\n", id);
             return -1.0f;
         }
 
         // Speed of sound ≈ 0.0343 cm/µs; divide by 2 (round trip)
         float distance = (duration * 0.0343f) / 2.0f;
+
+        DBG_PRINTF("[UltrasonicManager] id=%u distance=%.2f cm\n", id, distance);
+
         return distance;
     }
 

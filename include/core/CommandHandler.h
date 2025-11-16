@@ -57,6 +57,9 @@ public:
 
     void handleStepperMoveRel(JsonVariantConst payload);
     void handleStepperStop(JsonVariantConst payload);
+    
+    // Log handling 
+    void handleSetLogLevel(JsonVariantConst payload);
 
 private:
     EventBus&         bus_;
@@ -77,4 +80,6 @@ private:
 
     // Instance method that does the actual work:
     void handleEvent(const Event& evt);
+    
+
 };
