@@ -76,5 +76,5 @@ private:
 
     // logicalAngle → internalAngle = offsetDeg_ + scale_ * logicalAngle
     float offsetDeg_ = 0.0f;
-    float scale_     = 2.0f; // scaled 2x because for some reason the commands only go to half
+    float scale_     = 1.0f; 
 };

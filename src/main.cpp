@@ -163,6 +163,9 @@ void setup() {
     Serial.begin(115200);
     delay(500);
     Serial.println("\n[MCU] Booting with UART1 + WiFi (AP+STA)...");
+    g_servoManager.setScale(2.0f);   // if needed
+    g_servoManager.setOffset(0.0f);  // tweak if you want to shift everything
+    
 
     // 2) UART1 for protocol (binary frames on pins)
     SerialPort.begin(

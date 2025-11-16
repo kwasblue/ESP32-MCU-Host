@@ -12,6 +12,8 @@
 #include "managers/PwmManager.h"
 #include "managers/ServoManager.h"
 #include "managers/StepperManager.h"
+#include "managers/UltrasonicManager.h"
+
 
 // Bring just this type into scope for this header
 using ArduinoJson::JsonVariantConst;
@@ -29,7 +31,8 @@ public:
                    GpioManager&      gpio,
                    PwmManager&       pwm,
                    ServoManager&     servo,
-                   StepperManager&   stepper);
+                   StepperManager&   stepper,
+                   UltrasonicManager& ultrasonic);
 
     // Call this once in setup() to attach to the EventBus
     void setup();
@@ -64,6 +67,7 @@ private:
     PwmManager&       pwm_;
     ServoManager&     servo_;
     StepperManager&   stepper_;
+    UltrasonicManager& ultrasonic_;
 
     // === Static trampoline for EventBus ===
     // Single global instance (g_commandHandler) registers itself here.
