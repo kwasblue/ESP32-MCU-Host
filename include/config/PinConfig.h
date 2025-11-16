@@ -6,6 +6,7 @@
 
 namespace Pins {
     constexpr uint8_t LED_STATUS = 2;
+    constexpr uint8_t SERVO1_SIG = 18;
     constexpr uint8_t UART1_RX = 16;
     constexpr uint8_t UART1_TX = 17;
 } // namespace Pins

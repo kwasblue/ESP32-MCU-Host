@@ -203,14 +203,29 @@ void CommandHandler::handlePwmSet(JsonVariantConst payload) {
 
 void CommandHandler::handleServoAttach(JsonVariantConst payload) {
     int servoId  = payload["servo_id"] | 0;
-    int channel  = payload["channel"]  | 0;
     int minUs    = payload["min_us"]   | 1000;
     int maxUs    = payload["max_us"]   | 2000;
 
-    Serial.printf("[CMD] SERVO_ATTACH id=%d ch=%d min=%dus max=%dus\n",
-                  servoId, channel, minUs, maxUs);
+    // Map servoId -> actual GPIO pin from Pins::
+    uint8_t pin = 0;
+    switch (servoId) {
+        case 0:
+            pin = Pins::SERVO1_SIG;   // <-- this is 18 from your PinConfig.h
+            break;
 
-    servo_.attach(servoId, channel, minUs, maxUs);
+        // later you can add:
+        // case 1: pin = Pins::SERVO2_SIG; break;
+        // case 2: pin = Pins::SERVO3_SIG; break;
+        default:
+            Serial.printf("[CMD] SERVO_ATTACH: unknown servoId=%d\n", servoId);
+            return;
+    }
+
+    Serial.printf("[CMD] SERVO_ATTACH id=%d pin=%d min=%dus max=%dus\n",
+                  servoId, pin, minUs, maxUs);
+
+    // NOTE: second argument is now *pin*, not "channel 0"
+    servo_.attach(servoId, pin, minUs, maxUs);
 }
 
 void CommandHandler::handleServoDetach(JsonVariantConst payload) {
