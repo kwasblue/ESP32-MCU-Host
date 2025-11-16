@@ -8,6 +8,7 @@ enum class EventType : uint8_t {
     PONG,
     WHOMAI_REQUEST,
     JSON_MESSAGE_RX,
+    JSON_MESSAGE_TX,
 };
 
 struct EventPayload {

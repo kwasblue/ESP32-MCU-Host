@@ -12,15 +12,9 @@
 #include "managers/PwmManager.h"
 #include "managers/ServoManager.h"
 #include "managers/StepperManager.h"
-#include "managers/UltrasonicManager.h"
-
 
 // Bring just this type into scope for this header
 using ArduinoJson::JsonVariantConst;
-
-// Forward declaration is optional here because EventBus.h already includes Event.h.
-// But it's fine to be explicit:
-// struct Event;
 
 class CommandHandler {
 public:
@@ -31,16 +25,15 @@ public:
                    GpioManager&      gpio,
                    PwmManager&       pwm,
                    ServoManager&     servo,
-                   StepperManager&   stepper,
-                   UltrasonicManager& ultrasonic);
+                   StepperManager&   stepper);
 
     // Call this once in setup() to attach to the EventBus
     void setup();
 
-    // raw JSON string from MessageRouter
+    // Raw JSON string from MessageRouter
     void onJsonCommand(const std::string& jsonStr);
 
-    // === Handlers ===
+    // === Core robot behavior handlers ===
     void handleSetMode(JsonVariantConst payload);
     void handleSetVel(JsonVariantConst payload);
     void handleStop();
@@ -49,11 +42,19 @@ public:
     void handleLedOn();
     void handleLedOff();
 
+    // === GPIO handlers ===
     void handleGpioWrite(JsonVariantConst payload);
+    void handleGpioRead(JsonVariantConst payload);
+    void handleGpioToggle(JsonVariantConst payload);
+    void handleGpioRegisterChannel(JsonVariantConst payload);
+
+    // === PWM / Servo / Stepper handlers ===
     void handlePwmSet(JsonVariantConst payload);
+
     void handleServoAttach(JsonVariantConst payload);
     void handleServoDetach(JsonVariantConst payload);
     void handleServoSetAngle(JsonVariantConst payload);
+
     void handleStepperMoveRel(JsonVariantConst payload);
     void handleStepperStop(JsonVariantConst payload);
 
@@ -67,10 +68,8 @@ private:
     PwmManager&       pwm_;
     ServoManager&     servo_;
     StepperManager&   stepper_;
-    UltrasonicManager& ultrasonic_;
 
     // === Static trampoline for EventBus ===
-    // Single global instance (g_commandHandler) registers itself here.
     static CommandHandler* s_instance;
 
     // Function-pointer handler that EventBus will call:
@@ -79,4 +78,3 @@ private:
     // Instance method that does the actual work:
     void handleEvent(const Event& evt);
 };
-

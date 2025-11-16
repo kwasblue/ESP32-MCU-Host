@@ -1,23 +1,65 @@
 #pragma once
 #include <Arduino.h>
-#include <map>
 
 class GpioManager {
 public:
-    void registerChannel(int ch, int pin) {
-        pinMode(pin, OUTPUT);
-        channelToPin_[ch] = pin;
+    static constexpr int MAX_CHANNELS = 16;   // bump if you need more
+
+    GpioManager() {
+        for (int i = 0; i < MAX_CHANNELS; ++i) {
+            pinForChannel_[i] = -1;
+        }
+    }
+
+    void registerChannel(int ch, int pin, int mode = OUTPUT) {
+        if (ch < 0 || ch >= MAX_CHANNELS) {
+            Serial.printf("[GPIO] registerChannel: invalid ch=%d (max=%d)\n",
+                          ch, MAX_CHANNELS - 1);
+            return;
+        }
+
+        Serial.printf("[GPIO] registerChannel: ch=%d pin=%d mode=%d\n",
+                      ch, pin, mode);
+
+        pinMode(pin, mode);
+        pinForChannel_[ch] = static_cast<int8_t>(pin);
+    }
+
+    bool hasChannel(int ch) const {
+        if (ch < 0 || ch >= MAX_CHANNELS) {
+            return false;
+        }
+        return pinForChannel_[ch] != -1;
     }
 
     void write(int ch, int value) {
-        auto it = channelToPin_.find(ch);
-        if (it == channelToPin_.end()) {
-            Serial.printf("[GPIO] Unknown channel %d\n", ch);
+        if (!hasChannel(ch)) {
+            Serial.printf("[GPIO] write: Unknown channel %d\n", ch);
             return;
         }
-        digitalWrite(it->second, value ? HIGH : LOW);
+        uint8_t pin = static_cast<uint8_t>(pinForChannel_[ch]);
+        digitalWrite(pin, value ? HIGH : LOW);
+    }
+
+    int read(int ch) const {
+        if (!hasChannel(ch)) {
+            Serial.printf("[GPIO] read: Unknown channel %d\n", ch);
+            return -1; // sentinel for "unknown"
+        }
+        uint8_t pin = static_cast<uint8_t>(pinForChannel_[ch]);
+        return digitalRead(pin);
+    }
+
+    void toggle(int ch) {
+        if (!hasChannel(ch)) {
+            Serial.printf("[GPIO] toggle: Unknown channel %d\n", ch);
+            return;
+        }
+        uint8_t pin = static_cast<uint8_t>(pinForChannel_[ch]);
+        int current = digitalRead(pin);
+        digitalWrite(pin, current == HIGH ? LOW : HIGH);
     }
 
 private:
-    std::map<int,int> channelToPin_;
+    int8_t pinForChannel_[MAX_CHANNELS];
 };

@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE — DO NOT EDIT BY HAND
-// Generated from COMMANDS in gen_commands.py
+// Generated from COMMANDS in platform_schema.py
 
 #pragma once
 #include <string>
@@ -7,6 +7,9 @@
 enum class CmdType {
     CLEAR_ESTOP,
     ESTOP,
+    GPIO_READ,
+    GPIO_REGISTER_CHANNEL,
+    GPIO_TOGGLE,
     GPIO_WRITE,
     LED_OFF,
     LED_ON,
@@ -25,6 +28,9 @@ enum class CmdType {
 inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_CLEAR_ESTOP") return CmdType::CLEAR_ESTOP;
     if (s == "CMD_ESTOP") return CmdType::ESTOP;
+    if (s == "CMD_GPIO_READ") return CmdType::GPIO_READ;
+    if (s == "CMD_GPIO_REGISTER_CHANNEL") return CmdType::GPIO_REGISTER_CHANNEL;
+    if (s == "CMD_GPIO_TOGGLE") return CmdType::GPIO_TOGGLE;
     if (s == "CMD_GPIO_WRITE") return CmdType::GPIO_WRITE;
     if (s == "CMD_LED_OFF") return CmdType::LED_OFF;
     if (s == "CMD_LED_ON") return CmdType::LED_ON;
@@ -44,6 +50,9 @@ inline const char* cmdTypeToString(CmdType c) {
     switch (c) {
         case CmdType::CLEAR_ESTOP: return "CMD_CLEAR_ESTOP";
         case CmdType::ESTOP: return "CMD_ESTOP";
+        case CmdType::GPIO_READ: return "CMD_GPIO_READ";
+        case CmdType::GPIO_REGISTER_CHANNEL: return "CMD_GPIO_REGISTER_CHANNEL";
+        case CmdType::GPIO_TOGGLE: return "CMD_GPIO_TOGGLE";
         case CmdType::GPIO_WRITE: return "CMD_GPIO_WRITE";
         case CmdType::LED_OFF: return "CMD_LED_OFF";
         case CmdType::LED_ON: return "CMD_LED_ON";

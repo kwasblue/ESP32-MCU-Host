@@ -23,9 +23,9 @@ public:
         pinMode(trigPin, OUTPUT);
         pinMode(echoPin, INPUT);
 
-        sensors_[id].trigPin   = trigPin;
-        sensors_[id].echoPin   = echoPin;
-        sensors_[id].attached  = true;
+        sensors_[id].trigPin  = trigPin;
+        sensors_[id].echoPin  = echoPin;
+        sensors_[id].attached = true;
 
         Serial.printf(
             "[UltrasonicManager] attach id=%u trig=%d echo=%d\n",
@@ -38,7 +38,7 @@ public:
         return (id < MAX_SENSORS) && sensors_[id].attached;
     }
 
-    // Returns distance in cm, or negative on error
+    // Returns distance (cm), or negative on error/timeout
     float readDistanceCm(uint8_t id) {
         if (id >= MAX_SENSORS || !sensors_[id].attached) {
             Serial.printf("[UltrasonicManager] read ignored, id=%u not attached\n", id);
@@ -54,16 +54,17 @@ public:
         delayMicroseconds(10);
         digitalWrite(s.trigPin, LOW);
 
-        // Measure echo
-        unsigned long duration = pulseIn(s.echoPin, HIGH, 30000); // 30ms timeout
+        // Measure echo (timeout ~30ms)
+        unsigned long duration = pulseIn(s.echoPin, HIGH, 30000);
 
         if (duration == 0) {
-            // timeout
+            // timeout / no echo
             return -1.0f;
         }
 
-        float distanceCm = (duration * 0.0343f) / 2.0f;
-        return distanceCm;
+        // Speed of sound ≈ 0.0343 cm/µs; divide by 2 (round trip)
+        float distance = (duration * 0.0343f) / 2.0f;
+        return distance;
     }
 
 private:

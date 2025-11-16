@@ -22,6 +22,7 @@
 #include "managers/PwmManager.h"
 #include "managers/ServoManager.h"
 #include "managers/StepperManager.h"
+#include "config/GpioChannelDefs.h"
 
 // Optional fallback defaults if WifiSecrets.h isn't set up yet
 #ifndef WIFI_STA_SSID
@@ -186,7 +187,7 @@ void setup() {
     g_multiTransport.addTransport(&g_wifi);
     g_multiTransport.addTransport(&g_ble);
 
-    // CommandHandler subscribes to JSON_MESSAGE_RX
+    // CommandHandler subscribes to JSON_MESSAGE_RX 
     g_commandHandler.setup();
 
     // Router sets frame handler and begins transports
@@ -207,9 +208,19 @@ void setup() {
 
     Serial.println("[MCU] Setup complete.");
 
-    // Hardware stuff
+    // Hardware stuff initial state
     pinMode(Pins::LED_STATUS, OUTPUT);
     digitalWrite(Pins::LED_STATUS, LOW);
+
+
+    // === GPIO logical channel mappings ===
+    for (size_t i = 0; i < GPIO_CHANNEL_COUNT; ++i) {
+        const auto& def = GPIO_CHANNEL_DEFS[i];
+        g_gpioManager.registerChannel(def.channel, def.pin, def.mode);
+    }
+    
+    // g_gpioManager.registerChannel(1, Pins::ULTRASONIC_TRIG, OUTPUT);
+    // g_gpioManager.registerChannel(2, Pins::ULTRASONIC_ECHO, INPUT);
 }
 
 void loop() {

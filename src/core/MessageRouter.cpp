@@ -85,9 +85,39 @@ void MessageRouter::onFrame(const uint8_t* frame, size_t len) {
 void MessageRouter::onEvent(const Event& evt) {
     switch (evt.type) {
     case EventType::HEARTBEAT:
+        // Simple “no payload” heartbeat frame
         sendSimple(Protocol::MSG_HEARTBEAT);
         break;
+
+    case EventType::JSON_MESSAGE_TX: {
+        const std::string& json = evt.payload.json;
+        if (json.empty()) {
+            Serial.println("[Router] JSON_MESSAGE_TX with empty payload");
+            return;
+        }
+
+        Serial.printf("[Router] TX JSON (%u bytes): %s\n",
+                      (unsigned)json.size(), json.c_str());
+
+        // Encode as CMD_JSON frame: [MsgType::CMD_JSON][json bytes...]
+        txBuffer_.clear();
+        Protocol::encode(
+            static_cast<uint8_t>(MsgType::CMD_JSON),
+            reinterpret_cast<const uint8_t*>(json.data()),
+            json.size(),
+            txBuffer_
+        );
+
+        if (!txBuffer_.empty()) {
+            transport_.sendBytes(txBuffer_.data(), txBuffer_.size());
+        } else {
+            Serial.println("[Router] encode() produced empty buffer");
+        }
+        break;
+    }
+
     default:
+        // ignore all other events
         break;
     }
 }
