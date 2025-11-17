@@ -279,13 +279,26 @@ void CommandHandler::handleServoDetach(JsonVariantConst payload) {
 }
 
 void CommandHandler::handleServoSetAngle(JsonVariantConst payload) {
+    // Safety gate (good to keep this)
+    if (!mode_.canMove() || safety_.isEstopActive()) {
+        DBG_PRINTLN("[CMD] SERVO_SET_ANGLE blocked by mode or ESTOP");
+        return;
+    }
+
     int   servoId = payload["servo_id"]  | 0;
     float angle   = payload["angle_deg"] | 0.0f;
+    int   durMs   = payload["duration_ms"] | 0;  // 0 = immediate
 
-    DBG_PRINTF("[CMD] SERVO_SET_ANGLE id=%d angle=%.1f\n",
-               servoId, angle);
+    DBG_PRINTF("[CMD] SERVO_SET_ANGLE id=%d angle=%.1f dur=%d ms\n",
+               servoId, angle, durMs);
 
-    servo_.setAngle(servoId, angle);
+    if (durMs <= 0) {
+        // Immediate move via ServoManager
+        servo_.setAngle(servoId, angle);
+    } else {
+        // Smooth/interpolated motion via MotionController
+        motion_.setServoTarget(servoId, angle, durMs);
+    }
 }
 
 // -----------------------------------------------------------------------------

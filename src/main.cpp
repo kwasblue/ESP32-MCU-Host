@@ -22,6 +22,7 @@
 #include "managers/PwmManager.h"
 #include "managers/ServoManager.h"
 #include "managers/StepperManager.h"
+#include "managers/DcMotorManager.h"
 #include "config/GpioChannelDefs.h"
 
 // Optional fallback defaults if WifiSecrets.h isn't set up yet
@@ -39,34 +40,47 @@ const char* AP_PASS  = "robotpass";
 
 // === Globals ===
 
-// Core bus + managers
-EventBus         g_bus;
-ModeManager      g_modeManager;
-MotionController g_motionController;
-SafetyManager    g_safetyManager;
-
-// Transports
-MultiTransport   g_multiTransport;
-
-// Dedicated UART1 for protocol
-HardwareSerial   SerialPort(1);              // UART1
-UartTransport    g_uart(SerialPort, 115200); // protocol over UART1 pins
-
-WifiTransport    g_wifi(3333);               // TCP port
-BleTransport     g_ble("ESP32-SPP");
-
-// Router + host
-MessageRouter    g_router(g_bus, g_multiTransport);
-MCUHost          g_host(g_bus, &g_router);
+// Core bus + mode/safety
+EventBus      g_bus;
+ModeManager   g_modeManager;
+SafetyManager g_safetyManager;
 
 // Hardware managers
+DcMotorManager g_dcMotorManager;
 GpioManager    g_gpioManager;
 PwmManager     g_pwmManager;
 ServoManager   g_servoManager;
 StepperManager g_stepperManager;
 
+// Motion controller (diff drive + servo interpolation)
+// NOTE: we assume diff drive with motors 0 and 1.
+// You can tune wheelBase/maxLinear/maxAngular to your robot.
+MotionController g_motionController(
+    g_dcMotorManager,
+    /*leftMotorId=*/0,
+    /*rightMotorId=*/1,
+    /*wheelBase=*/0.25f,   // meters (TODO: set your real wheelbase)
+    /*maxLinear=*/0.5f,    // max body vx [m/s]
+    /*maxAngular=*/2.0f,   // max body omega [rad/s]
+    &g_servoManager        // ServoManager is optional; you can pass nullptr
+);
+
+// Transports
+MultiTransport g_multiTransport;
+
+// Dedicated UART1 for protocol
+HardwareSerial SerialPort(1);               // UART1
+UartTransport  g_uart(SerialPort, 115200);  // protocol over UART1
+
+WifiTransport  g_wifi(3333);                // TCP port
+BleTransport   g_ble("ESP32-SPP");
+
+// Router + host
+MessageRouter g_router(g_bus, g_multiTransport);
+MCUHost       g_host(g_bus, &g_router);
+
 // Command handler (JSON → mode/motion/safety/IO)
-CommandHandler   g_commandHandler(
+CommandHandler g_commandHandler(
     g_bus,
     g_modeManager,
     g_motionController,
@@ -78,11 +92,11 @@ CommandHandler   g_commandHandler(
 );
 
 // Modules
-HeartbeatModule  g_heartbeat(g_bus);
-LoggingModule    g_logger(g_bus);
-IdentityModule   g_identity(g_bus, g_multiTransport, "ESP32-bot");
+HeartbeatModule g_heartbeat(g_bus);
+LoggingModule   g_logger(g_bus);
+IdentityModule  g_identity(g_bus, g_multiTransport, "ESP32-bot");
 
-// For periodic debug printing
+// For periodic debug printing if you want later
 uint32_t g_lastIpPrintMs = 0;
 
 // === WiFi setup: AP + STA mode ===
@@ -164,16 +178,17 @@ void setup() {
     Serial.begin(115200);
     delay(500);
     Serial.println("\n[MCU] Booting with UART1 + WiFi (AP+STA)...");
-    g_servoManager.setScale(2.0f);   // if needed
-    g_servoManager.setOffset(0.0f);  // tweak if you want to shift everything
-    
+
+    // Servo calibration defaults (no attach yet; that can be done via SERVO_ATTACH)
+    g_servoManager.setScale(2.0f);
+    g_servoManager.setOffset(0.0f);
 
     // 2) UART1 for protocol (binary frames on pins)
     SerialPort.begin(
         115200,
         SERIAL_8N1,
-        Pins::UART1_RX,   // RX pin from pins.json
-        Pins::UART1_TX    // TX pin from pins.json
+        Pins::UART1_RX,   // RX pin from PinConfig
+        Pins::UART1_TX    // TX pin from PinConfig
     );
 
     // Bring up WiFi in dual mode (STA + AP)
@@ -206,31 +221,49 @@ void setup() {
     // Setup host (modules, timers, etc.)
     g_host.setup();
 
-    Serial.println("[MCU] Setup complete.");
-
     // Hardware stuff initial state
     pinMode(Pins::LED_STATUS, OUTPUT);
     digitalWrite(Pins::LED_STATUS, LOW);
-
 
     // === GPIO logical channel mappings ===
     for (size_t i = 0; i < GPIO_CHANNEL_COUNT; ++i) {
         const auto& def = GPIO_CHANNEL_DEFS[i];
         g_gpioManager.registerChannel(def.channel, def.pin, def.mode);
     }
-    
-    // g_gpioManager.registerChannel(1, Pins::ULTRASONIC_TRIG, OUTPUT);
-    // g_gpioManager.registerChannel(2, Pins::ULTRASONIC_ECHO, INPUT);
+
+    // === DC motor attach (optional; uncomment when Pins are defined) ===
+    // g_dcMotorManager.attach(
+    //     0,
+    //     Pins::MOTOR_LEFT_IN1,
+    //     Pins::MOTOR_LEFT_IN2,
+    //     Pins::MOTOR_LEFT_PWM,
+    //     /*pwmChannel=*/0
+    // );
+    // g_dcMotorManager.attach(
+    //     1,
+    //     Pins::MOTOR_RIGHT_IN1,
+    //     Pins::MOTOR_RIGHT_IN2,
+    //     Pins::MOTOR_RIGHT_PWM,
+    //     /*pwmChannel=*/1
+    // );
+
+    Serial.println("[MCU] Setup complete.");
 }
 
 void loop() {
+    static uint32_t last_ms = millis();
     uint32_t now_ms = millis();
+    float dt = (now_ms - last_ms) / 1000.0f;
+    last_ms = now_ms;
 
     // Handle OTA updates
     ArduinoOTA.handle();
 
     // Let host run its modules and router loop
     g_host.loop(now_ms);
+
+    // Run motion control (diff-drive + servo interpolation)
+    g_motionController.update(dt);
 
     delay(1);
 }
