@@ -8,3 +8,18 @@
 include/config/WifiSecrets.h
 
 partitions_ota_big.csv
+
+# ---- PlatformIO build folders ----
+.pio/
+.pioenvs/
+.piolibdeps/
+.pio/build/
+.pio/libdeps/
+.pio/test/
+.clang_complete
+.gcc-flags.json
+
+# ---- MCU auto-generated ----
+PlatformIO/Projects/ESP32 MCU Host/include/config/PinConfig.h
+PlatformIO/Projects/ESP32 MCU Host/include/config/CommandDefs.h
+PlatformIO/Projects/ESP32 MCU Host/include/config/GpioChannelDefs.h
