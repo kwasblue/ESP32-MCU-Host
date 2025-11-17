@@ -7,7 +7,7 @@ class ServoManager {
 public:
     ServoManager() = default;
 
-    void attach(int servoId, int pin, int minUs = 500, int maxUs = 2400) {
+    void attach(int servoId, int pin, int minUs = 500, int maxUs = 2500) {
         if (servoId != 0) {
             DBG_PRINTF("[ServoManager] attach: unsupported servoId=%d (only 0 allowed)\n",
                        servoId);

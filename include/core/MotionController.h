@@ -65,10 +65,10 @@ private:
     float maxAngAccel_ = 2.0f;  // rad/s^2
 
     // === Servo motion state ===
-    float    servoCurrent_[MAX_SERVOS];    // last commanded angle
-    float    servoStart_[MAX_SERVOS];      // start of trajectory
-    float    servoTarget_[MAX_SERVOS];     // target angle
-    uint32_t servoStartMs_[MAX_SERVOS];    // start time [ms]
-    uint32_t servoDurationMs_[MAX_SERVOS]; // total move duration [ms]
-    bool     servoActive_[MAX_SERVOS];     // trajectory active?
+    float    servoCurrent_[ESP_MAX_SERVOS];    // last commanded angle
+    float    servoStart_[ESP_MAX_SERVOS];      // start of trajectory
+    float    servoTarget_[ESP_MAX_SERVOS];     // target angle
+    uint32_t servoStartMs_[ESP_MAX_SERVOS];    // start time [ms]
+    uint32_t servoDurationMs_[ESP_MAX_SERVOS]; // total move duration [ms]
+    bool     servoActive_[ESP_MAX_SERVOS];     // trajectory active?
 };
