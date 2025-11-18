@@ -70,7 +70,7 @@ MultiTransport g_multiTransport;
 
 // Dedicated UART1 for protocol
 HardwareSerial SerialPort(1);               // UART1
-UartTransport  g_uart(SerialPort, 115200);  // protocol over UART1
+UartTransport  g_uart(Serial, 115200);  // protocol over UART1
 
 WifiTransport  g_wifi(3333);                // TCP port
 BleTransport   g_ble("ESP32-SPP");
@@ -180,8 +180,8 @@ void setup() {
     Serial.println("\n[MCU] Booting with UART1 + WiFi (AP+STA)...");
 
     // Servo calibration defaults (no attach yet; that can be done via SERVO_ATTACH)
-    g_servoManager.setScale(2.0f);
-    g_servoManager.setOffset(0.0f);
+    //g_servoManager.setScale(1.0f); // adjust scale of movement not sure if i really want this feature
+    //g_servoManager.setOffset(0.0f);
 
     // 2) UART1 for protocol (binary frames on pins)
     SerialPort.begin(

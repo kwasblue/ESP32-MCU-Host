@@ -1,7 +1,5 @@
 // src/core/MotionController.cpp
 #include "core/MotionController.h"
-
-// If you use Debug macros, you can include Debug.h, otherwise ignore
 #include "core/Debug.h"
 
 MotionController::MotionController(DcMotorManager& motors,
@@ -19,7 +17,7 @@ MotionController::MotionController(DcMotorManager& motors,
       maxLinear_(maxLinear),
       maxAngular_(maxAngular) {
     // init servo state
-    for (uint8_t i = 0; i < MAX_SERVOS; ++i) {
+    for (uint8_t i = 0; i < ESP_MAX_SERVOS; ++i) {
         servoCurrent_[i]    = 0.0f;
         servoStart_[i]      = 0.0f;
         servoTarget_[i]     = 0.0f;
