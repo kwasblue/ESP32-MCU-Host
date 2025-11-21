@@ -40,6 +40,9 @@ enum class MsgKind {
     EVENT,
     RESP,
     ERROR,
+    STEPPER_MOVE_REL,
+    STEPPER_STOP,
+    STEPPER_ENABLE,
     UNKNOWN
 };
 

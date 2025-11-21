@@ -11,6 +11,7 @@
 #include "core/Debug.h"   // debug macros
 #include "managers/UltrasonicManager.h"
 #include "modules/TelemetryModule.h"
+#include "managers/StepperManager.h"
 
 
 using namespace ArduinoJson;
@@ -316,7 +317,16 @@ void CommandHandler::handleServoSetAngle(JsonVariantConst payload) {
 // -----------------------------------------------------------------------------
 // Stepper
 // -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Stepper
+// -----------------------------------------------------------------------------
 void CommandHandler::handleStepperMoveRel(JsonVariantConst payload) {
+    // Safety gate (same pattern as SET_VEL / SERVO_SET_ANGLE)
+    if (!mode_.canMove() || safety_.isEstopActive()) {
+        DBG_PRINTLN("[CMD] STEPPER_MOVE_REL blocked by mode or ESTOP");
+        return;
+    }
+
     int   motorId      = payload["motor_id"]      | 0;
     int   steps        = payload["steps"]         | 0;
     float speedSteps_s = payload["speed_steps_s"] | 1000.0f;
@@ -324,16 +334,33 @@ void CommandHandler::handleStepperMoveRel(JsonVariantConst payload) {
     DBG_PRINTF("[CMD] STEPPER_MOVE_REL motor=%d steps=%d speed=%.1f steps/s\n",
                motorId, steps, speedSteps_s);
 
-    stepper_.moveRelative(motorId, steps, speedSteps_s);
+    // Route through MotionController so all motion is centralized
+    motion_.moveStepperRelative(motorId, steps, speedSteps_s);
 }
 
 void CommandHandler::handleStepperStop(JsonVariantConst payload) {
     int motorId = payload["motor_id"] | 0;
 
     DBG_PRINTF("[CMD] STEPPER_STOP motor=%d\n", motorId);
+
+    // For now just call StepperManager directly; you could also add
+    // a MotionController::stopStepper(...) wrapper if you want.
     stepper_.stop(motorId);
 }
 
+// Optional but very handy: enable/disable the stepper driver
+void CommandHandler::handleStepperEnable(JsonVariantConst payload) {
+    int  motorId = payload["motor_id"] | 0;
+    bool enable  = payload["enable"]   | true;
+
+    DBG_PRINTF("[CMD] STEPPER_ENABLE motor=%d enable=%d\n", motorId, (int)enable);
+
+    // If you added MotionController::enableStepper(...):
+    // motion_.enableStepper(motorId, enable);
+
+    // Or call StepperManager directly:
+    stepper_.setEnabled(motorId, enable);
+}
 // -----------------------------------------------------------------------------
 // GPIO – write / read / toggle / register-channel
 // -----------------------------------------------------------------------------

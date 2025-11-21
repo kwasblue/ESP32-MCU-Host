@@ -60,6 +60,8 @@ public:
 
     void handleStepperMoveRel(JsonVariantConst payload);
     void handleStepperStop(JsonVariantConst payload);
+    void handleStepperEnable(JsonVariantConst payload);
+    
     // sesnsors
     // ultrasonic
     void handleUltrasonicAttach(JsonVariantConst payload);

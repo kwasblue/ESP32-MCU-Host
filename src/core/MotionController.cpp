@@ -1,5 +1,8 @@
 // src/core/MotionController.cpp
 #include "core/MotionController.h"
+#include "managers/StepperManager.h"
+#include "managers/DcMotorManager.h"
+#include "managers/ServoManager.h"
 #include "core/Debug.h"
 
 MotionController::MotionController(DcMotorManager& motors,
@@ -8,9 +11,11 @@ MotionController::MotionController(DcMotorManager& motors,
                                    float wheelBase,
                                    float maxLinear,
                                    float maxAngular,
-                                   ServoManager* servoMgr)
+                                   ServoManager*  servoMgr,
+                                   StepperManager* stepperMgr)
     : motors_(motors),
       servoMgr_(servoMgr),
+      stepperMgr_(stepperMgr),
       leftId_(leftMotorId),
       rightId_(rightMotorId),
       wheelBase_(wheelBase),
@@ -30,8 +35,8 @@ MotionController::MotionController(DcMotorManager& motors,
 // ===== Differential drive =====
 
 void MotionController::setVelocity(float vx, float omega) {
-    if (vx >  maxLinear_) vx =  maxLinear_;
-    if (vx < -maxLinear_) vx = -maxLinear_;
+    if (vx >  maxLinear_)  vx =  maxLinear_;
+    if (vx < -maxLinear_)  vx = -maxLinear_;
     if (omega >  maxAngular_) omega =  maxAngular_;
     if (omega < -maxAngular_) omega = -maxAngular_;
 
@@ -42,7 +47,10 @@ void MotionController::setVelocity(float vx, float omega) {
 void MotionController::stop() {
     vxRef_    = 0.0f;
     omegaRef_ = 0.0f;
-    // Optionally: also zero motor outputs here via motors_
+
+    // Optional: immediately zero motor outputs:
+    motors_.setSpeed(leftId_,  0.0f);
+    motors_.setSpeed(rightId_, 0.0f);
 }
 
 float MotionController::vx() const {
@@ -64,7 +72,7 @@ void MotionController::setServoTarget(uint8_t servoId,
                                       float angleDeg,
                                       uint32_t durationMs) {
     if (!servoMgr_) return;
-    if (servoId >= MAX_SERVOS) return;
+    if (servoId >= ESP_MAX_SERVOS) return;
 
     if (durationMs == 0) {
         // Immediate move: no trajectory, just write the angle now.
@@ -91,22 +99,76 @@ void MotionController::setServoImmediate(uint8_t servoId, float angleDeg) {
     setServoTarget(servoId, angleDeg, 0);
 }
 
+// ===== Stepper interface =====
+
+void MotionController::moveStepperRelative(int motorId,
+                                           int steps,
+                                           float speedStepsPerSec) {
+    if (!stepperMgr_) {
+        DBG_PRINTF("[MotionController] moveStepperRelative: no stepperMgr (id=%d)\n",
+                   motorId);
+        return;
+    }
+    stepperMgr_->moveRelative(motorId, steps, speedStepsPerSec);
+}
+
+void MotionController::enableStepper(int motorId, bool enabled) {
+    if (!stepperMgr_) {
+        DBG_PRINTF("[MotionController] enableStepper: no stepperMgr (id=%d)\n",
+                   motorId);
+        return;
+    }
+    stepperMgr_->setEnabled(motorId, enabled);
+}
+
 // ===== Main update =====
 
 void MotionController::update(float dt) {
-    // --- 1) Velocity ramping & motor output (placeholder) ---
-    // You can fill this in later with:
-    //   - ramp vxCmd_/omegaCmd_ toward vxRef_/omegaRef_
-    //   - convert to left/right wheel speeds
-    //   - motors_.setSpeed(leftId_, speedL), motors_.setSpeed(rightId_, speedR)
+    // --- 1) Velocity ramping & motor output (simple placeholder) ---
 
-    (void)dt; // to silence unused parameter warning for now
+    // Ramp vxCmd_ toward vxRef_
+    float dvx = vxRef_ - vxCmd_;
+    float maxDeltaVx = maxLinAccel_ * dt;
+    if (dvx >  maxDeltaVx) dvx =  maxDeltaVx;
+    if (dvx < -maxDeltaVx) dvx = -maxDeltaVx;
+    vxCmd_ += dvx;
+
+    // Ramp omegaCmd_ toward omegaRef_
+    float domega = omegaRef_ - omegaCmd_;
+    float maxDeltaOmega = maxAngAccel_ * dt;
+    if (domega >  maxDeltaOmega) domega =  maxDeltaOmega;
+    if (domega < -maxDeltaOmega) domega = -maxDeltaOmega;
+    omegaCmd_ += domega;
+
+    // Convert (vxCmd_, omegaCmd_) -> left/right wheel speeds
+    // v_left  = vx - (omega * wheelBase / 2)
+    // v_right = vx + (omega * wheelBase / 2)
+    float vLeft  = vxCmd_ - (omegaCmd_ * wheelBase_ * 0.5f);
+    float vRight = vxCmd_ + (omegaCmd_ * wheelBase_ * 0.5f);
+
+    // Normalize to [-1, 1] using maxLinear_ as scale
+    float leftNorm  = 0.0f;
+    float rightNorm = 0.0f;
+
+    if (maxLinear_ > 0.0f) {
+        leftNorm  = vLeft  / maxLinear_;
+        rightNorm = vRight / maxLinear_;
+    }
+
+    // Clamp
+    if (leftNorm  >  1.0f) leftNorm  =  1.0f;
+    if (leftNorm  < -1.0f) leftNorm  = -1.0f;
+    if (rightNorm >  1.0f) rightNorm =  1.0f;
+    if (rightNorm < -1.0f) rightNorm = -1.0f;
+
+    motors_.setSpeed(leftId_,  leftNorm);
+    motors_.setSpeed(rightId_, rightNorm);
 
     // --- 2) Servo interpolation ---
     if (!servoMgr_) return;
 
     uint32_t now = millis();
-    for (uint8_t id = 0; id < MAX_SERVOS; ++id) {
+    for (uint8_t id = 0; id < ESP_MAX_SERVOS; ++id) {
         if (!servoActive_[id]) continue;
 
         uint32_t elapsed = now - servoStartMs_[id];
@@ -126,4 +188,3 @@ void MotionController::update(float dt) {
         }
     }
 }
-

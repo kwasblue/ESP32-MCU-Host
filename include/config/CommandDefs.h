@@ -20,6 +20,7 @@ enum class CmdType {
     SET_LOG_LEVEL,
     SET_MODE,
     SET_VEL,
+    STEPPER_ENABLE,
     STEPPER_MOVE_REL,
     STEPPER_STOP,
     STOP,
@@ -45,6 +46,7 @@ inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_SET_LOG_LEVEL") return CmdType::SET_LOG_LEVEL;
     if (s == "CMD_SET_MODE") return CmdType::SET_MODE;
     if (s == "CMD_SET_VEL") return CmdType::SET_VEL;
+    if (s == "CMD_STEPPER_ENABLE") return CmdType::STEPPER_ENABLE;
     if (s == "CMD_STEPPER_MOVE_REL") return CmdType::STEPPER_MOVE_REL;
     if (s == "CMD_STEPPER_STOP") return CmdType::STEPPER_STOP;
     if (s == "CMD_STOP") return CmdType::STOP;
@@ -71,6 +73,7 @@ inline const char* cmdTypeToString(CmdType c) {
         case CmdType::SET_LOG_LEVEL: return "CMD_SET_LOG_LEVEL";
         case CmdType::SET_MODE: return "CMD_SET_MODE";
         case CmdType::SET_VEL: return "CMD_SET_VEL";
+        case CmdType::STEPPER_ENABLE: return "CMD_STEPPER_ENABLE";
         case CmdType::STEPPER_MOVE_REL: return "CMD_STEPPER_MOVE_REL";
         case CmdType::STEPPER_STOP: return "CMD_STEPPER_STOP";
         case CmdType::STOP: return "CMD_STOP";

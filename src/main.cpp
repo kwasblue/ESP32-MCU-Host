@@ -49,25 +49,26 @@ ModeManager   g_modeManager;
 SafetyManager g_safetyManager;
 
 // Hardware managers
-DcMotorManager g_dcMotorManager;
 GpioManager    g_gpioManager;
 PwmManager     g_pwmManager;
+DcMotorManager g_dcMotorManager(g_gpioManager, g_pwmManager);
 ServoManager   g_servoManager;
-StepperManager g_stepperManager;
-/// Sensor managers
+StepperManager g_stepperManager(g_gpioManager);
+
+// Sensor managers
 UltrasonicManager g_ultrasonicManager;
-ImuManager g_imu;
-// Motion controller (diff drive + servo interpolation)
-// NOTE: we assume diff drive with motors 0 and 1.
-// You can tune wheelBase/maxLinear/maxAngular to your robot.
+ImuManager        g_imu;
+
+// Motion controller (diff drive + servo interpolation + stepper passthrough)
 MotionController g_motionController(
     g_dcMotorManager,
     /*leftMotorId=*/0,
     /*rightMotorId=*/1,
-    /*wheelBase=*/0.25f,   // meters (TODO: set your real wheelbase)
-    /*maxLinear=*/0.5f,    // max body vx [m/s]
-    /*maxAngular=*/2.0f,   // max body omega [rad/s]
-    &g_servoManager        // ServoManager is optional; you can pass nullptr
+    /*wheelBase=*/0.25f,   // meters
+    /*maxLinear=*/0.5f,    // m/s
+    /*maxAngular=*/2.0f,   // rad/s
+    &g_servoManager,
+    &g_stepperManager
 );
 
 // Transports
@@ -75,7 +76,7 @@ MultiTransport g_multiTransport;
 
 // Dedicated UART1 for protocol
 HardwareSerial SerialPort(1);               // UART1
-UartTransport  g_uart(Serial, 115200);  // protocol over UART1
+UartTransport  g_uart(Serial, 115200);      // protocol over UART1
  
 WifiTransport  g_wifi(3333);                // TCP port
 BleTransport   g_ble("ESP32-SPP");
@@ -84,7 +85,7 @@ BleTransport   g_ble("ESP32-SPP");
 MessageRouter g_router(g_bus, g_multiTransport);
 MCUHost       g_host(g_bus, &g_router);
 
-//Telemetry
+// Telemetry
 TelemetryModule g_telemetry(g_bus);
 
 // Command handler (JSON → mode/motion/safety/IO)
@@ -99,7 +100,7 @@ CommandHandler g_commandHandler(
     g_stepperManager,
     g_telemetry,
     g_ultrasonicManager
-    );
+);
 
 // Modules
 HeartbeatModule g_heartbeat(g_bus);
