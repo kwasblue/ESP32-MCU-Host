@@ -6,18 +6,39 @@
 struct StepperConfig {
     int pinStep;
     int pinDir;
+    int pinEnable;   // -1 if unused
+    bool invertDir;  // true if direction needs flipping
 };
 
 class StepperManager {
 public:
-    void registerStepper(int motorId, int pinStep, int pinDir) {
+    void registerStepper(int motorId,
+                         int pinStep,
+                         int pinDir,
+                         int pinEnable = -1,
+                         bool invertDir = false)
+    {
         pinMode(pinStep, OUTPUT);
         pinMode(pinDir, OUTPUT);
 
-        steppers_[motorId] = { pinStep, pinDir };
+        if (pinEnable >= 0) {
+            pinMode(pinEnable, OUTPUT);
+            digitalWrite(pinEnable, LOW);  // enable by default
+        }
 
-        DBG_PRINTF("[STEPPER] registerStepper id=%d step=%d dir=%d\n",
-                   motorId, pinStep, pinDir);
+        steppers_[motorId] = { pinStep, pinDir, pinEnable, invertDir };
+
+        DBG_PRINTF("[STEPPER] registerStepper id=%d step=%d dir=%d en=%d inv=%d\n",
+                   motorId, pinStep, pinDir, pinEnable, invertDir);
+    }
+
+    void setEnabled(int motorId, bool enabled) {
+        if (!exists(motorId)) return;
+        auto cfg = steppers_[motorId];
+        if (cfg.pinEnable < 0) return;
+
+        digitalWrite(cfg.pinEnable, enabled ? LOW : HIGH); // typical A4988 logic
+        DBG_PRINTF("[STEPPER] setEnabled id=%d -> %d\n", motorId, enabled);
     }
 
     void moveRelative(int motorId, int steps, float speedStepsPerSec = 1000.0f) {
@@ -25,9 +46,13 @@ public:
 
         auto cfg = steppers_[motorId];
 
-        digitalWrite(cfg.pinDir, (steps >= 0) ? HIGH : LOW);
-        int count = abs(steps);
+        bool dirForward = (steps >= 0);
+        if (cfg.invertDir) {
+            dirForward = !dirForward;
+        }
+        digitalWrite(cfg.pinDir, dirForward ? HIGH : LOW);
 
+        int count = abs(steps);
         int delayMicros = (int)(1000000.0f / speedStepsPerSec / 2.0f);
 
         DBG_PRINTF("[STEPPER] moveRelative id=%d steps=%d speed=%.1f delay=%dus\n",
@@ -45,7 +70,7 @@ public:
     }
 
     void stop(int motorId) {
-        // No-op for open-loop motors, but kept for future
+        // For now, noop. Later you can add ramp-down if you go non-blocking.
         DBG_PRINTF("[STEPPER] stop id=%d (noop)\n", motorId);
     }
 

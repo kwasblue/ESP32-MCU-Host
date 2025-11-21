@@ -45,7 +45,7 @@ const char* AP_PASS  = "robotpass";
 
 // Core bus + mode/safety
 EventBus      g_bus;
-ModeManager   g_modeManager;
+ModeManager   g_modeManager; 
 SafetyManager g_safetyManager;
 
 // Hardware managers
