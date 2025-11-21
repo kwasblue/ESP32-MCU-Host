@@ -6,9 +6,12 @@
 #include "config/PinConfig.h"
 #include "core/Event.h"
 #include "modules/LoggingModule.h"   // <-- NEW
-
+#include "managers/UltrasonicManager.h"
 #include <Arduino.h>      // for strcmp, millis, etc.
 #include "core/Debug.h"   // debug macros
+#include "managers/UltrasonicManager.h"
+#include "modules/TelemetryModule.h"
+
 
 using namespace ArduinoJson;
 
@@ -24,7 +27,9 @@ CommandHandler::CommandHandler(EventBus&         bus,
                                GpioManager&      gpio,
                                PwmManager&       pwm,
                                ServoManager&     servo,
-                               StepperManager&   stepper)
+                               StepperManager&   stepper,
+                               TelemetryModule&  telemetry,
+                               UltrasonicManager& ultrasonic)
     : bus_(bus)
     , mode_(mode)
     , motion_(motion)
@@ -33,6 +38,8 @@ CommandHandler::CommandHandler(EventBus&         bus,
     , pwm_(pwm)
     , servo_(servo)
     , stepper_(stepper)
+    , telemetry_(telemetry)
+    , ultrasonic_(ultrasonic)
 {
     s_instance = this;
 }
@@ -121,6 +128,11 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
 
         case CmdType::STEPPER_MOVE_REL:       handleStepperMoveRel(payload);     break;
         case CmdType::STEPPER_STOP:           handleStepperStop(payload);        break;
+
+        // --- Ultrasonic ---
+        case CmdType::ULTRASONIC_ATTACH:      handleUltrasonicAttach(payload);   break;
+        case CmdType::ULTRASONIC_READ:        handleUltrasonicRead(payload);     break;
+
 
         // --- Logging control ---
         case CmdType::SET_LOG_LEVEL:          handleSetLogLevel(payload);        break;
@@ -443,3 +455,87 @@ void CommandHandler::handleGpioRegisterChannel(JsonVariantConst payload) {
     DBG_PRINTF("[GPIO_REGISTER_CHANNEL] ch=%d pin=%d mode=%s ok=%d\n",
                ch, pin, modeStr, (int)ok);
 }
+// -----------------------------------------------------------------------------
+// Sensor groups
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// ultrasonic sensor – write / read / toggle / register-channel
+// -----------------------------------------------------------------------------
+
+void CommandHandler::handleUltrasonicAttach(JsonVariantConst payload) {
+    int sensorId = payload["sensor_id"] | 0;
+
+    uint8_t trigPin = 0;
+    uint8_t echoPin = 0;
+
+    switch (sensorId) {
+        case 0:
+            trigPin = Pins::ULTRA0_TRIG;  // = 5 from your JSON
+            echoPin = Pins::ULTRA0_ECHO;  // = 4
+            break;
+
+        default:
+            DBG_PRINTF("[CMD] ULTRASONIC_ATTACH: unknown sensorId=%d\n", sensorId);
+            return;
+    }
+
+    DBG_PRINTF("[CMD] ULTRASONIC_ATTACH id=%d trigPin=%d echoPin=%d\n",
+               sensorId, trigPin, echoPin);
+
+    bool ok = ultrasonic_.attach(sensorId, trigPin, echoPin);
+
+    JsonDocument resp;
+    resp["src"]        = "mcu";
+    resp["cmd"]        = "ULTRASONIC_ATTACH_ACK";
+    resp["sensor_id"]  = sensorId;
+    resp["trig_pin"]   = trigPin;
+    resp["echo_pin"]   = echoPin;
+    resp["ok"]         = ok;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
+}
+
+void CommandHandler::handleUltrasonicRead(JsonVariantConst payload) {
+    int sensorId = payload["sensor_id"] | 0;
+
+    DBG_PRINTF("[CMD] ULTRASONIC_READ id=%d\n", sensorId);
+
+    float distCm = ultrasonic_.readDistanceCm(sensorId);
+    bool ok = distCm >= 0.0f;
+
+    JsonDocument resp;
+    resp["src"]        = "mcu";
+    resp["cmd"]        = "ULTRASONIC_READ_ACK";
+    resp["sensor_id"]  = sensorId;
+    resp["distance_cm"] = ok ? distCm : -1.0f;
+    resp["ok"]         = ok;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
+
+    DBG_PRINTF("[ULTRA_READ] id=%d dist=%.2f cm ok=%d\n",
+               sensorId, distCm, (int)ok);
+}
+
+
+// -----------------------------------------------------------------------------
+// ultrasonic sensor – write / read / toggle / register-channel
+// -----------------------------------------------------------------------------
+void CommandHandler::handleTelemSetInterval(JsonVariantConst payload) {
+    uint32_t interval = payload["interval_ms"] | 0;
+    telemetry_.setInterval(interval);
+    // (optional) send TELEM_SET_INTERVAL_ACK back
+}
+

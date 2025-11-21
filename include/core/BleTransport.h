@@ -7,6 +7,7 @@
 
 #include "ITransport.h"
 #include "Protocol.h"
+#include "core/Debug.h"   // <-- use your DBG_PRINT / DBG_PRINTF macros
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
 #error "Bluetooth is not enabled! Enable it in menuconfig or via build flags."
@@ -18,44 +19,69 @@ public:
         : name_(deviceName) {}
 
     void begin() override {
+        DBG_PRINTLN("[BleTransport] begin() called");
+
         if (!SerialBT_.begin(name_)) {
-            Serial.println("[BleTransport] Failed to start BluetoothSerial");
+            DBG_PRINTLN("[BleTransport] Failed to start BluetoothSerial");
             return;
         }
-        Serial.print("[BleTransport] Started as: ");
-        Serial.println(name_);
+
+        DBG_PRINT("[BleTransport] Started as: ");
+        DBG_PRINTLN(name_);
 
         rxBuffer_.clear();
         rxBuffer_.reserve(256);
+
+        lastClientConnected_ = SerialBT_.hasClient();
+        if (lastClientConnected_) {
+            DBG_PRINTLN("[BleTransport] Client already connected at begin()");
+        }
     }
 
     void loop() override {
+        // Track client connect/disconnect
+        bool hasClient = SerialBT_.hasClient();
+        if (hasClient && !lastClientConnected_) {
+            DBG_PRINTLN("[BleTransport] Client connected");
+        } else if (!hasClient && lastClientConnected_) {
+            DBG_PRINTLN("[BleTransport] Client disconnected");
+        }
+        lastClientConnected_ = hasClient;
+
         // Read any bytes that arrived over Bluetooth SPP
         while (SerialBT_.available()) {
             uint8_t b = static_cast<uint8_t>(SerialBT_.read());
             rxBuffer_.push_back(b);
+
+            // Debug: show raw bytes coming in from the host
+            DBG_PRINTF("[BleTransport] RX byte: 0x%02X\n", b);
         }
 
         // Decode framed messages using the same Protocol as UART/TCP
-        if (handler_) {
+        if (handler_ && !rxBuffer_.empty()) {
             Protocol::extractFrames(rxBuffer_, [this](const uint8_t* frame, size_t len) {
-                // frame = [msg_type, payload...]
+                DBG_PRINTF("[BleTransport] Extracted frame, len=%u\n",
+                           static_cast<unsigned>(len));
                 handler_(frame, len);
             });
         }
     }
 
     bool sendBytes(const uint8_t* data, size_t len) override {
-        if (!SerialBT_.hasClient()) {
-            // No connected Bluetooth client; drop or just report false
-            return false;
-        }
+        DBG_PRINTF("[BleTransport] sendBytes len=%u\n",
+                   static_cast<unsigned>(len));
+
         size_t written = SerialBT_.write(data, len);
-        return written == len;
+
+        DBG_PRINTF("[BleTransport] wrote=%u\n",
+                   static_cast<unsigned>(written));
+
+        return (written == len);
     }
 
 private:
     const char*          name_;
     BluetoothSerial      SerialBT_;
     std::vector<uint8_t> rxBuffer_;
+    bool                 lastClientConnected_ = false;
 };

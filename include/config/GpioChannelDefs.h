@@ -14,6 +14,8 @@ struct GpioChannelDef {
 
 constexpr GpioChannelDef GPIO_CHANNEL_DEFS[] = {
     { 0, Pins::LED_STATUS, OUTPUT, "LED_STATUS" },
+    { 1, Pins::ULTRA0_TRIG, OUTPUT, "ULTRASONIC_TRIG" },
+    { 2, Pins::ULTRA0_ECHO, INPUT, "ULTRASONIC_ECHO" },
 };
 
 constexpr size_t GPIO_CHANNEL_COUNT = sizeof(GPIO_CHANNEL_DEFS) / sizeof(GPIO_CHANNEL_DEFS[0]);

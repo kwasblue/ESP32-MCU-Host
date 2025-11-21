@@ -23,6 +23,9 @@ enum class CmdType {
     STEPPER_MOVE_REL,
     STEPPER_STOP,
     STOP,
+    TELEM_SET_INTERVAL,
+    ULTRASONIC_ATTACH,
+    ULTRASONIC_READ,
     UNKNOWN
 };
 
@@ -45,6 +48,9 @@ inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_STEPPER_MOVE_REL") return CmdType::STEPPER_MOVE_REL;
     if (s == "CMD_STEPPER_STOP") return CmdType::STEPPER_STOP;
     if (s == "CMD_STOP") return CmdType::STOP;
+    if (s == "CMD_TELEM_SET_INTERVAL") return CmdType::TELEM_SET_INTERVAL;
+    if (s == "CMD_ULTRASONIC_ATTACH") return CmdType::ULTRASONIC_ATTACH;
+    if (s == "CMD_ULTRASONIC_READ") return CmdType::ULTRASONIC_READ;
     return CmdType::UNKNOWN;
 }
 
@@ -68,6 +74,9 @@ inline const char* cmdTypeToString(CmdType c) {
         case CmdType::STEPPER_MOVE_REL: return "CMD_STEPPER_MOVE_REL";
         case CmdType::STEPPER_STOP: return "CMD_STEPPER_STOP";
         case CmdType::STOP: return "CMD_STOP";
+        case CmdType::TELEM_SET_INTERVAL: return "CMD_TELEM_SET_INTERVAL";
+        case CmdType::ULTRASONIC_ATTACH: return "CMD_ULTRASONIC_ATTACH";
+        case CmdType::ULTRASONIC_READ: return "CMD_ULTRASONIC_READ";
         default: return "UNKNOWN";
     }
 }

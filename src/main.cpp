@@ -24,6 +24,9 @@
 #include "managers/StepperManager.h"
 #include "managers/DcMotorManager.h"
 #include "config/GpioChannelDefs.h"
+#include "modules/TelemetryModule.h"
+#include "managers/UltrasonicManager.h"
+#include "managers/ImuManager.h"
 
 // Optional fallback defaults if WifiSecrets.h isn't set up yet
 #ifndef WIFI_STA_SSID
@@ -51,7 +54,9 @@ GpioManager    g_gpioManager;
 PwmManager     g_pwmManager;
 ServoManager   g_servoManager;
 StepperManager g_stepperManager;
-
+/// Sensor managers
+UltrasonicManager g_ultrasonicManager;
+ImuManager g_imu;
 // Motion controller (diff drive + servo interpolation)
 // NOTE: we assume diff drive with motors 0 and 1.
 // You can tune wheelBase/maxLinear/maxAngular to your robot.
@@ -71,13 +76,16 @@ MultiTransport g_multiTransport;
 // Dedicated UART1 for protocol
 HardwareSerial SerialPort(1);               // UART1
 UartTransport  g_uart(Serial, 115200);  // protocol over UART1
-
+ 
 WifiTransport  g_wifi(3333);                // TCP port
 BleTransport   g_ble("ESP32-SPP");
 
 // Router + host
 MessageRouter g_router(g_bus, g_multiTransport);
 MCUHost       g_host(g_bus, &g_router);
+
+//Telemetry
+TelemetryModule g_telemetry(g_bus);
 
 // Command handler (JSON → mode/motion/safety/IO)
 CommandHandler g_commandHandler(
@@ -88,8 +96,10 @@ CommandHandler g_commandHandler(
     g_gpioManager,
     g_pwmManager,
     g_servoManager,
-    g_stepperManager
-);
+    g_stepperManager,
+    g_telemetry,
+    g_ultrasonicManager
+    );
 
 // Modules
 HeartbeatModule g_heartbeat(g_bus);
@@ -200,7 +210,7 @@ void setup() {
     // Compose transports: UART1 + WiFi + BLE
     g_multiTransport.addTransport(&g_uart);   // binary on SerialPort (UART1)
     g_multiTransport.addTransport(&g_wifi);
-    g_multiTransport.addTransport(&g_ble);
+    //g_multiTransport.addTransport(&g_ble);    // ble diable for now
 
     // CommandHandler subscribes to JSON_MESSAGE_RX 
     g_commandHandler.setup();
@@ -217,6 +227,65 @@ void setup() {
     g_host.addModule(&g_heartbeat);
     g_host.addModule(&g_logger);
     g_host.addModule(&g_identity);
+
+
+    // Configure telemetry rate (optional)
+    g_telemetry.setInterval(100);  // 10 Hz enable this to have telemetry in your system
+    // Initialize IMU
+    bool imuOk = g_imu.begin(Pins::I2C_SDA, Pins::I2C_SCL, 0x68);
+    Serial.printf("[MCU] IMU init: %s\n", imuOk ? "OK" : "FAILED");
+
+    // example register providers
+        g_telemetry.registerProvider(
+        "ultrasonic",
+        [&](ArduinoJson::JsonObject node) {
+            if (!g_ultrasonicManager.isAttached(0)) {
+                node["sensor_id"] = 0;
+                node["attached"]  = false;
+                return;
+            }
+
+            float dist_cm = g_ultrasonicManager.readDistanceCm(0);
+
+            node["sensor_id"]   = 0;
+            node["attached"]    = true;
+            node["ok"]          = (dist_cm >= 0.0f);
+            node["distance_cm"] = (dist_cm >= 0.0f) ? dist_cm : -1.0f;
+        }
+    );
+        // 👇 NEW: IMU telemetry provider
+    g_telemetry.registerProvider(
+        "imu",
+        [&](ArduinoJson::JsonObject node) {
+            node["online"] = g_imu.isOnline();
+            if (!g_imu.isOnline()) {
+                node["ok"] = false;
+                return;
+            }
+
+            ImuManager::Sample s;
+            bool ok = g_imu.readSample(s);
+            node["ok"] = ok;
+            if (!ok) {
+                return;
+            }
+
+            // Accel in g
+            node["ax_g"] = s.ax_g;
+            node["ay_g"] = s.ay_g;
+            node["az_g"] = s.az_g;
+
+            // Gyro in deg/s
+            node["gx_dps"] = s.gx_dps;
+            node["gy_dps"] = s.gy_dps;
+            node["gz_dps"] = s.gz_dps;
+
+            // Temperature
+            node["temp_c"] = s.temp_c;
+        }
+    );
+
+    g_telemetry.setup();
 
     // Setup host (modules, timers, etc.)
     g_host.setup();
@@ -261,6 +330,9 @@ void loop() {
 
     // Let host run its modules and router loop
     g_host.loop(now_ms);
+
+    // Telemetry (periodic JSON -> host)
+    g_telemetry.loop(now_ms);
 
     // Run motion control (diff-drive + servo interpolation)
     g_motionController.update(dt);
