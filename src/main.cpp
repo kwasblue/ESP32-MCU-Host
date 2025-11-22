@@ -210,8 +210,8 @@ void setup() {
 
     // Compose transports: UART1 + WiFi + BLE
     g_multiTransport.addTransport(&g_uart);   // binary on SerialPort (UART1)
-    g_multiTransport.addTransport(&g_wifi);
-    //g_multiTransport.addTransport(&g_ble);    // ble diable for now
+    //g_multiTransport.addTransport(&g_wifi);
+    g_multiTransport.addTransport(&g_ble);    // ble diable for now
 
     // CommandHandler subscribes to JSON_MESSAGE_RX 
     g_commandHandler.setup();

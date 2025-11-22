@@ -7,7 +7,7 @@
 
 #include "ITransport.h"
 #include "Protocol.h"
-#include "core/Debug.h"   // <-- use your DBG_PRINT / DBG_PRINTF macros
+#include "core/Debug.h"   // DBG_PRINT / DBG_PRINTF macros
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
 #error "Bluetooth is not enabled! Enable it in menuconfig or via build flags."
@@ -19,7 +19,7 @@ public:
         : name_(deviceName) {}
 
     void begin() override {
-        DBG_PRINTLN("[BleTransport] begin() called");
+        DBG_PRINTLN("[BleTransport] begin()");
 
         if (!SerialBT_.begin(name_)) {
             DBG_PRINTLN("[BleTransport] Failed to start BluetoothSerial");
@@ -59,19 +59,29 @@ public:
 
         // Decode framed messages using the same Protocol as UART/TCP
         if (handler_ && !rxBuffer_.empty()) {
-            Protocol::extractFrames(rxBuffer_, [this](const uint8_t* frame, size_t len) {
-                DBG_PRINTF("[BleTransport] Extracted frame, len=%u\n",
-                           static_cast<unsigned>(len));
-                handler_(frame, len);
-            });
+            Protocol::extractFrames(
+                rxBuffer_,
+                [this](const uint8_t* frame, size_t len) {
+                    DBG_PRINTF("[BleTransport] Extracted frame, len=%u\n",
+                               static_cast<unsigned>(len));
+                    handler_(frame, len);  // forward to MessageRouter via MultiTransport
+                }
+            );
         }
     }
 
     bool sendBytes(const uint8_t* data, size_t len) override {
+        // If no BLE client is connected, skip but don't make MultiTransport fail
+        if (!SerialBT_.hasClient()) {
+            DBG_PRINTLN("[BleTransport] sendBytes: no client, skipping");
+            return true;  // so MultiTransport::sendBytes can still succeed via UART/WiFi
+        }
+
         DBG_PRINTF("[BleTransport] sendBytes len=%u\n",
                    static_cast<unsigned>(len));
 
         size_t written = SerialBT_.write(data, len);
+        SerialBT_.flush();
 
         DBG_PRINTF("[BleTransport] wrote=%u\n",
                    static_cast<unsigned>(written));
