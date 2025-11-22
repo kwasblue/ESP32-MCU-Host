@@ -27,6 +27,7 @@
 #include "modules/TelemetryModule.h"
 #include "managers/UltrasonicManager.h"
 #include "managers/ImuManager.h"
+#include "managers/LidarManager.h" 
 
 // Optional fallback defaults if WifiSecrets.h isn't set up yet
 #ifndef WIFI_STA_SSID
@@ -58,6 +59,7 @@ StepperManager g_stepperManager(g_gpioManager);
 // Sensor managers
 UltrasonicManager g_ultrasonicManager;
 ImuManager        g_imu;
+LidarManager      g_lidar;
 
 // Motion controller (diff drive + servo interpolation + stepper passthrough)
 MotionController g_motionController(
@@ -235,6 +237,10 @@ void setup() {
     // Initialize IMU
     bool imuOk = g_imu.begin(Pins::I2C_SDA, Pins::I2C_SCL, 0x68);
     Serial.printf("[MCU] IMU init: %s\n", imuOk ? "OK" : "FAILED");
+         
+    // Initialize LiDAR (VL53L0X on same I2C bus)
+    bool lidarOk = g_lidar.begin(Pins::I2C_SDA, Pins::I2C_SCL);
+    Serial.printf("[MCU] LiDAR init: %s\n", lidarOk ? "OK" : "FAILED");
 
     // example register providers
         g_telemetry.registerProvider(
@@ -283,6 +289,26 @@ void setup() {
 
             // Temperature
             node["temp_c"] = s.temp_c;
+        }
+    );
+        // 👇 NEW: LiDAR telemetry
+    g_telemetry.registerProvider(
+        "lidar",
+        [&](ArduinoJson::JsonObject node) {
+            node["online"] = g_lidar.isOnline();
+            if (!g_lidar.isOnline()) {
+                node["ok"] = false;
+                return;
+            }
+
+            LidarManager::Sample s;
+            bool ok = g_lidar.readSample(s);
+            node["ok"] = ok;
+            if (!ok) {
+                return;
+            }
+
+            node["distance_m"] = s.distance_m;
         }
     );
 
