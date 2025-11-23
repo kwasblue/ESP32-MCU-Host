@@ -112,7 +112,6 @@ IdentityModule  g_identity(g_bus, g_multiTransport, "ESP32-bot");
 // For periodic debug printing if you want later
 uint32_t g_lastIpPrintMs = 0;
 
-// === WiFi setup: AP + STA mode ===
 void setupWifiDualMode() {
     Serial.println("[WiFi] Starting AP + STA mode...");
 
@@ -151,6 +150,9 @@ void setupWifiDualMode() {
     } else {
         Serial.println("[WiFi][AP] Failed to start AP!");
     }
+
+    // 🔹 Start the WifiTransport TCP server here
+    g_wifi.begin();   // <- this will print your WifiTransport debug lines
 }
 
 // === OTA setup ===
@@ -212,7 +214,7 @@ void setup() {
 
     // Compose transports: UART1 + WiFi + BLE
     g_multiTransport.addTransport(&g_uart);   // binary on SerialPort (UART1)
-    //g_multiTransport.addTransport(&g_wifi);
+    g_multiTransport.addTransport(&g_wifi);
     g_multiTransport.addTransport(&g_ble);    // ble diable for now
 
     // CommandHandler subscribes to JSON_MESSAGE_RX 
@@ -357,6 +359,12 @@ void loop() {
 
     // Let host run its modules and router loop
     g_host.loop(now_ms);
+
+    // start wifi manually
+    g_wifi.loop();
+
+    // start ble
+    g_ble.loop();
 
     // Telemetry (periodic JSON -> host)
     g_telemetry.loop(now_ms);

@@ -8,44 +8,99 @@
 
 class WifiTransport : public ITransport {
 public:
-    WifiTransport(uint16_t port)
-        : server_(port) {}
+    explicit WifiTransport(uint16_t port)
+        : server_(port),
+          port_(port) {}
 
     void begin() override {
-        // Assumes WiFi already configured elsewhere (SSID/password)
+        // Assumes WiFi already configured elsewhere (SSID/password, mode)
         server_.begin();
         rxBuffer_.clear();
         rxBuffer_.reserve(256);
+
+        // Figure out which IP we actually have
+        IPAddress sta = WiFi.localIP();
+        IPAddress ap  = WiFi.softAPIP();
+
+        Serial.println("[WifiTransport] begin()");
+        Serial.printf("  [WifiTransport] STA IP: %s\n", sta.toString().c_str());
+        Serial.printf("  [WifiTransport] AP  IP: %s\n", ap.toString().c_str());
+
+        IPAddress listenIp = sta;
+        if (listenIp.toString() == String("0.0.0.0")) {
+            // fall back to AP IP if STA not connected
+            listenIp = ap;
+        }
+
+        Serial.printf("  [WifiTransport] listening on %s:%u\n",
+                      listenIp.toString().c_str(), port_);
     }
 
-    void loop() override {
-        if (!client_ || !client_.connected()) {
-            client_ = server_.available();
-            return;
+void loop() override {
+    // Accept / monitor client
+    if (!client_ || !client_.connected()) {
+        // If we previously had a client and it disconnected, log it
+        if (client_) {
+            Serial.println("[WifiTransport] client disconnected");
+            client_.stop();
         }
 
-        while (client_.available() > 0) {
-            uint8_t b = static_cast<uint8_t>(client_.read());
-            rxBuffer_.push_back(b);
+        WiFiClient newClient = server_.available();
+        if (newClient) {
+            client_ = newClient;
+            Serial.printf(
+                "[WifiTransport] client connected from %s:%u\n",
+                client_.remoteIP().toString().c_str(),
+                client_.remotePort()
+            );
         }
+        return;
+    }
 
-        if (handler_) {
-            Protocol::extractFrames(rxBuffer_, [this](const uint8_t* frame, size_t len) {
+    // 🔹 Debug: send a simple heartbeat over WiFi every second
+    // static uint32_t lastDebugMs = 0;
+    // uint32_t now = millis();
+    // if (now - lastDebugMs > 1000) {
+    //     const char* dbg = "[WifiTransport] hello over WiFi\n";
+    //     client_.write((const uint8_t*)dbg, strlen(dbg));
+    //     lastDebugMs = now;
+    // }
+
+    // Read bytes from client
+    while (client_.available() > 0) {
+        uint8_t b = static_cast<uint8_t>(client_.read());
+        rxBuffer_.push_back(b);
+    }
+
+    // Frame extraction
+    if (handler_) {
+        Protocol::extractFrames(
+            rxBuffer_,
+            [this](const uint8_t* frame, size_t len) {
                 handler_(frame, len);
-            });
-        }
+            }
+        );
     }
+}
 
     bool sendBytes(const uint8_t* data, size_t len) override {
-        if (!client_ || !client_.connected()) return false;
+        if (!client_ || !client_.connected()) {
+            // Optional debug:
+            //Serial.println("[WifiTransport] sendBytes(): no connected client");
+            return false;
+        }
         size_t written = client_.write(data, len);
+        // Optional:
+        // Serial.printf("[WifiTransport] sendBytes(): wrote %u/%u bytes\n",
+        //               (unsigned)written, (unsigned)len);
         return written == len;
     }
 
 private:
-    WiFiServer          server_;
-    WiFiClient          client_;
+    WiFiServer           server_;
+    WiFiClient           client_;
     std::vector<uint8_t> rxBuffer_;
+    uint16_t             port_;
 };
 
 // example code for setupwifi()
