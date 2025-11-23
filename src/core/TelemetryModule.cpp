@@ -10,15 +10,23 @@ void TelemetryModule::setup() {
 }
 
 void TelemetryModule::loop(uint32_t now_ms) {
+    // 0 = disabled
+    if (intervalMs_ == 0) {
+        return;
+    }
+
     if (now_ms - lastTickMs_ < intervalMs_) {
         return;
     }
+
     lastTickMs_ = now_ms;
     sendTelemetry(now_ms);
 }
 
+
 void TelemetryModule::setInterval(uint32_t intervalMs) {
     intervalMs_ = intervalMs;
+    lastTickMs_ = 0;  // or lastTickMs_ = millis() if you pass it in
 }
 
 void TelemetryModule::registerProvider(const char* name, ProviderFn fn) {

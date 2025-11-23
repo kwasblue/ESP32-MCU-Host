@@ -134,6 +134,8 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         case CmdType::ULTRASONIC_ATTACH:      handleUltrasonicAttach(payload);   break;
         case CmdType::ULTRASONIC_READ:        handleUltrasonicRead(payload);     break;
 
+        // Telemetry switch
+          case CmdType::TELEM_SET_INTERVAL:     handleTelemSetInterval(payload);    break;
 
         // --- Logging control ---
         case CmdType::SET_LOG_LEVEL:          handleSetLogLevel(payload);        break;

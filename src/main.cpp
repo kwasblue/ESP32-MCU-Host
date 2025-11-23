@@ -235,7 +235,7 @@ void setup() {
 
 
     // Configure telemetry rate (optional)
-    g_telemetry.setInterval(100);  // 10 Hz enable this to have telemetry in your system
+    g_telemetry.setInterval(1000);  // 10 Hz enable this to have telemetry in your system
     // Initialize IMU
     bool imuOk = g_imu.begin(Pins::I2C_SDA, Pins::I2C_SCL, 0x68);
     Serial.printf("[MCU] IMU init: %s\n", imuOk ? "OK" : "FAILED");
