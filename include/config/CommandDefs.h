@@ -6,6 +6,9 @@
 
 enum class CmdType {
     CLEAR_ESTOP,
+    ENCODER_ATTACH,
+    ENCODER_READ,
+    ENCODER_RESET,
     ESTOP,
     GPIO_READ,
     GPIO_REGISTER_CHANNEL,
@@ -32,6 +35,9 @@ enum class CmdType {
 
 inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_CLEAR_ESTOP") return CmdType::CLEAR_ESTOP;
+    if (s == "CMD_ENCODER_ATTACH") return CmdType::ENCODER_ATTACH;
+    if (s == "CMD_ENCODER_READ") return CmdType::ENCODER_READ;
+    if (s == "CMD_ENCODER_RESET") return CmdType::ENCODER_RESET;
     if (s == "CMD_ESTOP") return CmdType::ESTOP;
     if (s == "CMD_GPIO_READ") return CmdType::GPIO_READ;
     if (s == "CMD_GPIO_REGISTER_CHANNEL") return CmdType::GPIO_REGISTER_CHANNEL;
@@ -59,6 +65,9 @@ inline CmdType cmdTypeFromString(const std::string& s) {
 inline const char* cmdTypeToString(CmdType c) {
     switch (c) {
         case CmdType::CLEAR_ESTOP: return "CMD_CLEAR_ESTOP";
+        case CmdType::ENCODER_ATTACH: return "CMD_ENCODER_ATTACH";
+        case CmdType::ENCODER_READ: return "CMD_ENCODER_READ";
+        case CmdType::ENCODER_RESET: return "CMD_ENCODER_RESET";
         case CmdType::ESTOP: return "CMD_ESTOP";
         case CmdType::GPIO_READ: return "CMD_GPIO_READ";
         case CmdType::GPIO_REGISTER_CHANNEL: return "CMD_GPIO_REGISTER_CHANNEL";

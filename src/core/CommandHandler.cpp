@@ -12,6 +12,7 @@
 #include "managers/UltrasonicManager.h"
 #include "modules/TelemetryModule.h"
 #include "managers/StepperManager.h"
+#include "managers/EncoderManager.h"
 
 
 using namespace ArduinoJson;
@@ -30,7 +31,8 @@ CommandHandler::CommandHandler(EventBus&         bus,
                                ServoManager&     servo,
                                StepperManager&   stepper,
                                TelemetryModule&  telemetry,
-                               UltrasonicManager& ultrasonic)
+                               UltrasonicManager& ultrasonic,
+                               EncoderManager&   encoder)
     : bus_(bus)
     , mode_(mode)
     , motion_(motion)
@@ -41,6 +43,7 @@ CommandHandler::CommandHandler(EventBus&         bus,
     , stepper_(stepper)
     , telemetry_(telemetry)
     , ultrasonic_(ultrasonic)
+    , encoder_(encoder)
 {
     s_instance = this;
 }
@@ -133,6 +136,10 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         // --- Ultrasonic ---
         case CmdType::ULTRASONIC_ATTACH:      handleUltrasonicAttach(payload);   break;
         case CmdType::ULTRASONIC_READ:        handleUltrasonicRead(payload);     break;
+
+        // encoder 
+        case CmdType::ENCODER_ATTACH:    handleEncoderAttach(payload);    break;
+        case CmdType::ENCODER_READ:      handleEncoderRead(payload);      break;
 
         // Telemetry switch
           case CmdType::TELEM_SET_INTERVAL:     handleTelemSetInterval(payload);    break;
@@ -568,3 +575,76 @@ void CommandHandler::handleTelemSetInterval(JsonVariantConst payload) {
     // (optional) send TELEM_SET_INTERVAL_ACK back
 }
 
+// -----------------------------------------------------------------------------
+// Encoder – attach/read via runtime pins from host
+// -----------------------------------------------------------------------------
+void CommandHandler::handleEncoderAttach(JsonVariantConst payload) {
+    int encoderId = payload["encoder_id"] | 0;
+    int pinA      = payload["pin_a"]      | Pins::ENC0_A;
+    int pinB      = payload["pin_b"]      | Pins::ENC0_B;
+
+    // Call the manager. If attach() is void, just call it.
+    encoder_.attach(
+        static_cast<uint8_t>(encoderId),
+        static_cast<gpio_num_t>(pinA),
+        static_cast<gpio_num_t>(pinB)
+    );
+
+    bool ok = true;  // assume success; change if you later make attach() return bool
+
+    JsonDocument resp;
+    resp["src"]        = "mcu";
+    resp["cmd"]        = "ENCODER_ATTACH_ACK";
+    resp["encoder_id"] = encoderId;
+    resp["pin_a"]      = pinA;
+    resp["pin_b"]      = pinB;
+    resp["ok"]         = ok;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
+}
+
+void CommandHandler::handleEncoderRead(JsonVariantConst payload) {
+    int encoderId = payload["encoder_id"] | 0;
+
+    int32_t ticks = encoder_.getCount(static_cast<uint8_t>(encoderId));
+
+    JsonDocument resp;
+    resp["src"]        = "mcu";
+    resp["cmd"]        = "ENCODER_READ_ACK";
+    resp["encoder_id"] = encoderId;
+    resp["ticks"]      = ticks;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
+}
+
+void CommandHandler::handleEncoderReset(JsonVariantConst payload) {
+    int encoderId = payload["encoder_id"] | 0;
+
+    encoder_.reset(static_cast<uint8_t>(encoderId));
+
+    JsonDocument resp;
+    resp["src"]        = "mcu";
+    resp["cmd"]        = "ENCODER_RESET_ACK";
+    resp["encoder_id"] = encoderId;
+    resp["ok"]         = true;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
+}

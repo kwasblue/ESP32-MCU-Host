@@ -28,6 +28,7 @@
 #include "managers/UltrasonicManager.h"
 #include "managers/ImuManager.h"
 #include "managers/LidarManager.h" 
+#include "managers/EncoderManager.h"
 
 // Optional fallback defaults if WifiSecrets.h isn't set up yet
 #ifndef WIFI_STA_SSID
@@ -60,6 +61,7 @@ StepperManager g_stepperManager(g_gpioManager);
 UltrasonicManager g_ultrasonicManager;
 ImuManager        g_imu;
 LidarManager      g_lidar;
+EncoderManager    g_encoder;
 
 // Motion controller (diff drive + servo interpolation + stepper passthrough)
 MotionController g_motionController(
@@ -101,7 +103,8 @@ CommandHandler g_commandHandler(
     g_servoManager,
     g_stepperManager,
     g_telemetry,
-    g_ultrasonicManager
+    g_ultrasonicManager,
+    g_encoder
 );
 
 // Modules
@@ -311,6 +314,14 @@ void setup() {
             }
 
             node["distance_m"] = s.distance_m;
+        }
+    );
+    g_telemetry.registerProvider(
+        "encoder0",
+        [&](ArduinoJson::JsonObject node) {
+            int32_t ticks = g_encoder.getCount(0);
+            node["ticks"] = ticks;
+            // add derived speed if you want
         }
     );
 

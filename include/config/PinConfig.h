@@ -5,6 +5,8 @@
 #include <stdint.h>
 
 namespace Pins {
+    constexpr uint8_t ENC0_A = 32;
+    constexpr uint8_t ENC0_B = 33;
     constexpr uint8_t I2C_SCL = 22;
     constexpr uint8_t I2C_SDA = 21;
     constexpr uint8_t LED_STATUS = 2;

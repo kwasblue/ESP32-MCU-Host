@@ -14,6 +14,7 @@
 #include "managers/StepperManager.h"
 #include "managers/UltrasonicManager.h"
 #include "modules/TelemetryModule.h"
+#include "managers/EncoderManager.h"
 // Bring just this type into scope for this header
 using ArduinoJson::JsonVariantConst;
 
@@ -28,7 +29,8 @@ public:
                    ServoManager&     servo,
                    StepperManager&   stepper,
                    TelemetryModule&  telemetry,
-                   UltrasonicManager& ultrasonic);
+                   UltrasonicManager& ultrasonic,
+                   EncoderManager&   encoder);
 
     // Call this once in setup() to attach to the EventBus
     void setup();
@@ -66,7 +68,12 @@ public:
     // ultrasonic
     void handleUltrasonicAttach(JsonVariantConst payload);
     void handleUltrasonicRead(JsonVariantConst payload);
-    
+
+    // encoder
+    void handleEncoderAttach(ArduinoJson::JsonVariantConst payload);
+    void handleEncoderRead(ArduinoJson::JsonVariantConst payload);
+    void handleEncoderReset(ArduinoJson::JsonVariantConst payload);  // <-- add this
+
     // telemetry 
     void handleTelemSetInterval(JsonVariantConst payload);
     // Log handling 
@@ -83,6 +90,7 @@ private:
     ServoManager&     servo_;
     StepperManager&   stepper_;
     UltrasonicManager& ultrasonic_;
+    EncoderManager&   encoder_;
 
     // === Static trampoline for EventBus ===
     static CommandHandler* s_instance;
