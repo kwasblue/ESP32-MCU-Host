@@ -390,31 +390,36 @@ void setup() {
 
     g_dcMotorManager.dumpAllMotorMappings();
 
-    if (!dcOk) {
-        Serial.println("[MCU] DC motor attach FAILED");
-    } else {
-        Serial.println("[MCU] DC motor attach OK, running quick spin...");
+    // DC motor 0 telemetry
+    g_telemetry.registerProvider(
+        "dc_motor0",
+        [&](ArduinoJson::JsonObject node) {
+            DcMotorManager::MotorDebugInfo info;
+            if (!g_dcMotorManager.getMotorDebugInfo(0, info)) {
+                node["motor_id"] = 0;
+                node["attached"] = false;
+                return;
+            }
 
-        // Forward @ 40% for 2s
-        g_dcMotorManager.setSpeed(0, +1.0f);
-        delay(2000);
+            node["motor_id"]       = info.id;
+            node["attached"]       = info.attached;
 
-        // Stop 1s
-        g_dcMotorManager.setSpeed(0, 0.0f);
-        delay(1000);
+            node["in1_pin"]        = info.in1Pin;
+            node["in2_pin"]        = info.in2Pin;
+            node["pwm_pin"]        = info.pwmPin;
+            node["ledc_channel"]   = info.ledcChannel;
 
-        // Reverse @ 40% for 2s
-        g_dcMotorManager.setSpeed(0, -1.0f);
-        delay(2000);
+            node["gpio_ch_in1"]    = info.gpioChIn1;
+            node["gpio_ch_in2"]    = info.gpioChIn2;
+            node["pwm_ch"]         = info.pwmCh;
 
-        // Final stop
-        g_dcMotorManager.setSpeed(0, 0.0f);
-        Serial.println("[MCU] DC motor quick test done.");
+            node["speed"]          = info.lastSpeed;     // -1.0..+1.0
+            node["freq_hz"]        = info.freqHz;
+            node["resolution_bits"]= info.resolution;
+        }
+    );
+
     }
-
-
-    Serial.println("[MCU] Setup complete.");
-}
 
 void loop() {
     static uint32_t last_ms = millis();
