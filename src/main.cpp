@@ -104,7 +104,8 @@ CommandHandler g_commandHandler(
     g_stepperManager,
     g_telemetry,
     g_ultrasonicManager,
-    g_encoder
+    g_encoder,
+    g_dcMotorManager
 );
 
 // Modules
@@ -238,7 +239,7 @@ void setup() {
 
 
     // Configure telemetry rate (optional)
-    g_telemetry.setInterval(1000);  // 10 Hz enable this to have telemetry in your system
+    g_telemetry.setInterval(0);  // 10 Hz enable this to have telemetry in your system
     // Initialize IMU
     bool imuOk = g_imu.begin(Pins::I2C_SDA, Pins::I2C_SCL, 0x68);
     Serial.printf("[MCU] IMU init: %s\n", imuOk ? "OK" : "FAILED");
@@ -248,7 +249,7 @@ void setup() {
     Serial.printf("[MCU] LiDAR init: %s\n", lidarOk ? "OK" : "FAILED");
 
     // example register providers
-        g_telemetry.registerProvider(
+    g_telemetry.registerProvider(
         "ultrasonic",
         [&](ArduinoJson::JsonObject node) {
             if (!g_ultrasonicManager.isAttached(0)) {
@@ -265,7 +266,7 @@ void setup() {
             node["distance_cm"] = (dist_cm >= 0.0f) ? dist_cm : -1.0f;
         }
     );
-        // 👇 NEW: IMU telemetry provider
+        // NEW: IMU telemetry provider
     g_telemetry.registerProvider(
         "imu",
         [&](ArduinoJson::JsonObject node) {
@@ -296,7 +297,7 @@ void setup() {
             node["temp_c"] = s.temp_c;
         }
     );
-        // 👇 NEW: LiDAR telemetry
+        // NEW: LiDAR telemetry
     g_telemetry.registerProvider(
         "lidar",
         [&](ArduinoJson::JsonObject node) {
@@ -324,8 +325,34 @@ void setup() {
             // add derived speed if you want
         }
     );
+    g_telemetry.registerProvider(
+        "stepper0",
+        [&](ArduinoJson::JsonObject node) {
+            StepperManager::StepperDebugInfo info;
+            if (!g_stepperManager.getStepperDebugInfo(0, info)) {
+                node["motor_id"] = 0;
+                node["attached"] = false;
+                return;
+            }
+
+            node["motor_id"] = info.motorId;
+            node["attached"] = info.attached;
+
+            node["enabled"]         = info.enabled;
+            node["moving"]          = info.moving;
+            node["dir_forward"]     = info.lastDirForward;
+            node["last_cmd_steps"]  = info.lastCmdSteps;
+            node["last_cmd_speed"]  = info.lastCmdSpeed;
+
+            // If you want pins for debugging:
+            // node["pin_step"]   = info.pinStep;
+            // node["pin_dir"]    = info.pinDir;
+            // node["pin_enable"] = info.pinEnable;
+        }
+    );
 
     g_telemetry.setup();
+
 
     // Setup host (modules, timers, etc.)
     g_host.setup();
@@ -340,21 +367,51 @@ void setup() {
         g_gpioManager.registerChannel(def.channel, def.pin, def.mode);
     }
 
-    // === DC motor attach (optional; uncomment when Pins are defined) ===
-    // g_dcMotorManager.attach(
-    //     0,
-    //     Pins::MOTOR_LEFT_IN1,
-    //     Pins::MOTOR_LEFT_IN2,
-    //     Pins::MOTOR_LEFT_PWM,
-    //     /*pwmChannel=*/0
-    // );
-    // g_dcMotorManager.attach(
-    //     1,
-    //     Pins::MOTOR_RIGHT_IN1,
-    //     Pins::MOTOR_RIGHT_IN2,
-    //     Pins::MOTOR_RIGHT_PWM,
-    //     /*pwmChannel=*/1
-    // );
+    // === STEPPER REGISTRATION 
+    g_stepperManager.registerStepper(
+        /*motorId   */ 0,
+        /*pinStep   */ Pins::STEPPER0_STEP,   // 19
+        /*pinDir    */ Pins::STEPPER0_DIR,    // 23
+        /*pinEnable */ Pins::STEPPER0_EN,     // 27
+        /*invertDir */ false
+    );
+    g_stepperManager.dumpAllStepperMappings();
+
+    // Attach motor 0 to your L298N pins (IN1, IN2, ENA/PWM)
+    bool dcOk = g_dcMotorManager.attach(
+        /*id=*/0,
+        Pins::MOTOR_LEFT_IN1,   // IN1
+        Pins::MOTOR_LEFT_IN2,   // IN2
+        Pins::MOTOR_LEFT_PWM,   // ENA (PWM)
+        /*ledcChannel=*/0,      // hardware LEDC channel
+        /*freq=*/15000,         // 20 kHz
+        /*resolutionBits=*/12   // <= key change: 10 bits instead of 12
+    );
+
+    g_dcMotorManager.dumpAllMotorMappings();
+
+    if (!dcOk) {
+        Serial.println("[MCU] DC motor attach FAILED");
+    } else {
+        Serial.println("[MCU] DC motor attach OK, running quick spin...");
+
+        // Forward @ 40% for 2s
+        g_dcMotorManager.setSpeed(0, +1.0f);
+        delay(2000);
+
+        // Stop 1s
+        g_dcMotorManager.setSpeed(0, 0.0f);
+        delay(1000);
+
+        // Reverse @ 40% for 2s
+        g_dcMotorManager.setSpeed(0, -1.0f);
+        delay(2000);
+
+        // Final stop
+        g_dcMotorManager.setSpeed(0, 0.0f);
+        Serial.println("[MCU] DC motor quick test done.");
+    }
+
 
     Serial.println("[MCU] Setup complete.");
 }

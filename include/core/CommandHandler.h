@@ -30,7 +30,8 @@ public:
                    StepperManager&   stepper,
                    TelemetryModule&  telemetry,
                    UltrasonicManager& ultrasonic,
-                   EncoderManager&   encoder);
+                   EncoderManager&   encoder,
+                   DcMotorManager&   dc);
 
     // Call this once in setup() to attach to the EventBus
     void setup();
@@ -64,6 +65,10 @@ public:
     void handleStepperStop(JsonVariantConst payload);
     void handleStepperEnable(JsonVariantConst payload);
     
+    // DC motor stuff
+    void handleDcSetSpeed(JsonVariantConst payload);
+    void handleDcStop(JsonVariantConst payload);
+
     // sesnsors
     // ultrasonic
     void handleUltrasonicAttach(JsonVariantConst payload);
@@ -91,6 +96,7 @@ private:
     StepperManager&   stepper_;
     UltrasonicManager& ultrasonic_;
     EncoderManager&   encoder_;
+    DcMotorManager&   dc_;
 
     // === Static trampoline for EventBus ===
     static CommandHandler* s_instance;

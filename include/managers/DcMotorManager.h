@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <math.h>          // for fabsf
 #include "core/Debug.h"
 #include "managers/GpioManager.h"
 #include "managers/PwmManager.h"
@@ -9,19 +10,32 @@ class DcMotorManager {
 public:
     static constexpr uint8_t MAX_MOTORS = 4;
 
+    // Match auto-generated GPIO_CHANNEL_DEFS:
+    // 0: LED_STATUS
+    // 1: ULTRASONIC_TRIG
+    // 2: ULTRASONIC_ECHO
+    // 3: MOTOR_LEFT_IN1
+    // 4: MOTOR_LEFT_IN2
+    // 5: STEPPER0_EN
+    // 6: ENC0_A
+    // 7: ENC0_B
+    //
+    // So DC motors will start at channel 3:
+    //   motor 0: in1 -> 3, in2 -> 4
+    //   motor 1: in1 -> 5, in2 -> 6 (if you ever want it)
+    static constexpr int GPIO_BASE_CH = 3;   // base for IN1/IN2 channels
+    static constexpr int PWM_BASE_CH  = 0;   // logical PWM channels 0,1,2,...
+
     struct Motor {
-        // Physical pins (for debug / introspection)
-        int in1Pin    = -1;
-        int in2Pin    = -1;
-        int pwmPin    = -1;
+        int in1Pin      = -1;
+        int in2Pin      = -1;
+        int pwmPin      = -1;
 
-        // Hardware LEDC channel (0..15)
-        int ledcChannel = -1;
+        int ledcChannel = -1;  // hardware LEDC channel (0..15)
 
-        // Logical channels in managers
-        int gpioChIn1  = -1;
-        int gpioChIn2  = -1;
-        int pwmCh      = -1;
+        int gpioChIn1   = -1;  // logical channels in GpioManager
+        int gpioChIn2   = -1;
+        int pwmCh       = -1;  // logical PWM channel in PwmManager
 
         bool  attached   = false;
         float lastSpeed  = 0.0f;  // -1.0 .. +1.0
@@ -29,35 +43,33 @@ public:
         int   resolution = 0;
     };
 
-    // Public debug view
     struct MotorDebugInfo {
-        uint8_t id         = 0;
-        bool    attached   = false;
+        uint8_t id       = 0;
+        bool    attached = false;
 
-        int in1Pin         = -1;
-        int in2Pin         = -1;
-        int pwmPin         = -1;
-        int ledcChannel    = -1;
+        int in1Pin       = -1;
+        int in2Pin       = -1;
+        int pwmPin       = -1;
+        int ledcChannel  = -1;
 
-        int gpioChIn1      = -1;
-        int gpioChIn2      = -1;
-        int pwmCh          = -1;
+        int gpioChIn1    = -1;
+        int gpioChIn2    = -1;
+        int pwmCh        = -1;
 
-        float lastSpeed    = 0.0f;
-        float freqHz       = 0.0f;
-        int   resolution   = 0;
+        float lastSpeed  = 0.0f;
+        float freqHz     = 0.0f;
+        int   resolution = 0;
     };
 
     DcMotorManager(GpioManager& gpio, PwmManager& pwm)
         : gpio_(gpio), pwm_(pwm) {}
 
-    // Attach a DC motor to direction + PWM pins
     bool attach(uint8_t id,
                 int in1Pin,
                 int in2Pin,
                 int pwmPin,
                 int ledcChannel,
-                int freq = 20000,
+                int freq = 15000,          // 🔹 lowered from 20000
                 int resolutionBits = 12)
     {
         if (id >= MAX_MOTORS) {
@@ -65,10 +77,10 @@ public:
             return false;
         }
 
-        // Derive logical channels from motor id.
-        const int gpioChIn1 = id * 2;
-        const int gpioChIn2 = id * 2 + 1;
-        const int pwmCh     = id;
+        // Use a base that matches the auto-generated channels.
+        const int gpioChIn1 = GPIO_BASE_CH + id * 2;
+        const int gpioChIn2 = GPIO_BASE_CH + id * 2 + 1;
+        const int pwmCh     = PWM_BASE_CH  + id;
 
         // Configure direction pins via GpioManager
         gpio_.registerChannel(gpioChIn1, in1Pin, OUTPUT);
@@ -106,21 +118,19 @@ public:
         return (id < MAX_MOTORS) && motors_[id].attached;
     }
 
-    // speed: -1.0 (full reverse) .. 0 .. +1.0 (full forward)
+    // speed: -1.0 .. +1.0
     bool setSpeed(uint8_t id, float speed) {
         if (id >= MAX_MOTORS || !motors_[id].attached) {
             DBG_PRINTF("[DcMotorManager] setSpeed ignored, id=%u not attached\n", id);
             return false;
         }
 
-        // Clamp speed to [-1, 1]
         if (speed >  1.0f) speed =  1.0f;
         if (speed < -1.0f) speed = -1.0f;
 
-        Motor& m = motors_[id];
-        m.lastSpeed = speed;
-
-        const float mag = fabsf(speed);  // 0..1, for PWM duty
+        Motor& m     = motors_[id];
+        m.lastSpeed  = speed;
+        const float mag = fabsf(speed);  // 0..1
 
         // Direction via GpioManager
         if (mag == 0.0f) {
@@ -134,7 +144,7 @@ public:
             gpio_.write(m.gpioChIn2, HIGH);
         }
 
-        // PWM duty via PwmManager (0..1)
+        // PWM duty via PwmManager
         pwm_.set(m.pwmCh, mag);
 
         DBG_PRINTF("[DcMotorManager] id=%u speed=%.3f mag=%.3f\n",
@@ -154,25 +164,24 @@ public:
         }
     }
 
-    // === Debug helpers ===
     bool getMotorDebugInfo(uint8_t id, MotorDebugInfo& out) const {
         if (id >= MAX_MOTORS) {
             return false;
         }
         const Motor& m = motors_[id];
 
-        out.id         = id;
-        out.attached   = m.attached;
-        out.in1Pin     = m.in1Pin;
-        out.in2Pin     = m.in2Pin;
-        out.pwmPin     = m.pwmPin;
-        out.ledcChannel= m.ledcChannel;
-        out.gpioChIn1  = m.gpioChIn1;
-        out.gpioChIn2  = m.gpioChIn2;
-        out.pwmCh      = m.pwmCh;
-        out.lastSpeed  = m.lastSpeed;
-        out.freqHz     = m.freqHz;
-        out.resolution = m.resolution;
+        out.id          = id;
+        out.attached    = m.attached;
+        out.in1Pin      = m.in1Pin;
+        out.in2Pin      = m.in2Pin;
+        out.pwmPin      = m.pwmPin;
+        out.ledcChannel = m.ledcChannel;
+        out.gpioChIn1   = m.gpioChIn1;
+        out.gpioChIn2   = m.gpioChIn2;
+        out.pwmCh       = m.pwmCh;
+        out.lastSpeed   = m.lastSpeed;
+        out.freqHz      = m.freqHz;
+        out.resolution  = m.resolution;
 
         return m.attached;
     }

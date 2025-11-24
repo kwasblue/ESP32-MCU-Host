@@ -13,6 +13,7 @@
 #include "modules/TelemetryModule.h"
 #include "managers/StepperManager.h"
 #include "managers/EncoderManager.h"
+#include "managers/DcMotorManager.h"
 
 
 using namespace ArduinoJson;
@@ -32,7 +33,8 @@ CommandHandler::CommandHandler(EventBus&         bus,
                                StepperManager&   stepper,
                                TelemetryModule&  telemetry,
                                UltrasonicManager& ultrasonic,
-                               EncoderManager&   encoder)
+                               EncoderManager&   encoder,
+                               DcMotorManager&   dc)
     : bus_(bus)
     , mode_(mode)
     , motion_(motion)
@@ -44,6 +46,8 @@ CommandHandler::CommandHandler(EventBus&         bus,
     , telemetry_(telemetry)
     , ultrasonic_(ultrasonic)
     , encoder_(encoder)
+    , dc_(dc) 
+    
 {
     s_instance = this;
 }
@@ -130,6 +134,7 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         case CmdType::SERVO_DETACH:           handleServoDetach(payload);        break;
         case CmdType::SERVO_SET_ANGLE:        handleServoSetAngle(payload);      break;
 
+        case CmdType::STEPPER_ENABLE:         handleStepperEnable(payload);      break;
         case CmdType::STEPPER_MOVE_REL:       handleStepperMoveRel(payload);     break;
         case CmdType::STEPPER_STOP:           handleStepperStop(payload);        break;
 
@@ -140,9 +145,16 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         // encoder 
         case CmdType::ENCODER_ATTACH:    handleEncoderAttach(payload);    break;
         case CmdType::ENCODER_READ:      handleEncoderRead(payload);      break;
+        case CmdType::ENCODER_RESET:     handleEncoderReset(payload);     break;
+
+        
+        // --- DC motor control ---
+        case CmdType::DC_SET_SPEED:           handleDcSetSpeed(payload);         break;
+        case CmdType::DC_STOP:                handleDcStop(payload);             break;
+
 
         // Telemetry switch
-          case CmdType::TELEM_SET_INTERVAL:     handleTelemSetInterval(payload);    break;
+        case CmdType::TELEM_SET_INTERVAL:     handleTelemSetInterval(payload);    break;
 
         // --- Logging control ---
         case CmdType::SET_LOG_LEVEL:          handleSetLogLevel(payload);        break;
@@ -326,11 +338,8 @@ void CommandHandler::handleServoSetAngle(JsonVariantConst payload) {
 // -----------------------------------------------------------------------------
 // Stepper
 // -----------------------------------------------------------------------------
-// -----------------------------------------------------------------------------
-// Stepper
-// -----------------------------------------------------------------------------
 void CommandHandler::handleStepperMoveRel(JsonVariantConst payload) {
-    // Safety gate (same pattern as SET_VEL / SERVO_SET_ANGLE)
+    // Safety gate
     if (!mode_.canMove() || safety_.isEstopActive()) {
         DBG_PRINTLN("[CMD] STEPPER_MOVE_REL blocked by mode or ESTOP");
         return;
@@ -343,9 +352,9 @@ void CommandHandler::handleStepperMoveRel(JsonVariantConst payload) {
     DBG_PRINTF("[CMD] STEPPER_MOVE_REL motor=%d steps=%d speed=%.1f steps/s\n",
                motorId, steps, speedSteps_s);
 
-    // Route through MotionController so all motion is centralized
     motion_.moveStepperRelative(motorId, steps, speedSteps_s);
 }
+
 
 void CommandHandler::handleStepperStop(JsonVariantConst payload) {
     int motorId = payload["motor_id"] | 0;
@@ -639,6 +648,58 @@ void CommandHandler::handleEncoderReset(JsonVariantConst payload) {
     resp["cmd"]        = "ENCODER_RESET_ACK";
     resp["encoder_id"] = encoderId;
     resp["ok"]         = true;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
+}
+
+// DC motor stuff
+void CommandHandler::handleDcSetSpeed(JsonVariantConst payload) {
+    int   motorId = payload["motor_id"] | 0;
+    float speed   = payload["speed"]    | 0.0f;  // -1.0 .. +1.0
+
+    DBG_PRINTF("[CMD] DC_SET_SPEED motor=%d speed=%.3f\n", motorId, speed);
+
+    bool ok = dc_.setSpeed(
+        static_cast<uint8_t>(motorId),
+        speed
+    );
+
+    using namespace ArduinoJson;
+    JsonDocument resp;
+    resp["src"]      = "mcu";
+    resp["cmd"]      = "DC_SET_SPEED_ACK";
+    resp["motor_id"] = motorId;
+    resp["speed"]    = speed;
+    resp["ok"]       = ok;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
+}
+
+void CommandHandler::handleDcStop(JsonVariantConst payload) {
+    int motorId = payload["motor_id"] | 0;
+
+    DBG_PRINTF("[CMD] DC_STOP motor=%d\n", motorId);
+
+    dc_.stop(static_cast<uint8_t>(motorId));
+
+    using namespace ArduinoJson;
+    JsonDocument resp;
+    resp["src"]      = "mcu";
+    resp["cmd"]      = "DC_STOP_ACK";
+    resp["motor_id"] = motorId;
+    resp["ok"]       = true;
 
     std::string out;
     serializeJson(resp, out);
