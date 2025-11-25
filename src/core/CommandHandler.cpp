@@ -173,6 +173,8 @@ void CommandHandler::handleSetMode(JsonVariantConst payload) {
     const char* modeStr = payload["mode"] | "IDLE";
 
     RobotMode newMode = mode_.mode();
+    bool ok = true;
+    const char* error = nullptr;
 
     if (strcmp(modeStr, "IDLE") == 0) {
         newMode = RobotMode::IDLE;
@@ -183,30 +185,69 @@ void CommandHandler::handleSetMode(JsonVariantConst payload) {
     } else {
         DBG_PRINT("[CMD] Unsupported mode string: ");
         DBG_PRINTLN(modeStr);
-        return;
+        ok = false;
+        error = "unsupported_mode";
     }
 
     // If we're in ESTOP, only CLEAR_ESTOP is allowed to change state
-    if (mode_.mode() == RobotMode::ESTOP) {
+    if (ok && mode_.mode() == RobotMode::ESTOP) {
         DBG_PRINTLN("[CMD] Ignoring SET_MODE while in ESTOP");
-        return;
+        ok = false;
+        error = "in_estop";
     }
 
-    mode_.setMode(newMode);
-    // TODO: optionally publish a STATUS event with new mode
+    if (ok) {
+        mode_.setMode(newMode);
+    }
+
+    // --- ACK ---
+    JsonDocument resp;
+    resp["src"]   = "mcu";
+    resp["cmd"]   = "SET_MODE_ACK";
+    resp["mode"]  = modeStr;
+    resp["ok"]    = ok;
+    if (!ok && error) {
+        resp["error"] = error;
+    }
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
 }
 
 void CommandHandler::handleSetVel(JsonVariantConst payload) {
-    // Basic safety gates
-    if (!mode_.canMove() || safety_.isEstopActive()) {
-        DBG_PRINTLN("[CMD] SET_VEL blocked by mode or ESTOP");
-        return;
-    }
-
     float vx    = payload["vx"]    | 0.0f;
     float omega = payload["omega"] | 0.0f;
 
-    motion_.setVelocity(vx, omega);
+    bool allowed = mode_.canMove() && !safety_.isEstopActive();
+    if (!allowed) {
+        DBG_PRINTLN("[CMD] SET_VEL blocked by mode or ESTOP");
+    } else {
+        motion_.setVelocity(vx, omega);
+    }
+
+    // --- ACK ---
+    JsonDocument resp;
+    resp["src"]   = "mcu";
+    resp["cmd"]   = "SET_VEL_ACK";
+    resp["vx"]    = vx;
+    resp["omega"] = omega;
+    resp["ok"]    = allowed;
+    if (!allowed) {
+        resp["error"] = "blocked_by_mode_or_estop";
+    }
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
 }
 
 // -----------------------------------------------------------------------------
@@ -241,6 +282,19 @@ void CommandHandler::handleSetLogLevel(JsonVariantConst payload) {
 void CommandHandler::handleStop() {
     DBG_PRINTLN("[CMD] STOP");
     motion_.stop();
+
+    JsonDocument resp;
+    resp["src"] = "mcu";
+    resp["cmd"] = "STOP_ACK";
+    resp["ok"]  = true;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
 }
 
 void CommandHandler::handleEstop() {
@@ -248,6 +302,19 @@ void CommandHandler::handleEstop() {
     safety_.estop();
     motion_.stop();
     mode_.setMode(RobotMode::ESTOP);
+
+    JsonDocument resp;
+    resp["src"] = "mcu";
+    resp["cmd"] = "ESTOP_ACK";
+    resp["ok"]  = true;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
 }
 
 void CommandHandler::handleClearEstop() {
@@ -255,16 +322,59 @@ void CommandHandler::handleClearEstop() {
     safety_.clearEstop();
     motion_.stop();
     mode_.setMode(RobotMode::IDLE);
+
+    JsonDocument resp;
+    resp["src"] = "mcu";
+    resp["cmd"] = "CLEAR_ESTOP_ACK";
+    resp["ok"]  = true;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
 }
 
 void CommandHandler::handleLedOn() {
     DBG_PRINTLN("[CMD] LED ON");
     digitalWrite(Pins::LED_STATUS, HIGH);
+
+    JsonDocument resp;
+    resp["src"]  = "mcu";
+    resp["cmd"]  = "LED_ON_ACK";
+    resp["pin"]  = Pins::LED_STATUS;
+    resp["on"]   = true;
+    resp["ok"]   = true;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
 }
 
 void CommandHandler::handleLedOff() {
     DBG_PRINTLN("[CMD] LED OFF");
     digitalWrite(Pins::LED_STATUS, LOW);
+
+    JsonDocument resp;
+    resp["src"]  = "mcu";
+    resp["cmd"]  = "LED_OFF_ACK";
+    resp["pin"]  = Pins::LED_STATUS;
+    resp["on"]   = false;
+    resp["ok"]   = true;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
 }
 
 // -----------------------------------------------------------------------------
@@ -279,6 +389,23 @@ void CommandHandler::handlePwmSet(JsonVariantConst payload) {
                channel, duty, freq);
 
     pwm_.set(channel, duty, freq);
+
+    // --- ACK ---
+    JsonDocument resp;
+    resp["src"]     = "mcu";
+    resp["cmd"]     = "PWM_SET_ACK";
+    resp["channel"] = channel;
+    resp["duty"]    = duty;
+    resp["freq_hz"] = freq;
+    resp["ok"]      = true;  // adjust if you later add error checking
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
 }
 
 // -----------------------------------------------------------------------------
@@ -296,6 +423,23 @@ void CommandHandler::handleServoAttach(JsonVariantConst payload) {
             break;
         default:
             DBG_PRINTF("[CMD] SERVO_ATTACH: unknown servoId=%d\n", servoId);
+
+            // ACK with error
+            JsonDocument bad;
+            bad["src"]      = "mcu";
+            bad["cmd"]      = "SERVO_ATTACH_ACK";
+            bad["servo_id"] = servoId;
+            bad["ok"]       = false;
+            bad["error"]    = "unknown_servo_id";
+
+            std::string outBad;
+            serializeJson(bad, outBad);
+            {
+                Event evt;
+                evt.type         = EventType::JSON_MESSAGE_TX;
+                evt.payload.json = std::move(outBad);
+                bus_.publish(evt);
+            }
             return;
     }
 
@@ -303,6 +447,23 @@ void CommandHandler::handleServoAttach(JsonVariantConst payload) {
                servoId, pin, minUs, maxUs);
 
     servo_.attach(servoId, pin, minUs, maxUs);
+
+    JsonDocument resp;
+    resp["src"]      = "mcu";
+    resp["cmd"]      = "SERVO_ATTACH_ACK";
+    resp["servo_id"] = servoId;
+    resp["pin"]      = pin;
+    resp["min_us"]   = minUs;
+    resp["max_us"]   = maxUs;
+    resp["ok"]       = true; // change when attach returns bool
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
 }
 
 void CommandHandler::handleServoDetach(JsonVariantConst payload) {
@@ -310,29 +471,59 @@ void CommandHandler::handleServoDetach(JsonVariantConst payload) {
 
     DBG_PRINTF("[CMD] SERVO_DETACH id=%d\n", servoId);
     servo_.detach(servoId);
+
+    JsonDocument resp;
+    resp["src"]      = "mcu";
+    resp["cmd"]      = "SERVO_DETACH_ACK";
+    resp["servo_id"] = servoId;
+    resp["ok"]       = true;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
 }
 
 void CommandHandler::handleServoSetAngle(JsonVariantConst payload) {
-    // Safety gate (good to keep this)
-    if (!mode_.canMove() || safety_.isEstopActive()) {
-        DBG_PRINTLN("[CMD] SERVO_SET_ANGLE blocked by mode or ESTOP");
-        return;
-    }
-
-    int   servoId = payload["servo_id"]  | 0;
     float angle   = payload["angle_deg"] | 0.0f;
+    int   servoId = payload["servo_id"]  | 0;
     int   durMs   = payload["duration_ms"] | 0;  // 0 = immediate
 
-    DBG_PRINTF("[CMD] SERVO_SET_ANGLE id=%d angle=%.1f dur=%d ms\n",
-               servoId, angle, durMs);
-
-    if (durMs <= 0) {
-        // Immediate move via ServoManager
-        servo_.setAngle(servoId, angle);
+    bool allowed = mode_.canMove() && !safety_.isEstopActive();
+    if (!allowed) {
+        DBG_PRINTLN("[CMD] SERVO_SET_ANGLE blocked by mode or ESTOP");
     } else {
-        // Smooth/interpolated motion via MotionController
-        motion_.setServoTarget(servoId, angle, durMs);
+        DBG_PRINTF("[CMD] SERVO_SET_ANGLE id=%d angle=%.1f dur=%d ms\n",
+                   servoId, angle, durMs);
+
+        if (durMs <= 0) {
+            servo_.setAngle(servoId, angle);
+        } else {
+            motion_.setServoTarget(servoId, angle, durMs);
+        }
     }
+
+    JsonDocument resp;
+    resp["src"]      = "mcu";
+    resp["cmd"]      = "SERVO_SET_ANGLE_ACK";
+    resp["servo_id"] = servoId;
+    resp["angle_deg"]= angle;
+    resp["duration_ms"] = durMs;
+    resp["ok"]       = allowed;
+    if (!allowed) {
+        resp["error"] = "blocked_by_mode_or_estop";
+    }
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
 }
 
 // -----------------------------------------------------------------------------
@@ -581,8 +772,22 @@ void CommandHandler::handleUltrasonicRead(JsonVariantConst payload) {
 void CommandHandler::handleTelemSetInterval(JsonVariantConst payload) {
     uint32_t interval = payload["interval_ms"] | 0;
     telemetry_.setInterval(interval);
-    // (optional) send TELEM_SET_INTERVAL_ACK back
+
+    JsonDocument resp;
+    resp["src"]         = "mcu";
+    resp["cmd"]         = "TELEM_SET_INTERVAL_ACK";
+    resp["interval_ms"] = interval;
+    resp["ok"]          = true;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
 }
+
 
 // -----------------------------------------------------------------------------
 // Encoder – attach/read via runtime pins from host
