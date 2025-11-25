@@ -7,7 +7,10 @@
 enum class CmdType {
     CLEAR_ESTOP,
     DC_SET_SPEED,
+    DC_SET_VEL_GAINS,
+    DC_SET_VEL_TARGET,
     DC_STOP,
+    DC_VEL_PID_ENABLE,
     ENCODER_ATTACH,
     ENCODER_READ,
     ENCODER_RESET,
@@ -38,7 +41,10 @@ enum class CmdType {
 inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_CLEAR_ESTOP") return CmdType::CLEAR_ESTOP;
     if (s == "CMD_DC_SET_SPEED") return CmdType::DC_SET_SPEED;
+    if (s == "CMD_DC_SET_VEL_GAINS") return CmdType::DC_SET_VEL_GAINS;
+    if (s == "CMD_DC_SET_VEL_TARGET") return CmdType::DC_SET_VEL_TARGET;
     if (s == "CMD_DC_STOP") return CmdType::DC_STOP;
+    if (s == "CMD_DC_VEL_PID_ENABLE") return CmdType::DC_VEL_PID_ENABLE;
     if (s == "CMD_ENCODER_ATTACH") return CmdType::ENCODER_ATTACH;
     if (s == "CMD_ENCODER_READ") return CmdType::ENCODER_READ;
     if (s == "CMD_ENCODER_RESET") return CmdType::ENCODER_RESET;
@@ -70,7 +76,10 @@ inline const char* cmdTypeToString(CmdType c) {
     switch (c) {
         case CmdType::CLEAR_ESTOP: return "CMD_CLEAR_ESTOP";
         case CmdType::DC_SET_SPEED: return "CMD_DC_SET_SPEED";
+        case CmdType::DC_SET_VEL_GAINS: return "CMD_DC_SET_VEL_GAINS";
+        case CmdType::DC_SET_VEL_TARGET: return "CMD_DC_SET_VEL_TARGET";
         case CmdType::DC_STOP: return "CMD_DC_STOP";
+        case CmdType::DC_VEL_PID_ENABLE: return "CMD_DC_VEL_PID_ENABLE";
         case CmdType::ENCODER_ATTACH: return "CMD_ENCODER_ATTACH";
         case CmdType::ENCODER_READ: return "CMD_ENCODER_READ";
         case CmdType::ENCODER_RESET: return "CMD_ENCODER_RESET";

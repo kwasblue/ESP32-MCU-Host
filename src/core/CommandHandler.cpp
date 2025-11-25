@@ -152,6 +152,11 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         case CmdType::DC_SET_SPEED:           handleDcSetSpeed(payload);         break;
         case CmdType::DC_STOP:                handleDcStop(payload);             break;
 
+        // PID stuff
+        case CmdType::DC_VEL_PID_ENABLE:      handleDcVelPidEnable(payload);     break;
+        case CmdType::DC_SET_VEL_TARGET:      handleDcSetVelTarget(payload);     break;
+        case CmdType::DC_SET_VEL_GAINS:       handleDcSetVelGains(payload);      break;
+
 
         // Telemetry switch
         case CmdType::TELEM_SET_INTERVAL:     handleTelemSetInterval(payload);    break;
@@ -905,6 +910,93 @@ void CommandHandler::handleDcStop(JsonVariantConst payload) {
     resp["cmd"]      = "DC_STOP_ACK";
     resp["motor_id"] = motorId;
     resp["ok"]       = true;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
+}
+
+// Enable / disable velocity PID for a DC motor
+void CommandHandler::handleDcVelPidEnable(JsonVariantConst payload) {
+    int  motorId = payload["motor_id"] | 0;
+    bool enable  = payload["enable"]   | true;
+
+    DBG_PRINTF("[CMD] DC_VEL_PID_ENABLE motor=%d enable=%d\n", motorId, (int)enable);
+
+    bool ok = dc_.enableVelocityPid(static_cast<uint8_t>(motorId), enable);
+
+    using namespace ArduinoJson;
+    JsonDocument resp;
+    resp["src"]      = "mcu";
+    resp["cmd"]      = "DC_VEL_PID_ENABLE_ACK";
+    resp["motor_id"] = motorId;
+    resp["enable"]   = enable;
+    resp["ok"]       = ok;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
+}
+
+// Set target angular velocity (rad/s) for the DC motor PID
+void CommandHandler::handleDcSetVelTarget(JsonVariantConst payload) {
+    int   motorId = payload["motor_id"] | 0;
+    float omega   = payload["omega"]    | 0.0f;   // rad/s
+
+    DBG_PRINTF("[CMD] DC_SET_VEL_TARGET motor=%d omega=%.3f rad/s\n",
+               motorId, omega);
+
+    bool ok = dc_.setVelocityTarget(static_cast<uint8_t>(motorId), omega);
+
+    using namespace ArduinoJson;
+    JsonDocument resp;
+    resp["src"]      = "mcu";
+    resp["cmd"]      = "DC_SET_VEL_TARGET_ACK";
+    resp["motor_id"] = motorId;
+    resp["omega"]    = omega;
+    resp["ok"]       = ok;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
+}
+
+// Configure PID gains for the DC motor velocity controller
+void CommandHandler::handleDcSetVelGains(JsonVariantConst payload) {
+    int   motorId = payload["motor_id"] | 0;
+    float kp      = payload["kp"]       | 0.0f;
+    float ki      = payload["ki"]       | 0.0f;
+    float kd      = payload["kd"]       | 0.0f;
+
+    DBG_PRINTF("[CMD] DC_SET_VEL_GAINS motor=%d kp=%.4f ki=%.4f kd=%.4f\n",
+               motorId, kp, ki, kd);
+
+    bool ok = dc_.setVelocityGains(
+        static_cast<uint8_t>(motorId),
+        kp, ki, kd
+    );
+
+    using namespace ArduinoJson;
+    JsonDocument resp;
+    resp["src"]      = "mcu";
+    resp["cmd"]      = "DC_SET_VEL_GAINS_ACK";
+    resp["motor_id"] = motorId;
+    resp["kp"]       = kp;
+    resp["ki"]       = ki;
+    resp["kd"]       = kd;
+    resp["ok"]       = ok;
 
     std::string out;
     serializeJson(resp, out);

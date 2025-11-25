@@ -27,10 +27,12 @@
 #include "modules/TelemetryModule.h"
 #include "managers/UltrasonicManager.h"
 #include "managers/ImuManager.h"
-#include "managers/LidarManager.h" 
+#include "managers/LidarManager.h"
 #include "managers/EncoderManager.h"
 
-// Optional fallback defaults if WifiSecrets.h isn't set up yet
+// -----------------------------------------------------------------------------
+// WiFi defaults (if WifiSecrets.h not configured)
+// -----------------------------------------------------------------------------
 #ifndef WIFI_STA_SSID
 #define WIFI_STA_SSID "YourHomeSSID"
 #endif
@@ -43,11 +45,13 @@
 const char* AP_SSID  = "RobotAP";
 const char* AP_PASS  = "robotpass";
 
-// === Globals ===
+// -----------------------------------------------------------------------------
+// Globals
+// -----------------------------------------------------------------------------
 
 // Core bus + mode/safety
 EventBus      g_bus;
-ModeManager   g_modeManager; 
+ModeManager   g_modeManager;
 SafetyManager g_safetyManager;
 
 // Hardware managers
@@ -78,11 +82,11 @@ MotionController g_motionController(
 // Transports
 MultiTransport g_multiTransport;
 
-// Dedicated UART1 for protocol
-HardwareSerial SerialPort(1);               // UART1
-UartTransport  g_uart(Serial, 115200);      // protocol over UART1
- 
-WifiTransport  g_wifi(3333);                // TCP port
+// Dedicated UART1 for protocol (note: UartTransport currently bound to Serial)
+HardwareSerial SerialPort(1);          // UART1
+UartTransport  g_uart(Serial, 115200); // protocol over USB Serial (for now)
+
+WifiTransport  g_wifi(3333);           // TCP port
 BleTransport   g_ble("ESP32-SPP");
 
 // Router + host
@@ -116,6 +120,24 @@ IdentityModule  g_identity(g_bus, g_multiTransport, "ESP32-bot");
 // For periodic debug printing if you want later
 uint32_t g_lastIpPrintMs = 0;
 
+// --- Encoder / PID config for DC motor 0 ---
+constexpr float ENCODER0_TICKS_PER_REV = 1632.67f;  // motor or wheel revs, depending on mount
+static uint32_t g_lastPidMs   = 0;
+static int32_t  g_lastTicks0  = 0;
+
+// -----------------------------------------------------------------------------
+// Forward declarations for helpers
+// -----------------------------------------------------------------------------
+void setupWifiDualMode();
+void setupOta();
+void setupTransportsAndRouter();
+void setupTelemetryProviders();
+void setupGpioAndMotors();
+void updateDcMotor0VelocityPid(uint32_t now_ms);
+
+// -----------------------------------------------------------------------------
+// WiFi: AP + STA
+// -----------------------------------------------------------------------------
 void setupWifiDualMode() {
     Serial.println("[WiFi] Starting AP + STA mode...");
 
@@ -155,11 +177,13 @@ void setupWifiDualMode() {
         Serial.println("[WiFi][AP] Failed to start AP!");
     }
 
-    // 🔹 Start the WifiTransport TCP server here
-    g_wifi.begin();   // <- this will print your WifiTransport debug lines
+    // Start the WifiTransport TCP server
+    g_wifi.begin();
 }
 
-// === OTA setup ===
+// -----------------------------------------------------------------------------
+// OTA setup
+// -----------------------------------------------------------------------------
 void setupOta() {
     ArduinoOTA.setHostname("ESP32-bot");
 
@@ -192,36 +216,16 @@ void setupOta() {
     Serial.println("[OTA] Ready. You can now upload OTA as 'ESP32-bot.local'");
 }
 
-void setup() {
-    // 1) USB Serial for logs
-    Serial.begin(115200);
-    delay(500);
-    Serial.println("\n[MCU] Booting with UART1 + WiFi (AP+STA)...");
-
-    // Servo calibration defaults (no attach yet; that can be done via SERVO_ATTACH)
-    //g_servoManager.setScale(1.0f); // adjust scale of movement not sure if i really want this feature
-    //g_servoManager.setOffset(0.0f);
-
-    // 2) UART1 for protocol (binary frames on pins)
-    SerialPort.begin(
-        115200,
-        SERIAL_8N1,
-        Pins::UART1_RX,   // RX pin from PinConfig
-        Pins::UART1_TX    // TX pin from PinConfig
-    );
-
-    // Bring up WiFi in dual mode (STA + AP)
-    setupWifiDualMode();
-
-    // Setup OTA
-    setupOta();
-
+// -----------------------------------------------------------------------------
+// Transports, router, host wiring
+// -----------------------------------------------------------------------------
+void setupTransportsAndRouter() {
     // Compose transports: UART1 + WiFi + BLE
-    g_multiTransport.addTransport(&g_uart);   // binary on SerialPort (UART1)
+    g_multiTransport.addTransport(&g_uart);   // binary on Serial/USB (or UART1 later)
     g_multiTransport.addTransport(&g_wifi);
-    g_multiTransport.addTransport(&g_ble);    // ble diable for now
+    g_multiTransport.addTransport(&g_ble);    // can disable BLE later if desired
 
-    // CommandHandler subscribes to JSON_MESSAGE_RX 
+    // CommandHandler subscribes to JSON_MESSAGE_RX
     g_commandHandler.setup();
 
     // Router sets frame handler and begins transports
@@ -237,18 +241,18 @@ void setup() {
     g_host.addModule(&g_logger);
     g_host.addModule(&g_identity);
 
+    // Setup host (modules, timers, etc.)
+    g_host.setup();
+}
 
-    // Configure telemetry rate (optional)
-    g_telemetry.setInterval(0);  // 10 Hz enable this to have telemetry in your system
-    // Initialize IMU
-    bool imuOk = g_imu.begin(Pins::I2C_SDA, Pins::I2C_SCL, 0x68);
-    Serial.printf("[MCU] IMU init: %s\n", imuOk ? "OK" : "FAILED");
-         
-    // Initialize LiDAR (VL53L0X on same I2C bus)
-    bool lidarOk = g_lidar.begin(Pins::I2C_SDA, Pins::I2C_SCL);
-    Serial.printf("[MCU] LiDAR init: %s\n", lidarOk ? "OK" : "FAILED");
+// -----------------------------------------------------------------------------
+// Telemetry providers
+// -----------------------------------------------------------------------------
+void setupTelemetryProviders() {
+    // Configure telemetry base interval (0 = off, >0 for periodic)
+    g_telemetry.setInterval(0);  // you can bump this from the host
 
-    // example register providers
+    // Ultrasonic
     g_telemetry.registerProvider(
         "ultrasonic",
         [&](ArduinoJson::JsonObject node) {
@@ -266,7 +270,8 @@ void setup() {
             node["distance_cm"] = (dist_cm >= 0.0f) ? dist_cm : -1.0f;
         }
     );
-        // NEW: IMU telemetry provider
+
+    // IMU
     g_telemetry.registerProvider(
         "imu",
         [&](ArduinoJson::JsonObject node) {
@@ -279,25 +284,19 @@ void setup() {
             ImuManager::Sample s;
             bool ok = g_imu.readSample(s);
             node["ok"] = ok;
-            if (!ok) {
-                return;
-            }
+            if (!ok) return;
 
-            // Accel in g
-            node["ax_g"] = s.ax_g;
-            node["ay_g"] = s.ay_g;
-            node["az_g"] = s.az_g;
-
-            // Gyro in deg/s
+            node["ax_g"]   = s.ax_g;
+            node["ay_g"]   = s.ay_g;
+            node["az_g"]   = s.az_g;
             node["gx_dps"] = s.gx_dps;
             node["gy_dps"] = s.gy_dps;
             node["gz_dps"] = s.gz_dps;
-
-            // Temperature
             node["temp_c"] = s.temp_c;
         }
     );
-        // NEW: LiDAR telemetry
+
+    // LiDAR
     g_telemetry.registerProvider(
         "lidar",
         [&](ArduinoJson::JsonObject node) {
@@ -310,21 +309,22 @@ void setup() {
             LidarManager::Sample s;
             bool ok = g_lidar.readSample(s);
             node["ok"] = ok;
-            if (!ok) {
-                return;
-            }
+            if (!ok) return;
 
             node["distance_m"] = s.distance_m;
         }
     );
+
+    // Encoder 0
     g_telemetry.registerProvider(
         "encoder0",
         [&](ArduinoJson::JsonObject node) {
             int32_t ticks = g_encoder.getCount(0);
             node["ticks"] = ticks;
-            // add derived speed if you want
         }
     );
+
+    // Stepper 0
     g_telemetry.registerProvider(
         "stepper0",
         [&](ArduinoJson::JsonObject node) {
@@ -335,62 +335,17 @@ void setup() {
                 return;
             }
 
-            node["motor_id"] = info.motorId;
-            node["attached"] = info.attached;
-
+            node["motor_id"]        = info.motorId;
+            node["attached"]        = info.attached;
             node["enabled"]         = info.enabled;
             node["moving"]          = info.moving;
             node["dir_forward"]     = info.lastDirForward;
             node["last_cmd_steps"]  = info.lastCmdSteps;
             node["last_cmd_speed"]  = info.lastCmdSpeed;
-
-            // If you want pins for debugging:
-            // node["pin_step"]   = info.pinStep;
-            // node["pin_dir"]    = info.pinDir;
-            // node["pin_enable"] = info.pinEnable;
         }
     );
 
-    g_telemetry.setup();
-
-
-    // Setup host (modules, timers, etc.)
-    g_host.setup();
-
-    // Hardware stuff initial state
-    pinMode(Pins::LED_STATUS, OUTPUT);
-    digitalWrite(Pins::LED_STATUS, LOW);
-
-    // === GPIO logical channel mappings ===
-    for (size_t i = 0; i < GPIO_CHANNEL_COUNT; ++i) {
-        const auto& def = GPIO_CHANNEL_DEFS[i];
-        g_gpioManager.registerChannel(def.channel, def.pin, def.mode);
-    }
-
-    // === STEPPER REGISTRATION 
-    g_stepperManager.registerStepper(
-        /*motorId   */ 0,
-        /*pinStep   */ Pins::STEPPER0_STEP,   // 19
-        /*pinDir    */ Pins::STEPPER0_DIR,    // 23
-        /*pinEnable */ Pins::STEPPER0_EN,     // 27
-        /*invertDir */ false
-    );
-    g_stepperManager.dumpAllStepperMappings();
-
-    // Attach motor 0 to your L298N pins (IN1, IN2, ENA/PWM)
-    bool dcOk = g_dcMotorManager.attach(
-        /*id=*/0,
-        Pins::MOTOR_LEFT_IN1,   // IN1
-        Pins::MOTOR_LEFT_IN2,   // IN2
-        Pins::MOTOR_LEFT_PWM,   // ENA (PWM)
-        /*ledcChannel=*/0,      // hardware LEDC channel
-        /*freq=*/15000,         // 20 kHz
-        /*resolutionBits=*/12   // <= key change: 10 bits instead of 12
-    );
-
-    g_dcMotorManager.dumpAllMotorMappings();
-
-    // DC motor 0 telemetry
+    // DC motor 0
     g_telemetry.registerProvider(
         "dc_motor0",
         [&](ArduinoJson::JsonObject node) {
@@ -401,25 +356,121 @@ void setup() {
                 return;
             }
 
-            node["motor_id"]       = info.id;
-            node["attached"]       = info.attached;
-
-            node["in1_pin"]        = info.in1Pin;
-            node["in2_pin"]        = info.in2Pin;
-            node["pwm_pin"]        = info.pwmPin;
-            node["ledc_channel"]   = info.ledcChannel;
-
-            node["gpio_ch_in1"]    = info.gpioChIn1;
-            node["gpio_ch_in2"]    = info.gpioChIn2;
-            node["pwm_ch"]         = info.pwmCh;
-
-            node["speed"]          = info.lastSpeed;     // -1.0..+1.0
-            node["freq_hz"]        = info.freqHz;
-            node["resolution_bits"]= info.resolution;
+            node["motor_id"]        = info.id;
+            node["attached"]        = info.attached;
+            node["in1_pin"]         = info.in1Pin;
+            node["in2_pin"]         = info.in2Pin;
+            node["pwm_pin"]         = info.pwmPin;
+            node["ledc_channel"]    = info.ledcChannel;
+            node["gpio_ch_in1"]     = info.gpioChIn1;
+            node["gpio_ch_in2"]     = info.gpioChIn2;
+            node["pwm_ch"]          = info.pwmCh;
+            node["speed"]           = info.lastSpeed;  // -1..1
+            node["freq_hz"]         = info.freqHz;
+            node["resolution_bits"] = info.resolution;
         }
     );
 
+    g_telemetry.setup();
+}
+
+// -----------------------------------------------------------------------------
+// GPIO + motors/steppers setup
+// -----------------------------------------------------------------------------
+void setupGpioAndMotors() {
+    // Status LED
+    pinMode(Pins::LED_STATUS, OUTPUT);
+    digitalWrite(Pins::LED_STATUS, LOW);
+
+    // GPIO logical channel mappings
+    for (size_t i = 0; i < GPIO_CHANNEL_COUNT; ++i) {
+        const auto& def = GPIO_CHANNEL_DEFS[i];
+        g_gpioManager.registerChannel(def.channel, def.pin, def.mode);
     }
+
+    // Stepper registration
+    g_stepperManager.registerStepper(
+        /*motorId   */ 0,
+        /*pinStep   */ Pins::STEPPER0_STEP,
+        /*pinDir    */ Pins::STEPPER0_DIR,
+        /*pinEnable */ Pins::STEPPER0_EN,
+        /*invertDir */ false
+    );
+    g_stepperManager.dumpAllStepperMappings();
+
+    // DC motor attach (motor 0)
+    bool dcOk = g_dcMotorManager.attach(
+        /*id=*/0,
+        Pins::MOTOR_LEFT_IN1,   // IN1
+        Pins::MOTOR_LEFT_IN2,   // IN2
+        Pins::MOTOR_LEFT_PWM,   // ENA (PWM)
+        /*ledcChannel=*/0,      // hardware LEDC channel
+        /*freq=*/15000,
+        /*resolutionBits=*/12
+    );
+    (void)dcOk; // if you want, you can log this
+
+    g_dcMotorManager.dumpAllMotorMappings();
+}
+
+// -----------------------------------------------------------------------------
+// DC motor 0 velocity PID update helper
+// -----------------------------------------------------------------------------
+void updateDcMotor0VelocityPid(uint32_t now_ms) {
+    const uint32_t PID_PERIOD_MS = 2;  // ~500 Hz
+
+    if (now_ms - g_lastPidMs < PID_PERIOD_MS) {
+        return;
+    }
+
+    uint32_t elapsed = now_ms - g_lastPidMs;
+    g_lastPidMs = now_ms;
+
+    float dt_pid = elapsed / 1000.0f;
+    if (dt_pid <= 0.0f) return;
+
+    int32_t ticks = g_encoder.getCount(0);
+    int32_t deltaTicks = ticks - g_lastTicks0;
+    g_lastTicks0 = ticks;
+
+    // ticks -> revs -> rad/s
+    float revs        = deltaTicks / ENCODER0_TICKS_PER_REV;
+    float omega_rad_s = revs * 2.0f * PI / dt_pid;
+
+    // This will do nothing if PID is disabled for motor 0
+    g_dcMotorManager.updateVelocityPid(0, omega_rad_s, dt_pid);
+}
+
+// -----------------------------------------------------------------------------
+// setup() and loop()
+// -----------------------------------------------------------------------------
+void setup() {
+    // USB Serial for logs
+    Serial.begin(115200);
+    delay(500);
+    Serial.println("\n[MCU] Booting with UART1 + WiFi (AP+STA)...");
+
+    // UART1 for protocol (pins from PinConfig)
+    SerialPort.begin(
+        115200,
+        SERIAL_8N1,
+        Pins::UART1_RX,
+        Pins::UART1_TX
+    );
+
+    setupWifiDualMode();
+    setupOta();
+
+    // Sensors
+    bool imuOk   = g_imu.begin(Pins::I2C_SDA, Pins::I2C_SCL, 0x68);
+    bool lidarOk = g_lidar.begin(Pins::I2C_SDA, Pins::I2C_SCL);
+    Serial.printf("[MCU] IMU init: %s\n",   imuOk   ? "OK" : "FAILED");
+    Serial.printf("[MCU] LiDAR init: %s\n", lidarOk ? "OK" : "FAILED");
+
+    setupTransportsAndRouter();
+    setupGpioAndMotors();
+    setupTelemetryProviders();
+}
 
 void loop() {
     static uint32_t last_ms = millis();
@@ -427,22 +478,21 @@ void loop() {
     float dt = (now_ms - last_ms) / 1000.0f;
     last_ms = now_ms;
 
-    // Handle OTA updates
+    // OTA
     ArduinoOTA.handle();
 
-    // Let host run its modules and router loop
+    // Host + router + transports
     g_host.loop(now_ms);
-
-    // start wifi manually
     g_wifi.loop();
-
-    // start ble
     g_ble.loop();
 
     // Telemetry (periodic JSON -> host)
     g_telemetry.loop(now_ms);
 
-    // Run motion control (diff-drive + servo interpolation)
+    // DC motor 0 velocity PID (encoder -> omega -> PID -> PWM)
+    updateDcMotor0VelocityPid(now_ms);
+
+    // Motion control (diff-drive + servo interpolation)
     g_motionController.update(dt);
 
     delay(1);

@@ -79,6 +79,11 @@ public:
     void handleEncoderRead(ArduinoJson::JsonVariantConst payload);
     void handleEncoderReset(ArduinoJson::JsonVariantConst payload);  // <-- add this
 
+    // PID stuff
+    void handleDcVelPidEnable(JsonVariantConst payload);
+    void handleDcSetVelTarget(JsonVariantConst payload);
+    void handleDcSetVelGains(JsonVariantConst payload);
+
     // telemetry 
     void handleTelemSetInterval(JsonVariantConst payload);
     // Log handling 
