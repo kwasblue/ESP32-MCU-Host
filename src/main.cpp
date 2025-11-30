@@ -121,7 +121,7 @@ IdentityModule  g_identity(g_bus, g_multiTransport, "ESP32-bot");
 uint32_t g_lastIpPrintMs = 0;
 
 // --- Encoder / PID config for DC motor 0 ---
-constexpr float ENCODER0_TICKS_PER_REV = 1632.67f;  // motor or wheel revs, depending on mount
+constexpr float ENCODER0_TICKS_PER_REV = 1632.67f;  // without any attachments
 static uint32_t g_lastPidMs   = 0;
 static int32_t  g_lastTicks0  = 0;
 
@@ -139,11 +139,16 @@ void updateDcMotor0VelocityPid(uint32_t now_ms);
 // WiFi: AP + STA
 // -----------------------------------------------------------------------------
 void setupWifiDualMode() {
-    Serial.println("[WiFi] Starting AP + STA mode...");
+    Serial.println("[WiFi] Starting AP + optional STA...");
 
     WiFi.mode(WIFI_AP_STA);
 
-    // --- Connect to home network (STA mode) ---
+    // Turn off persistent + reconnect BEFORE begin
+    WiFi.persistent(false);
+    WiFi.setAutoReconnect(false);
+    WiFi.setAutoConnect(false);  // optional, prevents auto-connect at next boot
+
+    // --- Try STA once ---
     Serial.print("[WiFi][STA] Connecting to ");
     Serial.print(WIFI_STA_SSID);
 
@@ -162,10 +167,14 @@ void setupWifiDualMode() {
         Serial.print("[WiFi][STA] Connected, IP: ");
         Serial.println(WiFi.localIP());
     } else {
-        Serial.println("[WiFi][STA] Failed to connect (timeout). Continuing with AP only.");
+        Serial.println("[WiFi][STA] Failed; disabling STA to avoid reconnect spam.");
+
+        // Kill STA cleanly so it stops scanning / reconnecting
+        WiFi.disconnect(true, true);   // drop + clear creds
+        WiFi.mode(WIFI_AP);           // AP only from here
     }
 
-    // --- Start robot AP (AP mode) ---
+    // --- Start robot AP ---
     bool apOk = WiFi.softAP(AP_SSID, AP_PASS);
     if (apOk) {
         IPAddress apIp = WiFi.softAPIP();
@@ -177,7 +186,6 @@ void setupWifiDualMode() {
         Serial.println("[WiFi][AP] Failed to start AP!");
     }
 
-    // Start the WifiTransport TCP server
     g_wifi.begin();
 }
 
