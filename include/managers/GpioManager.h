@@ -61,6 +61,10 @@ public:
         digitalWrite(pin, current == HIGH ? LOW : HIGH);
     }
 
+    void GpioManager::configureLimitSwitch(uint8_t pin) {
+        pinMode(pin, INPUT_PULLUP);
+    }
+    
 private:
     int8_t pinForChannel_[MAX_CHANNELS];
 };
