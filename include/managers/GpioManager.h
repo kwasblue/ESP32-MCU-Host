@@ -1,10 +1,10 @@
 #pragma once
 #include <Arduino.h>
-#include "core/Debug.h"     // <-- add this
+#include "core/Debug.h"
 
 class GpioManager {
 public:
-    static constexpr int MAX_CHANNELS = 16;   // bump if you need more
+    static constexpr int MAX_CHANNELS = 16;
 
     GpioManager() {
         for (int i = 0; i < MAX_CHANNELS; ++i) {
@@ -45,7 +45,7 @@ public:
     int read(int ch) const {
         if (!hasChannel(ch)) {
             DBG_PRINTF("[GPIO] read: Unknown channel %d\n", ch);
-            return -1; // sentinel for "unknown"
+            return -1;
         }
         uint8_t pin = static_cast<uint8_t>(pinForChannel_[ch]);
         return digitalRead(pin);
@@ -61,10 +61,10 @@ public:
         digitalWrite(pin, current == HIGH ? LOW : HIGH);
     }
 
-    void GpioManager::configureLimitSwitch(uint8_t pin) {
+    void configureLimitSwitch(uint8_t pin) {
         pinMode(pin, INPUT_PULLUP);
     }
-    
+
 private:
     int8_t pinForChannel_[MAX_CHANNELS];
 };
