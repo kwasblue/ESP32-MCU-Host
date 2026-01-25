@@ -2,6 +2,7 @@
 
 enum class RobotMode {
     BOOT,
+    DISCONNECTED,
     IDLE,
     ARMED,
     ACTIVE,
