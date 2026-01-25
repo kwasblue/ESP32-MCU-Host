@@ -25,9 +25,11 @@ public:
                      ServoManager*  servoMgr = nullptr,
                      StepperManager* stepperMgr = nullptr);
 
+    virtual ~MotionController() = default;
+
     // ===== Differential drive velocity interface =====
-    void setVelocity(float vx, float omega);
-    void stop();
+    virtual void setVelocity(float vx, float omega);
+    virtual void stop();
 
     float vx() const;
     float omega() const;

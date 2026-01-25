@@ -1,5 +1,7 @@
 #include "core/MessageRouter.h"
-#include "core/Debug.h"   // <-- add this
+#include "core/Debug.h"
+#include "config/Version.h"
+#include <ArduinoJson.h>
 
 MessageRouter* MessageRouter::s_instance = nullptr;
 
@@ -16,7 +18,6 @@ void MessageRouter::setup() {
     );
     transport_.begin();
 
-    // Subscribe via static trampoline
     bus_.subscribe(&MessageRouter::onEventStatic);
 
     txBuffer_.reserve(64);
@@ -44,13 +45,20 @@ void MessageRouter::onFrame(const uint8_t* frame, size_t len) {
         sendSimple(Protocol::MSG_PONG);
         break;
     }
+    
     case Protocol::MSG_PONG: {
         Event evt{ EventType::PONG, now_ms, EventPayload{} };
         bus_.publish(evt);
         break;
     }
 
-    case static_cast<uint8_t>(MsgType::WHOAMI): {
+    case Protocol::MSG_VERSION_REQUEST: {
+        DBG_PRINTLN("[Router] VERSION_REQUEST received");
+        sendVersionResponse();
+        break;
+    }
+
+    case Protocol::MSG_WHOAMI: {
         Event evt;
         evt.type         = EventType::WHOMAI_REQUEST;
         evt.timestamp_ms = now_ms;
@@ -59,7 +67,7 @@ void MessageRouter::onFrame(const uint8_t* frame, size_t len) {
         break;
     }
 
-    case static_cast<uint8_t>(MsgType::CMD_JSON): {
+    case Protocol::MSG_CMD_JSON: {
         if (len <= 1) {
             return;
         }
@@ -79,6 +87,7 @@ void MessageRouter::onFrame(const uint8_t* frame, size_t len) {
     }
 
     default:
+        DBG_PRINTF("[Router] Unknown msgType: 0x%02X\n", msgType);
         break;
     }
 }
@@ -86,7 +95,6 @@ void MessageRouter::onFrame(const uint8_t* frame, size_t len) {
 void MessageRouter::onEvent(const Event& evt) {
     switch (evt.type) {
     case EventType::HEARTBEAT:
-        // Simple “no payload” heartbeat frame
         sendSimple(Protocol::MSG_HEARTBEAT);
         break;
 
@@ -100,10 +108,9 @@ void MessageRouter::onEvent(const Event& evt) {
         DBG_PRINTF("[Router] TX JSON (%u bytes): %s\n",
                    (unsigned)json.size(), json.c_str());
 
-        // Encode as CMD_JSON frame: [MsgType::CMD_JSON][json bytes...]
         txBuffer_.clear();
         Protocol::encode(
-            static_cast<uint8_t>(MsgType::CMD_JSON),
+            Protocol::MSG_CMD_JSON,
             reinterpret_cast<const uint8_t*>(json.data()),
             json.size(),
             txBuffer_
@@ -118,13 +125,37 @@ void MessageRouter::onEvent(const Event& evt) {
     }
 
     default:
-        // ignore all other events
         break;
     }
 }
 
 void MessageRouter::sendSimple(uint8_t msgType) {
     Protocol::encode(msgType, nullptr, 0, txBuffer_);
+    if (!txBuffer_.empty()) {
+        transport_.sendBytes(txBuffer_.data(), txBuffer_.size());
+    }
+}
+
+void MessageRouter::sendVersionResponse() {
+    JsonDocument doc;
+    doc["firmware"] = Version::FIRMWARE;
+    doc["protocol"] = Version::PROTOCOL;
+    doc["board"]    = Version::BOARD;
+    doc["name"]     = Version::NAME;
+
+    std::string json;
+    serializeJson(doc, json);
+
+    DBG_PRINTF("[Router] VERSION_RESPONSE: %s\n", json.c_str());
+
+    txBuffer_.clear();
+    Protocol::encode(
+        Protocol::MSG_VERSION_RESPONSE,
+        reinterpret_cast<const uint8_t*>(json.data()),
+        json.size(),
+        txBuffer_
+    );
+
     if (!txBuffer_.empty()) {
         transport_.sendBytes(txBuffer_.data(), txBuffer_.size());
     }

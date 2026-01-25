@@ -95,7 +95,7 @@ inline bool parseJsonToMessage(const std::string& jsonStr, JsonMessage& outMsg) 
         // has payload
         outMsg.payload = payload;
     } else {
-        // no payload present
+        outMsg.payload = doc; // fallback
     }
 
     return true;

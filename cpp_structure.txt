@@ -1,7 +1,7 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-01-24 21:56:54
-Total Files: 55
+Generated: 2026-01-25 14:54:28
+Total Files: 67
 ================================================================================
 
 🧩 📄 include/audio/Biquad.h
@@ -61,6 +61,8 @@ Total Files: 55
 
 🧩 📄 include/core/CommandHandler.h
    🧱 class CommandHandler
+      (no in-class method bodies detected)
+   🧱 struct AckCacheEntry
       (no in-class method bodies detected)
 
 🧩 📄 include/core/Event.h
@@ -125,14 +127,23 @@ Total Files: 55
    ⚙️  parseJsonToMessage(const std::string& jsonStr, JsonMessage& outMsg)
 
 🧩 📄 include/core/ModeManager.h
-   🧾 enum RobotMode
+   🧱 struct SafetyConfig
+      (no in-class method bodies detected)
    🧱 class ModeManager
-      ├── setMode(RobotMode m)
+      ├── configure(const SafetyConfig& cfg)
       ├── mode()
-      └── canMove()
-   ⚙️  setMode(RobotMode m)
+      ├── canMove()
+      ├── isEstopped()
+      ├── isConnected()
+      ├── isBypassed()
+      └── onStop(StopCallback cb)
+   ⚙️  configure(const SafetyConfig& cfg)
    ⚙️  mode()
    ⚙️  canMove()
+   ⚙️  isEstopped()
+   ⚙️  isConnected()
+   ⚙️  isBypassed()
+   ⚙️  onStop(StopCallback cb)
 
 🧩 📄 include/core/MotionController.h
    🧱 class MotionController
@@ -390,28 +401,37 @@ Total Files: 55
    ⚙️  CommandHandler::handleEventStatic(const Event& evt)
    ⚙️  CommandHandler::handleEvent(const Event& evt)
    ⚙️  CommandHandler::onJsonCommand(const std::string& jsonStr)
-   ⚙️  CommandHandler::handleSetMode(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleSetVel(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleSetLogLevel(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleStop()
+   ⚙️  CommandHandler::tryReplayAck(CmdType cmdType, uint32_t seq)
+   ⚙️  CommandHandler::storeAck(CmdType cmdType, uint32_t seq, const std::string& ackJson)
+   ⚙️  CommandHandler::publishJson(std::string&& out)
+   ⚙️  CommandHandler::publishJsonCopy(const std::string& out)
+   ⚙️  CommandHandler::sendAck(const char* cmd, bool ok, JsonDocument& resp)
+   ⚙️  CommandHandler::sendError(const char* cmd, const char* error)
+   ⚙️  CommandHandler::handleHeartbeat()
+   ⚙️  CommandHandler::handleArm()
+   ⚙️  CommandHandler::handleDisarm()
+   ⚙️  CommandHandler::handleActivate()
+   ⚙️  CommandHandler::handleDeactivate()
    ⚙️  CommandHandler::handleEstop()
    ⚙️  CommandHandler::handleClearEstop()
+   ⚙️  CommandHandler::handleStop()
+   ⚙️  CommandHandler::handleSetMode(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleSetVel(JsonVariantConst payload)
    ⚙️  CommandHandler::handleLedOn()
    ⚙️  CommandHandler::handleLedOff()
-   ⚙️  CommandHandler::handlePwmSet(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleServoAttach(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleServoDetach(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleServoSetAngle(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleStepperMoveRel(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleStepperStop(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleStepperEnable(JsonVariantConst payload)
    ⚙️  CommandHandler::handleGpioWrite(JsonVariantConst payload)
    ⚙️  CommandHandler::handleGpioRead(JsonVariantConst payload)
    ⚙️  CommandHandler::handleGpioToggle(JsonVariantConst payload)
    ⚙️  CommandHandler::handleGpioRegisterChannel(JsonVariantConst payload)
+   ⚙️  CommandHandler::handlePwmSet(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleServoAttach(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleServoDetach(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleServoSetAngle(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleStepperEnable(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleStepperMoveRel(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleStepperStop(JsonVariantConst payload)
    ⚙️  CommandHandler::handleUltrasonicAttach(JsonVariantConst payload)
    ⚙️  CommandHandler::handleUltrasonicRead(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleTelemSetInterval(JsonVariantConst payload)
    ⚙️  CommandHandler::handleEncoderAttach(JsonVariantConst payload)
    ⚙️  CommandHandler::handleEncoderRead(JsonVariantConst payload)
    ⚙️  CommandHandler::handleEncoderReset(JsonVariantConst payload)
@@ -420,6 +440,8 @@ Total Files: 55
    ⚙️  CommandHandler::handleDcVelPidEnable(JsonVariantConst payload)
    ⚙️  CommandHandler::handleDcSetVelTarget(JsonVariantConst payload)
    ⚙️  CommandHandler::handleDcSetVelGains(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleTelemSetInterval(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleSetLogLevel(JsonVariantConst payload)
 
 🧩 📄 src/core/EncoderManager.cpp
    ⚙️  getGlobalEncoderManager()
@@ -485,6 +507,23 @@ Total Files: 55
                        i2s_port_t port)
    ⚙️  MicManager::readLevel(Level& outLevel, size_t sampleCount)
 
+🧩 📄 src/core/ModeManager.cpp
+   ⚙️  robotModeToString(RobotMode m)
+   ⚙️  ModeManager::begin()
+   ⚙️  ModeManager::update(uint32_t now_ms)
+   ⚙️  ModeManager::readHardwareInputs()
+   ⚙️  ModeManager::onHostHeartbeat(uint32_t now_ms)
+   ⚙️  ModeManager::onMotionCommand(uint32_t now_ms)
+   ⚙️  ModeManager::canTransition(RobotMode from, RobotMode to)
+   ⚙️  ModeManager::arm()
+   ⚙️  ModeManager::activate()
+   ⚙️  ModeManager::deactivate()
+   ⚙️  ModeManager::disarm()
+   ⚙️  ModeManager::estop()
+   ⚙️  ModeManager::clearEstop()
+   ⚙️  ModeManager::validateVelocity(float vx, float omega, float& out_vx, float& out_omega)
+   ⚙️  ModeManager::triggerStop()
+
 🧩 📄 src/core/MotionController.cpp
    ⚙️  baseEnabled_(false)
    ⚙️  MotionController::setVelocity(float vx, float omega)
@@ -514,6 +553,7 @@ Total Files: 55
 🧩 📄 src/main.cpp
    ⚙️  setupWifiDualMode()
    ⚙️  setupOta()
+   ⚙️  setupSafety()
    ⚙️  setupTransportsAndRouter()
    ⚙️  setupTelemetryProviders()
    ⚙️  setupGpioAndMotors()
@@ -521,12 +561,181 @@ Total Files: 55
    ⚙️  setup()
    ⚙️  loop()
 
+🧩 📄 test/common/NativeStubs.cpp
+   ⚙️  robotModeToString(RobotMode mode)
+   ⚙️  ModeManager::arm()
+   ⚙️  ModeManager::disarm()
+   ⚙️  ModeManager::activate()
+   ⚙️  ModeManager::deactivate()
+   ⚙️  ModeManager::estop()
+   ⚙️  ModeManager::clearEstop()
+   ⚙️  ModeManager::onHostHeartbeat(uint32_t)
+   ⚙️  ModeManager::onMotionCommand(uint32_t)
+   ⚙️  ModeManager::validateVelocity(float vx, float omega, float& outVx, float& outOmega)
+   ⚙️  LoggingModule::setLogLevel(const char*)
+   ⚙️  EncoderManager::EncoderManager()
+   ⚙️  EncoderManager::attach(uint8_t , uint8_t , uint8_t)
+   ⚙️  EncoderManager::reset(uint8_t)
+   ⚙️  EncoderManager::getCount(uint8_t)
+   ⚙️  TelemetryModule::TelemetryModule(EventBus&)
+   ⚙️  TelemetryModule::setInterval(uint32_t)
+   ⚙️  TelemetryModule::handleEvent(const Event&)
+   ⚙️  MotionController::MotionController(DcMotorManager& ,
+    uint8_t ,
+    uint8_t ,
+    float ,
+    float ,
+    float ,
+    ServoManager* ,
+    StepperManager*)
+   ⚙️  MotionController::setVelocity(float , float)
+   ⚙️  MotionController::stop()
+   ⚙️  MotionController::setServoTarget(uint8_t , float , uint32_t)
+   ⚙️  MotionController::moveStepperRelative(int , int , float)
+
+🧩 📄 test/fakes/Arduino.h
+   ⚙️  pinMode(int pin, int mode)
+   ⚙️  digitalWrite(int pin, int val)
+   ⚙️  digitalRead(int pin)
+   ⚙️  digitalPinToInterrupt(int pin)
+   ⚙️  attachInterrupt(int intr, voidFuncPtr fn, int mode)
+   ⚙️  noInterrupts(void)
+   ⚙️  interrupts(void)
+   ⚙️  delayMicroseconds(unsigned int us)
+   ⚙️  pulseIn(uint8_t pin, uint8_t state, unsigned long timeout)
+   ⚙️  millis(void)
+   ⚙️  millis(void)
+   ⚙️  ledcSetup(int ch, double freq, int res)
+   ⚙️  ledcAttachPin(int pin, int ch)
+   ⚙️  ledcWrite(int ch, int duty)
+
+🧩 📄 test/fakes/ESP32Servo.h
+   🧱 class Servo
+      ├── attach(int pin, int minUs = 500, int maxUs = 2500)
+      ├── detach()
+      ├── write(float angle)
+      └── writeMicroseconds(int us)
+   ⚙️  attach(int pin, int minUs = 500, int maxUs = 2500)
+   ⚙️  detach()
+   ⚙️  write(float angle)
+   ⚙️  writeMicroseconds(int us)
+
+🧩 📄 test/support/arduino_stubs.h
+   ⚙️  millis()
+   ⚙️  test_set_millis(uint32_t v)
+   ⚙️  test_advance_millis(uint32_t d)
+
+🧩 📄 test/test_command_handler_ack/native_stubs.cpp
+   ⚙️  robotModeToString(RobotMode)
+   ⚙️  ModeManager::onHostHeartbeat(unsigned int)
+   ⚙️  ModeManager::onMotionCommand(unsigned int)
+   ⚙️  ModeManager::validateVelocity(float vx, float omega, float& outVx, float& outOmega)
+   ⚙️  ModeManager::arm()
+   ⚙️  ModeManager::activate()
+   ⚙️  ModeManager::deactivate()
+   ⚙️  ModeManager::disarm()
+   ⚙️  ModeManager::estop()
+   ⚙️  ModeManager::clearEstop()
+   ⚙️  LoggingModule::setLogLevel(const char* level)
+   ⚙️  EncoderManager::EncoderManager()
+   ⚙️  EncoderManager::attach(uint8_t, uint8_t, uint8_t)
+   ⚙️  EncoderManager::reset(uint8_t)
+   ⚙️  EncoderManager::getCount(uint8_t)
+   ⚙️  bus_(bus)
+   ⚙️  TelemetryModule::setup()
+   ⚙️  TelemetryModule::loop(uint32_t now_ms)
+   ⚙️  TelemetryModule::registerProvider(const char* name, ProviderFn fn)
+   ⚙️  TelemetryModule::setInterval(uint32_t intervalMs)
+   ⚙️  MotionController::setVelocity(float vx, float omega)
+   ⚙️  MotionController::stop()
+   ⚙️  MotionController::vx()
+   ⚙️  MotionController::omega()
+   ⚙️  MotionController::setAccelLimits(float maxLinAccel, float maxAngAccel)
+   ⚙️  MotionController::setBaseEnabled(bool enabled)
+   ⚙️  MotionController::setServoTarget(uint8_t, float, uint32_t)
+   ⚙️  MotionController::setServoImmediate(uint8_t, float)
+   ⚙️  MotionController::moveStepperRelative(int, int, float)
+   ⚙️  MotionController::enableStepper(int, bool)
+   ⚙️  MotionController::update(float)
+
+🧩 📄 test/test_command_handler_ack/test_command_handler_ack.cpp
+   ⚙️  MotionController(motors, 0, 1,
+                         0.2f, 1.0f, 1.0f,
+                         nullptr, nullptr)
+   ⚙️  captureTx(const Event& evt)
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  injectJson(const std::string& json)
+   ⚙️  test_ack_is_cached_and_replayed_on_duplicate_seq()
+   ⚙️  test_motion_set_vel_calls_motion_controller_once()
+   ⚙️  main(int argc, char** argv)
+   ⚙️  loop()
+
+🧩 📄 test/test_event_bus/test_event_bust.cpp
+   ⚙️  handlerA(const Event&)
+   ⚙️  handlerB(const Event&)
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  test_eventbus_calls_handlers_in_order()
+   ⚙️  test_eventbus_ignores_null_handler()
+   ⚙️  setup()
+   ⚙️  loop()
+   ⚙️  main(int, char**)
+
+🧩 📄 test/test_event_payloads/test_event_payloads.cpp
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  test_telemetry_struct_sanity()
+   ⚙️  setup()
+   ⚙️  loop()
+   ⚙️  main(int, char**)
+
+🧩 📄 test/test_messages/test_messages.cpp
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  test_msgKindFromString()
+   ⚙️  test_parse_json_cmd_extracts_seq_type_payload()
+   ⚙️  test_parse_json_invalid_fails()
+   ⚙️  setup()
+   ⚙️  loop()
+   ⚙️  main(int, char**)
+
+🧩 📄 test/test_messages_json/test_messages_json.cpp
+   ⚙️  test_messages_json_smoke_parse()
+   ⚙️  main(int argc, char** argv)
+
+🧩 📄 test/test_protocol/test_protocol.cpp
+   ⚙️  checksum_for(uint16_t length, uint8_t msgType, const uint8_t* payload, size_t payloadLen)
+   🧱 struct CapturedFrame
+      (no in-class method bodies detected)
+   ⚙️  push_bytes(std::vector<uint8_t>& buf, const std::vector<uint8_t>& more)
+   ⚙️  push_bytes(std::vector<uint8_t>& buf, const uint8_t* data, size_t n)
+   ⚙️  test_encode_builds_expected_frame()
+   ⚙️  test_extract_single_frame()
+   ⚙️  Protocol::extractFrames(buffer, [&](const uint8_t* body, size_t len)
+   ⚙️  test_extract_ignores_noise_before_header()
+   ⚙️  Protocol::extractFrames(buffer, [&](const uint8_t* body, size_t len)
+   ⚙️  test_extract_partial_frame_buffering()
+   ⚙️  Protocol::extractFrames(buffer, [&](const uint8_t* body, size_t len)
+   ⚙️  Protocol::extractFrames(buffer, [&](const uint8_t* body, size_t len)
+   ⚙️  test_extract_back_to_back_frames()
+   ⚙️  Protocol::extractFrames(buffer, [&](const uint8_t* body, size_t len)
+   ⚙️  test_extract_bad_checksum_resyncs_to_next_frame()
+   ⚙️  Protocol::extractFrames(buffer, [&](const uint8_t* body, size_t len)
+   ⚙️  test_extract_false_header_invalid_length_does_not_consume_valid_frame()
+   ⚙️  Protocol::extractFrames(buffer, [&](const uint8_t* body, size_t len)
+   ⚙️  test_extract_leaves_unconsumed_trailing_bytes()
+   ⚙️  Protocol::extractFrames(buffer, [&](const uint8_t* body, size_t len)
+   ⚙️  setup()
+   ⚙️  teardown()
+   ⚙️  main(int argc, char** argv)
+
 ================================================================================
 📊 STATISTICS
 ================================================================================
 Namespaces:       8
-Classes/Structs:  47
-Enums:            4
-Free Functions:   208
-In-class Methods: 78
+Classes/Structs:  51
+Enums:            3
+Free Functions:   370
+In-class Methods: 86
 ================================================================================

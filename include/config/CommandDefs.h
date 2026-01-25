@@ -5,12 +5,16 @@
 #include <string>
 
 enum class CmdType {
+    ACTIVATE,
+    ARM,
     CLEAR_ESTOP,
     DC_SET_SPEED,
     DC_SET_VEL_GAINS,
     DC_SET_VEL_TARGET,
     DC_STOP,
     DC_VEL_PID_ENABLE,
+    DEACTIVATE,
+    DISARM,
     ENCODER_ATTACH,
     ENCODER_READ,
     ENCODER_RESET,
@@ -19,6 +23,7 @@ enum class CmdType {
     GPIO_REGISTER_CHANNEL,
     GPIO_TOGGLE,
     GPIO_WRITE,
+    HEARTBEAT,
     LED_OFF,
     LED_ON,
     PWM_SET,
@@ -39,12 +44,16 @@ enum class CmdType {
 };
 
 inline CmdType cmdTypeFromString(const std::string& s) {
+    if (s == "CMD_ACTIVATE") return CmdType::ACTIVATE;
+    if (s == "CMD_ARM") return CmdType::ARM;
     if (s == "CMD_CLEAR_ESTOP") return CmdType::CLEAR_ESTOP;
     if (s == "CMD_DC_SET_SPEED") return CmdType::DC_SET_SPEED;
     if (s == "CMD_DC_SET_VEL_GAINS") return CmdType::DC_SET_VEL_GAINS;
     if (s == "CMD_DC_SET_VEL_TARGET") return CmdType::DC_SET_VEL_TARGET;
     if (s == "CMD_DC_STOP") return CmdType::DC_STOP;
     if (s == "CMD_DC_VEL_PID_ENABLE") return CmdType::DC_VEL_PID_ENABLE;
+    if (s == "CMD_DEACTIVATE") return CmdType::DEACTIVATE;
+    if (s == "CMD_DISARM") return CmdType::DISARM;
     if (s == "CMD_ENCODER_ATTACH") return CmdType::ENCODER_ATTACH;
     if (s == "CMD_ENCODER_READ") return CmdType::ENCODER_READ;
     if (s == "CMD_ENCODER_RESET") return CmdType::ENCODER_RESET;
@@ -53,6 +62,7 @@ inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_GPIO_REGISTER_CHANNEL") return CmdType::GPIO_REGISTER_CHANNEL;
     if (s == "CMD_GPIO_TOGGLE") return CmdType::GPIO_TOGGLE;
     if (s == "CMD_GPIO_WRITE") return CmdType::GPIO_WRITE;
+    if (s == "CMD_HEARTBEAT") return CmdType::HEARTBEAT;
     if (s == "CMD_LED_OFF") return CmdType::LED_OFF;
     if (s == "CMD_LED_ON") return CmdType::LED_ON;
     if (s == "CMD_PWM_SET") return CmdType::PWM_SET;
@@ -74,12 +84,16 @@ inline CmdType cmdTypeFromString(const std::string& s) {
 
 inline const char* cmdTypeToString(CmdType c) {
     switch (c) {
+        case CmdType::ACTIVATE: return "CMD_ACTIVATE";
+        case CmdType::ARM: return "CMD_ARM";
         case CmdType::CLEAR_ESTOP: return "CMD_CLEAR_ESTOP";
         case CmdType::DC_SET_SPEED: return "CMD_DC_SET_SPEED";
         case CmdType::DC_SET_VEL_GAINS: return "CMD_DC_SET_VEL_GAINS";
         case CmdType::DC_SET_VEL_TARGET: return "CMD_DC_SET_VEL_TARGET";
         case CmdType::DC_STOP: return "CMD_DC_STOP";
         case CmdType::DC_VEL_PID_ENABLE: return "CMD_DC_VEL_PID_ENABLE";
+        case CmdType::DEACTIVATE: return "CMD_DEACTIVATE";
+        case CmdType::DISARM: return "CMD_DISARM";
         case CmdType::ENCODER_ATTACH: return "CMD_ENCODER_ATTACH";
         case CmdType::ENCODER_READ: return "CMD_ENCODER_READ";
         case CmdType::ENCODER_RESET: return "CMD_ENCODER_RESET";
@@ -88,6 +102,7 @@ inline const char* cmdTypeToString(CmdType c) {
         case CmdType::GPIO_REGISTER_CHANNEL: return "CMD_GPIO_REGISTER_CHANNEL";
         case CmdType::GPIO_TOGGLE: return "CMD_GPIO_TOGGLE";
         case CmdType::GPIO_WRITE: return "CMD_GPIO_WRITE";
+        case CmdType::HEARTBEAT: return "CMD_HEARTBEAT";
         case CmdType::LED_OFF: return "CMD_LED_OFF";
         case CmdType::LED_ON: return "CMD_LED_ON";
         case CmdType::PWM_SET: return "CMD_PWM_SET";

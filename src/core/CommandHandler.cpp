@@ -1,44 +1,38 @@
+// src/core/CommandHandler.cpp
+
 #include "core/CommandHandler.h"
 #include "core/Messages.h"
 #include "core/ModeManager.h"
 #include "core/MotionController.h"
-#include "core/SafetyManager.h"
 #include "config/PinConfig.h"
 #include "core/Event.h"
-#include "modules/LoggingModule.h"   // <-- NEW
-#include "managers/UltrasonicManager.h"
-#include <Arduino.h>      // for strcmp, millis, etc.
-#include "core/Debug.h"   // debug macros
-#include "managers/UltrasonicManager.h"
+#include "modules/LoggingModule.h"
 #include "modules/TelemetryModule.h"
+#include "managers/UltrasonicManager.h"
 #include "managers/StepperManager.h"
 #include "managers/EncoderManager.h"
 #include "managers/DcMotorManager.h"
-
+#include "core/Debug.h"
+#include <Arduino.h>
 
 using namespace ArduinoJson;
 
 CommandHandler* CommandHandler::s_instance = nullptr;
 
-// -----------------------------------------------------------------------------
-// Constructor
-// -----------------------------------------------------------------------------
-CommandHandler::CommandHandler(EventBus&         bus,
-                               ModeManager&      mode,
-                               MotionController& motion,
-                               SafetyManager&    safety,
-                               GpioManager&      gpio,
-                               PwmManager&       pwm,
-                               ServoManager&     servo,
-                               StepperManager&   stepper,
-                               TelemetryModule&  telemetry,
+CommandHandler::CommandHandler(EventBus&          bus,
+                               ModeManager&       mode,
+                               MotionController&  motion,
+                               GpioManager&       gpio,
+                               PwmManager&        pwm,
+                               ServoManager&      servo,
+                               StepperManager&    stepper,
+                               TelemetryModule&   telemetry,
                                UltrasonicManager& ultrasonic,
-                               EncoderManager&   encoder,
-                               DcMotorManager&   dc)
+                               EncoderManager&    encoder,
+                               DcMotorManager&    dc)
     : bus_(bus)
     , mode_(mode)
     , motion_(motion)
-    , safety_(safety)
     , gpio_(gpio)
     , pwm_(pwm)
     , servo_(servo)
@@ -46,8 +40,7 @@ CommandHandler::CommandHandler(EventBus&         bus,
     , telemetry_(telemetry)
     , ultrasonic_(ultrasonic)
     , encoder_(encoder)
-    , dc_(dc) 
-    
+    , dc_(dc)
 {
     s_instance = this;
 }
@@ -56,8 +49,7 @@ CommandHandler::CommandHandler(EventBus&         bus,
 // Setup / Event subscription
 // -----------------------------------------------------------------------------
 void CommandHandler::setup() {
-    DBG_PRINTLN("[CMD] CommandHandler::setup() subscribing (static)");
-    // EventBus::Handler is now a plain function pointer: void (*)(const Event&)
+    DBG_PRINTLN("[CMD] CommandHandler::setup() subscribing");
     bus_.subscribe(&CommandHandler::handleEventStatic);
     DBG_PRINTLN("[CMD] CommandHandler::setup() done");
 }
@@ -72,15 +64,13 @@ void CommandHandler::handleEvent(const Event& evt) {
     if (evt.type != EventType::JSON_MESSAGE_RX) {
         return;
     }
-    // Raw JSON from MessageRouter
     onJsonCommand(evt.payload.json);
 }
 
+// -----------------------------------------------------------------------------
+// JSON Command Dispatch
+// -----------------------------------------------------------------------------
 void CommandHandler::onJsonCommand(const std::string& jsonStr) {
-
-    // ----------------------------------------------------
-    // Debug: show raw JSON received
-    // ----------------------------------------------------
     DBG_PRINT("[CMD] raw JSON: ");
     DBG_PRINTLN(jsonStr.c_str());
 
@@ -91,492 +81,352 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         return;
     }
 
-    // ----------------------------------------------------
-    // Debug: show parsed message classification
-    // ----------------------------------------------------
-    DBG_PRINT("[CMD] kind=");
-    DBG_PRINT((int)msg.kind);  // numeric enum value
-    DBG_PRINT(" typeStr=");
-    DBG_PRINT(msg.typeStr.c_str());
-    DBG_PRINT(" cmdType=");
-    DBG_PRINTLN((int)msg.cmdType);
-
+    DBG_PRINTF("[CMD] kind=%d typeStr=%s cmdType=%d\n",
+               (int)msg.kind, msg.typeStr.c_str(), (int)msg.cmdType);
+    
     if (msg.kind != MsgKind::CMD) {
-        DBG_PRINT("[CMD] Ignoring non-command JSON kind: ");
+        DBG_PRINT("[CMD] Ignoring non-command: ");
         DBG_PRINTLN(msg.typeStr.c_str());
         return;
     }
 
-    // Payload as read-only view
+    // Set current context for ACK/Error helpers
+    currentSeq_ = msg.seq;
+    currentCmdType_ = msg.cmdType;
+
+    // If this exact command was already processed (retry), replay previous ACK and exit.
+    if (tryReplayAck(msg.cmdType, msg.seq)) {
+        return;
+    }
+
     JsonVariantConst payload = msg.payload.as<JsonVariantConst>();
 
     switch (msg.cmdType) {
-        // --- Core robot behavior ---
-        case CmdType::SET_MODE:               handleSetMode(payload);            break;
-        case CmdType::SET_VEL:                handleSetVel(payload);             break;
-        case CmdType::STOP:                   handleStop();                      break;
+        // ----- Safety / State Machine -----
+        case CmdType::HEARTBEAT:              handleHeartbeat();                 break;
+        case CmdType::ARM:                    handleArm();                       break;
+        case CmdType::DISARM:                 handleDisarm();                    break;
+        case CmdType::ACTIVATE:               handleActivate();                  break;
+        case CmdType::DEACTIVATE:             handleDeactivate();                break;
         case CmdType::ESTOP:                  handleEstop();                     break;
         case CmdType::CLEAR_ESTOP:            handleClearEstop();                break;
+        case CmdType::STOP:                   handleStop();                      break;
 
-        // --- Simple LED control ---
+        // ----- Legacy (consider deprecating) -----
+        case CmdType::SET_MODE:               handleSetMode(payload);            break;
+
+        // ----- Motion -----
+        case CmdType::SET_VEL:                handleSetVel(payload);             break;
+
+        // ----- LED -----
         case CmdType::LED_ON:                 handleLedOn();                     break;
         case CmdType::LED_OFF:                handleLedOff();                    break;
 
-        // --- GPIO / PWM / Servo / Stepper ---
+        // ----- GPIO -----
         case CmdType::GPIO_WRITE:             handleGpioWrite(payload);          break;
         case CmdType::GPIO_READ:              handleGpioRead(payload);           break;
         case CmdType::GPIO_TOGGLE:            handleGpioToggle(payload);         break;
         case CmdType::GPIO_REGISTER_CHANNEL:  handleGpioRegisterChannel(payload);break;
 
+        // ----- PWM -----
         case CmdType::PWM_SET:                handlePwmSet(payload);             break;
 
+        // ----- Servo -----
         case CmdType::SERVO_ATTACH:           handleServoAttach(payload);        break;
         case CmdType::SERVO_DETACH:           handleServoDetach(payload);        break;
         case CmdType::SERVO_SET_ANGLE:        handleServoSetAngle(payload);      break;
 
+        // ----- Stepper -----
         case CmdType::STEPPER_ENABLE:         handleStepperEnable(payload);      break;
         case CmdType::STEPPER_MOVE_REL:       handleStepperMoveRel(payload);     break;
         case CmdType::STEPPER_STOP:           handleStepperStop(payload);        break;
 
-        // --- Ultrasonic ---
+        // ----- Ultrasonic -----
         case CmdType::ULTRASONIC_ATTACH:      handleUltrasonicAttach(payload);   break;
         case CmdType::ULTRASONIC_READ:        handleUltrasonicRead(payload);     break;
 
-        // encoder 
-        case CmdType::ENCODER_ATTACH:    handleEncoderAttach(payload);    break;
-        case CmdType::ENCODER_READ:      handleEncoderRead(payload);      break;
-        case CmdType::ENCODER_RESET:     handleEncoderReset(payload);     break;
+        // ----- Encoder -----
+        case CmdType::ENCODER_ATTACH:         handleEncoderAttach(payload);      break;
+        case CmdType::ENCODER_READ:           handleEncoderRead(payload);        break;
+        case CmdType::ENCODER_RESET:          handleEncoderReset(payload);       break;
 
-        
-        // --- DC motor control ---
+        // ----- DC Motor -----
         case CmdType::DC_SET_SPEED:           handleDcSetSpeed(payload);         break;
         case CmdType::DC_STOP:                handleDcStop(payload);             break;
-
-        // PID stuff
         case CmdType::DC_VEL_PID_ENABLE:      handleDcVelPidEnable(payload);     break;
         case CmdType::DC_SET_VEL_TARGET:      handleDcSetVelTarget(payload);     break;
         case CmdType::DC_SET_VEL_GAINS:       handleDcSetVelGains(payload);      break;
 
+        // ----- Telemetry -----
+        case CmdType::TELEM_SET_INTERVAL:     handleTelemSetInterval(payload);   break;
 
-        // Telemetry switch
-        case CmdType::TELEM_SET_INTERVAL:     handleTelemSetInterval(payload);    break;
-
-        // --- Logging control ---
+        // ----- Logging -----
         case CmdType::SET_LOG_LEVEL:          handleSetLogLevel(payload);        break;
 
         default:
-            DBG_PRINT("[CMD] Unknown cmdType for typeStr=");
-            DBG_PRINTLN(msg.typeStr.c_str());
+            DBG_PRINTF("[CMD] Unknown cmdType: %s\n", msg.typeStr.c_str());
+            sendError("UNKNOWN_CMD", "unknown_command");
             break;
     }
 }
 
 // -----------------------------------------------------------------------------
-// Core robot behaviors
+// ACK Helpers
 // -----------------------------------------------------------------------------
-void CommandHandler::handleSetMode(JsonVariantConst payload) {
-    const char* modeStr = payload["mode"] | "IDLE";
+bool CommandHandler::tryReplayAck(CmdType cmdType, uint32_t seq) {
+    // If seq is missing/zero, skip replay (optional policy)
+    if (seq == 0) return false;
 
-    RobotMode newMode = mode_.mode();
-    bool ok = true;
-    const char* error = nullptr;
-
-    if (strcmp(modeStr, "IDLE") == 0) {
-        newMode = RobotMode::IDLE;
-    } else if (strcmp(modeStr, "ARMED") == 0) {
-        newMode = RobotMode::ARMED;
-    } else if (strcmp(modeStr, "ACTIVE") == 0) {
-        newMode = RobotMode::ACTIVE;
-    } else {
-        DBG_PRINT("[CMD] Unsupported mode string: ");
-        DBG_PRINTLN(modeStr);
-        ok = false;
-        error = "unsupported_mode";
+    for (int i = 0; i < kAckCacheSize; ++i) {
+        auto& e = ackCache_[i];
+        if (e.valid && e.seq == seq && e.cmdType == cmdType) {
+            DBG_PRINTF("[CMD] Duplicate cmd detected. Replaying ACK cmdType=%d seq=%lu\n",
+                       (int)cmdType, (unsigned long)seq);
+            publishJsonCopy(e.ackJson);
+            return true;
+        }
     }
+    return false;
+}
 
-    // If we're in ESTOP, only CLEAR_ESTOP is allowed to change state
-    if (ok && mode_.mode() == RobotMode::ESTOP) {
-        DBG_PRINTLN("[CMD] Ignoring SET_MODE while in ESTOP");
-        ok = false;
-        error = "in_estop";
-    }
+void CommandHandler::storeAck(CmdType cmdType, uint32_t seq, const std::string& ackJson) {
+    // Optional policy: don't cache seq==0 commands
+    if (seq == 0) return;
 
-    if (ok) {
-        mode_.setMode(newMode);
-    }
+    auto& e = ackCache_[ackCacheWrite_];
+    e.valid = true;
+    e.seq = seq;
+    e.cmdType = cmdType;
+    e.ackJson = ackJson;
+    ackCacheWrite_ = (ackCacheWrite_ + 1) % kAckCacheSize;
+}
 
-    // --- ACK ---
+void CommandHandler::publishJson(std::string&& out) {
+    Event evt;
+    evt.type         = EventType::JSON_MESSAGE_TX;
+    evt.payload.json = std::move(out);
+    bus_.publish(evt);
+}
+
+void CommandHandler::publishJsonCopy(const std::string& out) {
+    std::string copy = out;
+    publishJson(std::move(copy));
+}
+
+void CommandHandler::sendAck(const char* cmd, bool ok, JsonDocument& resp) {
+    resp["src"] = "mcu";
+    resp["cmd"] = cmd;
+    resp["ok"]  = ok;
+
+    // NEW: seq echo so host can match this ACK to the request
+    resp["seq"] = currentSeq_;
+
+    std::string out;
+    serializeJson(resp, out);
+
+    // NEW: cache for retry replay (prevents double execution)
+    storeAck(currentCmdType_, currentSeq_, out);
+
+    publishJson(std::move(out));
+}
+
+void CommandHandler::sendError(const char* cmd, const char* error) {
     JsonDocument resp;
     resp["src"]   = "mcu";
-    resp["cmd"]   = "SET_MODE_ACK";
-    resp["mode"]  = modeStr;
-    resp["ok"]    = ok;
-    if (!ok && error) {
-        resp["error"] = error;
-    }
+    resp["cmd"]   = cmd;
+    resp["ok"]    = false;
+    resp["error"] = error;
+
+    // NEW: seq echo for errors too
+    resp["seq"] = currentSeq_;
 
     std::string out;
     serializeJson(resp, out);
 
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    // NEW: cache error too (retry should return same error)
+    storeAck(currentCmdType_, currentSeq_, out);
+
+    publishJson(std::move(out));
 }
 
-void CommandHandler::handleSetVel(JsonVariantConst payload) {
-    float vx    = payload["vx"]    | 0.0f;
-    float omega = payload["omega"] | 0.0f;
 
-    bool allowed = mode_.canMove() && !safety_.isEstopActive();
-    if (!allowed) {
-        DBG_PRINTLN("[CMD] SET_VEL blocked by mode or ESTOP");
-    } else {
-        motion_.setVelocity(vx, omega);
-    }
+// -----------------------------------------------------------------------------
+// Safety / State Machine Commands
+// -----------------------------------------------------------------------------
+void CommandHandler::handleHeartbeat() {
+    DBG_PRINTLN("[CMD] HEARTBEAT");
+    mode_.onHostHeartbeat(millis());
 
-    // --- ACK ---
     JsonDocument resp;
-    resp["src"]   = "mcu";
-    resp["cmd"]   = "SET_VEL_ACK";
-    resp["vx"]    = vx;
-    resp["omega"] = omega;
-    resp["ok"]    = allowed;
-    if (!allowed) {
-        resp["error"] = "blocked_by_mode_or_estop";
-    }
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    resp["state"] = robotModeToString(mode_.mode());
+    sendAck("HEARTBEAT_ACK", true, resp);
 }
 
-// -----------------------------------------------------------------------------
-// Logging control
-// -----------------------------------------------------------------------------
-void CommandHandler::handleSetLogLevel(JsonVariantConst payload) {
-    const char* levelStr = payload["level"] | "info";
+void CommandHandler::handleArm() {
+    DBG_PRINTLN("[CMD] ARM");
+    mode_.arm();
 
-    if (LoggingModule::instance()) {
-        LoggingModule::instance()->setLogLevel(levelStr);
+    JsonDocument resp;
+    resp["state"] = robotModeToString(mode_.mode());
+    bool ok = (mode_.mode() == RobotMode::ARMED);
+    if (!ok) {
+        resp["error"] = "invalid_transition";
     }
-
-    JsonDocument resp;  // dont change these anymore this is the not depricated
-    resp["src"]   = "mcu"; 
-    resp["cmd"]   = "LOG_LEVEL_ACK";
-    resp["level"] = levelStr;
-    resp["ok"]    = true;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    sendAck("ARM_ACK", ok, resp);
 }
 
+void CommandHandler::handleDisarm() {
+    DBG_PRINTLN("[CMD] DISARM");
+    mode_.disarm();
 
-// -----------------------------------------------------------------------------
-// STOP / ESTOP / CLEAR_ESTOP / LED / etc.
-// -----------------------------------------------------------------------------
+    JsonDocument resp;
+    resp["state"] = robotModeToString(mode_.mode());
+    bool ok = (mode_.mode() == RobotMode::IDLE);
+    if (!ok) {
+        resp["error"] = "invalid_transition";
+    }
+    sendAck("DISARM_ACK", ok, resp);
+}
+
+void CommandHandler::handleActivate() {
+    DBG_PRINTLN("[CMD] ACTIVATE");
+    mode_.activate();
+
+    JsonDocument resp;
+    resp["state"] = robotModeToString(mode_.mode());
+    bool ok = (mode_.mode() == RobotMode::ACTIVE);
+    if (!ok) {
+        resp["error"] = "invalid_transition";
+    }
+    sendAck("ACTIVATE_ACK", ok, resp);
+}
+
+void CommandHandler::handleDeactivate() {
+    DBG_PRINTLN("[CMD] DEACTIVATE");
+    mode_.deactivate();
+
+    JsonDocument resp;
+    resp["state"] = robotModeToString(mode_.mode());
+    sendAck("DEACTIVATE_ACK", true, resp);
+}
+
+void CommandHandler::handleEstop() {
+    DBG_PRINTLN("[CMD] ESTOP");
+    mode_.estop();
+
+    JsonDocument resp;
+    resp["state"] = robotModeToString(mode_.mode());
+    sendAck("ESTOP_ACK", true, resp);
+}
+
+void CommandHandler::handleClearEstop() {
+    DBG_PRINTLN("[CMD] CLEAR_ESTOP");
+    bool cleared = mode_.clearEstop();
+
+    JsonDocument resp;
+    resp["state"] = robotModeToString(mode_.mode());
+    if (!cleared) {
+        resp["error"] = "cannot_clear";
+    }
+    sendAck("CLEAR_ESTOP_ACK", cleared, resp);
+}
+
 void CommandHandler::handleStop() {
     DBG_PRINTLN("[CMD] STOP");
     motion_.stop();
 
     JsonDocument resp;
-    resp["src"] = "mcu";
-    resp["cmd"] = "STOP_ACK";
-    resp["ok"]  = true;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
-}
-
-void CommandHandler::handleEstop() {
-    DBG_PRINTLN("[CMD] ESTOP");
-    safety_.estop();
-    motion_.stop();
-    mode_.setMode(RobotMode::ESTOP);
-
-    JsonDocument resp;
-    resp["src"] = "mcu";
-    resp["cmd"] = "ESTOP_ACK";
-    resp["ok"]  = true;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
-}
-
-void CommandHandler::handleClearEstop() {
-    DBG_PRINTLN("[CMD] CLEAR_ESTOP");
-    safety_.clearEstop();
-    motion_.stop();
-    mode_.setMode(RobotMode::IDLE);
-
-    JsonDocument resp;
-    resp["src"] = "mcu";
-    resp["cmd"] = "CLEAR_ESTOP_ACK";
-    resp["ok"]  = true;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
-}
-
-void CommandHandler::handleLedOn() {
-    DBG_PRINTLN("[CMD] LED ON");
-    digitalWrite(Pins::LED_STATUS, HIGH);
-
-    JsonDocument resp;
-    resp["src"]  = "mcu";
-    resp["cmd"]  = "LED_ON_ACK";
-    resp["pin"]  = Pins::LED_STATUS;
-    resp["on"]   = true;
-    resp["ok"]   = true;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
-}
-
-void CommandHandler::handleLedOff() {
-    DBG_PRINTLN("[CMD] LED OFF");
-    digitalWrite(Pins::LED_STATUS, LOW);
-
-    JsonDocument resp;
-    resp["src"]  = "mcu";
-    resp["cmd"]  = "LED_OFF_ACK";
-    resp["pin"]  = Pins::LED_STATUS;
-    resp["on"]   = false;
-    resp["ok"]   = true;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    sendAck("STOP_ACK", true, resp);
 }
 
 // -----------------------------------------------------------------------------
-// PWM
+// Legacy SET_MODE (consider deprecating)
 // -----------------------------------------------------------------------------
-void CommandHandler::handlePwmSet(JsonVariantConst payload) {
-    int   channel = payload["channel"] | 0;
-    float duty    = payload["duty"]    | 0.0f;
-    float freq    = payload["freq_hz"] | 0.0f;  // 0 = use default
+void CommandHandler::handleSetMode(JsonVariantConst payload) {
+    const char* modeStr = payload["mode"] | "IDLE";
+    DBG_PRINTF("[CMD] SET_MODE mode=%s\n", modeStr);
 
-    DBG_PRINTF("[CMD] PWM_SET ch=%d duty=%.3f freq=%.1f\n",
-               channel, duty, freq);
+    bool ok = true;
+    const char* error = nullptr;
 
-    pwm_.set(channel, duty, freq);
-
-    // --- ACK ---
-    JsonDocument resp;
-    resp["src"]     = "mcu";
-    resp["cmd"]     = "PWM_SET_ACK";
-    resp["channel"] = channel;
-    resp["duty"]    = duty;
-    resp["freq_hz"] = freq;
-    resp["ok"]      = true;  // adjust if you later add error checking
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
-}
-
-// -----------------------------------------------------------------------------
-// Servo
-// -----------------------------------------------------------------------------
-void CommandHandler::handleServoAttach(JsonVariantConst payload) {
-    int servoId  = payload["servo_id"] | 0;
-    int minUs    = payload["min_us"]   | 1000;
-    int maxUs    = payload["max_us"]   | 2000;
-
-    uint8_t pin = 0;
-    switch (servoId) {
-        case 0:
-            pin = Pins::SERVO1_SIG;
-            break;
-        default:
-            DBG_PRINTF("[CMD] SERVO_ATTACH: unknown servoId=%d\n", servoId);
-
-            // ACK with error
-            JsonDocument bad;
-            bad["src"]      = "mcu";
-            bad["cmd"]      = "SERVO_ATTACH_ACK";
-            bad["servo_id"] = servoId;
-            bad["ok"]       = false;
-            bad["error"]    = "unknown_servo_id";
-
-            std::string outBad;
-            serializeJson(bad, outBad);
-            {
-                Event evt;
-                evt.type         = EventType::JSON_MESSAGE_TX;
-                evt.payload.json = std::move(outBad);
-                bus_.publish(evt);
-            }
-            return;
-    }
-
-    DBG_PRINTF("[CMD] SERVO_ATTACH id=%d pin=%d min=%dus max=%dus\n",
-               servoId, pin, minUs, maxUs);
-
-    servo_.attach(servoId, pin, minUs, maxUs);
-
-    JsonDocument resp;
-    resp["src"]      = "mcu";
-    resp["cmd"]      = "SERVO_ATTACH_ACK";
-    resp["servo_id"] = servoId;
-    resp["pin"]      = pin;
-    resp["min_us"]   = minUs;
-    resp["max_us"]   = maxUs;
-    resp["ok"]       = true; // change when attach returns bool
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
-}
-
-void CommandHandler::handleServoDetach(JsonVariantConst payload) {
-    int servoId = payload["servo_id"] | 0;
-
-    DBG_PRINTF("[CMD] SERVO_DETACH id=%d\n", servoId);
-    servo_.detach(servoId);
-
-    JsonDocument resp;
-    resp["src"]      = "mcu";
-    resp["cmd"]      = "SERVO_DETACH_ACK";
-    resp["servo_id"] = servoId;
-    resp["ok"]       = true;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
-}
-
-void CommandHandler::handleServoSetAngle(JsonVariantConst payload) {
-    float angle   = payload["angle_deg"] | 0.0f;
-    int   servoId = payload["servo_id"]  | 0;
-    int   durMs   = payload["duration_ms"] | 0;  // 0 = immediate
-
-    bool allowed = mode_.canMove() && !safety_.isEstopActive();
-    if (!allowed) {
-        DBG_PRINTLN("[CMD] SERVO_SET_ANGLE blocked by mode or ESTOP");
+    if (mode_.isEstopped()) {
+        ok = false;
+        error = "in_estop";
+    } else if (strcmp(modeStr, "IDLE") == 0) {
+        mode_.disarm();
+    } else if (strcmp(modeStr, "ARMED") == 0) {
+        mode_.arm();
+    } else if (strcmp(modeStr, "ACTIVE") == 0) {
+        mode_.arm();
+        mode_.activate();
     } else {
-        DBG_PRINTF("[CMD] SERVO_SET_ANGLE id=%d angle=%.1f dur=%d ms\n",
-                   servoId, angle, durMs);
-
-        if (durMs <= 0) {
-            servo_.setAngle(servoId, angle);
-        } else {
-            motion_.setServoTarget(servoId, angle, durMs);
-        }
+        ok = false;
+        error = "unsupported_mode";
     }
 
     JsonDocument resp;
-    resp["src"]      = "mcu";
-    resp["cmd"]      = "SERVO_SET_ANGLE_ACK";
-    resp["servo_id"] = servoId;
-    resp["angle_deg"]= angle;
-    resp["duration_ms"] = durMs;
-    resp["ok"]       = allowed;
-    if (!allowed) {
-        resp["error"] = "blocked_by_mode_or_estop";
+    resp["mode"]  = modeStr;
+    resp["state"] = robotModeToString(mode_.mode());
+    if (!ok && error) {
+        resp["error"] = error;
     }
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    sendAck("SET_MODE_ACK", ok, resp);
 }
 
 // -----------------------------------------------------------------------------
-// Stepper
+// Motion
 // -----------------------------------------------------------------------------
-void CommandHandler::handleStepperMoveRel(JsonVariantConst payload) {
-    // Safety gate
-    if (!mode_.canMove() || safety_.isEstopActive()) {
-        DBG_PRINTLN("[CMD] STEPPER_MOVE_REL blocked by mode or ESTOP");
+void CommandHandler::handleSetVel(JsonVariantConst payload) {
+    if (!mode_.canMove()) {
+        sendError("SET_VEL_ACK", "not_armed");
         return;
     }
 
-    int   motorId      = payload["motor_id"]      | 0;
-    int   steps        = payload["steps"]         | 0;
-    float speedSteps_s = payload["speed_steps_s"] | 1000.0f;
+    float vx    = payload["vx"]    | 0.0f;
+    float omega = payload["omega"] | 0.0f;
+    float safe_vx, safe_omega;
 
-    DBG_PRINTF("[CMD] STEPPER_MOVE_REL motor=%d steps=%d speed=%.1f steps/s\n",
-               motorId, steps, speedSteps_s);
+    if (!mode_.validateVelocity(vx, omega, safe_vx, safe_omega)) {
+        sendError("SET_VEL_ACK", "invalid_velocity");
+        return;
+    }
 
-    motion_.moveStepperRelative(motorId, steps, speedSteps_s);
+    DBG_PRINTF("[CMD] SET_VEL vx=%.3f omega=%.3f\n", safe_vx, safe_omega);
+
+    mode_.onMotionCommand(millis());
+    motion_.setVelocity(safe_vx, safe_omega);
+
+    JsonDocument resp;
+    resp["vx"]    = safe_vx;
+    resp["omega"] = safe_omega;
+    sendAck("SET_VEL_ACK", true, resp);
 }
 
-
-void CommandHandler::handleStepperStop(JsonVariantConst payload) {
-    int motorId = payload["motor_id"] | 0;
-
-    DBG_PRINTF("[CMD] STEPPER_STOP motor=%d\n", motorId);
-
-    // For now just call StepperManager directly; you could also add
-    // a MotionController::stopStepper(...) wrapper if you want.
-    stepper_.stop(motorId);
-}
-
-// Optional but very handy: enable/disable the stepper driver
-void CommandHandler::handleStepperEnable(JsonVariantConst payload) {
-    int  motorId = payload["motor_id"] | 0;
-    bool enable  = payload["enable"]   | true;
-
-    DBG_PRINTF("[CMD] STEPPER_ENABLE motor=%d enable=%d\n", motorId, (int)enable);
-
-    // If you added MotionController::enableStepper(...):
-    // motion_.enableStepper(motorId, enable);
-
-    // Or call StepperManager directly:
-    stepper_.setEnabled(motorId, enable);
-}
 // -----------------------------------------------------------------------------
-// GPIO – write / read / toggle / register-channel
+// LED
+// -----------------------------------------------------------------------------
+void CommandHandler::handleLedOn() {
+    DBG_PRINTLN("[CMD] LED_ON");
+    digitalWrite(Pins::LED_STATUS, HIGH);
+
+    JsonDocument resp;
+    resp["pin"] = Pins::LED_STATUS;
+    resp["on"]  = true;
+    sendAck("LED_ON_ACK", true, resp);
+}
+
+void CommandHandler::handleLedOff() {
+    DBG_PRINTLN("[CMD] LED_OFF");
+    digitalWrite(Pins::LED_STATUS, LOW);
+
+    JsonDocument resp;
+    resp["pin"] = Pins::LED_STATUS;
+    resp["on"]  = false;
+    sendAck("LED_OFF_ACK", true, resp);
+}
+
+// -----------------------------------------------------------------------------
+// GPIO
 // -----------------------------------------------------------------------------
 void CommandHandler::handleGpioWrite(JsonVariantConst payload) {
     int ch  = payload["channel"] | -1;
@@ -587,52 +437,32 @@ void CommandHandler::handleGpioWrite(JsonVariantConst payload) {
         gpio_.write(ch, val);
     }
 
+    DBG_PRINTF("[CMD] GPIO_WRITE ch=%d val=%d ok=%d\n", ch, val, (int)ok);
+
     JsonDocument resp;
-    resp["src"]     = "mcu";
-    resp["cmd"]     = "GPIO_WRITE_ACK";
     resp["channel"] = ch;
     resp["value"]   = val;
-    resp["ok"]      = ok;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = out;
-    bus_.publish(evt);
-
-    DBG_PRINTF("[GPIO_WRITE] ch=%d val=%d ok=%d\n", ch, val, (int)ok);
+    if (!ok) {
+        resp["error"] = "invalid_channel";
+    }
+    sendAck("GPIO_WRITE_ACK", ok, resp);
 }
 
 void CommandHandler::handleGpioRead(JsonVariantConst payload) {
     int ch = payload["channel"] | -1;
 
     bool ok  = gpio_.hasChannel(ch);
-    int  val = -1;
-    if (ok) {
-        val = gpio_.read(ch);
-    }
+    int  val = ok ? gpio_.read(ch) : -1;
 
-    bool valOk = (val == 0 || val == 1);
+    DBG_PRINTF("[CMD] GPIO_READ ch=%d val=%d ok=%d\n", ch, val, (int)ok);
 
     JsonDocument resp;
-    resp["src"]     = "mcu";
-    resp["cmd"]     = "GPIO_READ_ACK";
     resp["channel"] = ch;
     resp["value"]   = val;
-    resp["ok"]      = ok && valOk;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = out;
-    bus_.publish(evt);
-
-    DBG_PRINTF("[GPIO_READ] ch=%d val=%d ok=%d\n",
-               ch, val, (int)(ok && valOk));
+    if (!ok) {
+        resp["error"] = "invalid_channel";
+    }
+    sendAck("GPIO_READ_ACK", ok, resp);
 }
 
 void CommandHandler::handleGpioToggle(JsonVariantConst payload) {
@@ -643,21 +473,14 @@ void CommandHandler::handleGpioToggle(JsonVariantConst payload) {
         gpio_.toggle(ch);
     }
 
+    DBG_PRINTF("[CMD] GPIO_TOGGLE ch=%d ok=%d\n", ch, (int)ok);
+
     JsonDocument resp;
-    resp["src"]     = "mcu";
-    resp["cmd"]     = "GPIO_TOGGLE_ACK";
     resp["channel"] = ch;
-    resp["ok"]      = ok;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = out;
-    bus_.publish(evt);
-
-    DBG_PRINTF("[GPIO_TOGGLE] ch=%d ok=%d\n", ch, (int)ok);
+    if (!ok) {
+        resp["error"] = "invalid_channel";
+    }
+    sendAck("GPIO_TOGGLE_ACK", ok, resp);
 }
 
 void CommandHandler::handleGpioRegisterChannel(JsonVariantConst payload) {
@@ -677,155 +500,242 @@ void CommandHandler::handleGpioRegisterChannel(JsonVariantConst payload) {
         gpio_.registerChannel(ch, pin, mode);
     }
 
+    DBG_PRINTF("[CMD] GPIO_REGISTER ch=%d pin=%d mode=%s ok=%d\n",
+               ch, pin, modeStr, (int)ok);
+
     JsonDocument resp;
-    resp["src"]     = "mcu";
-    resp["cmd"]     = "GPIO_REGISTER_CHANNEL_ACK";
     resp["channel"] = ch;
     resp["pin"]     = pin;
     resp["mode"]    = modeStr;
-    resp["ok"]      = ok;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = out;
-    bus_.publish(evt);
-
-    DBG_PRINTF("[GPIO_REGISTER_CHANNEL] ch=%d pin=%d mode=%s ok=%d\n",
-               ch, pin, modeStr, (int)ok);
+    if (!ok) {
+        resp["error"] = "invalid_params";
+    }
+    sendAck("GPIO_REGISTER_CHANNEL_ACK", ok, resp);
 }
-// -----------------------------------------------------------------------------
-// Sensor groups
-// -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
-// ultrasonic sensor – write / read / toggle / register-channel
+// PWM
 // -----------------------------------------------------------------------------
+void CommandHandler::handlePwmSet(JsonVariantConst payload) {
+    int   channel = payload["channel"] | 0;
+    float duty    = payload["duty"]    | 0.0f;
+    float freq    = payload["freq_hz"] | 0.0f;
 
+    DBG_PRINTF("[CMD] PWM_SET ch=%d duty=%.3f freq=%.1f\n", channel, duty, freq);
+
+    pwm_.set(channel, duty, freq);
+
+    JsonDocument resp;
+    resp["channel"] = channel;
+    resp["duty"]    = duty;
+    resp["freq_hz"] = freq;
+    sendAck("PWM_SET_ACK", true, resp);
+}
+
+// -----------------------------------------------------------------------------
+// Servo
+// -----------------------------------------------------------------------------
+void CommandHandler::handleServoAttach(JsonVariantConst payload) {
+    int servoId = payload["servo_id"] | 0;
+    int minUs   = payload["min_us"]   | 1000;
+    int maxUs   = payload["max_us"]   | 2000;
+
+    uint8_t pin = 0;
+    bool ok = true;
+
+    switch (servoId) {
+        case 0: pin = Pins::SERVO1_SIG; break;
+        default:
+            ok = false;
+            break;
+    }
+
+    if (ok) {
+        DBG_PRINTF("[CMD] SERVO_ATTACH id=%d pin=%d min=%d max=%d\n",
+                   servoId, pin, minUs, maxUs);
+        servo_.attach(servoId, pin, minUs, maxUs);
+    } else {
+        DBG_PRINTF("[CMD] SERVO_ATTACH: unknown servoId=%d\n", servoId);
+    }
+
+    JsonDocument resp;
+    resp["servo_id"] = servoId;
+    resp["pin"]      = pin;
+    resp["min_us"]   = minUs;
+    resp["max_us"]   = maxUs;
+    if (!ok) {
+        resp["error"] = "unknown_servo_id";
+    }
+    sendAck("SERVO_ATTACH_ACK", ok, resp);
+}
+
+void CommandHandler::handleServoDetach(JsonVariantConst payload) {
+    int servoId = payload["servo_id"] | 0;
+
+    DBG_PRINTF("[CMD] SERVO_DETACH id=%d\n", servoId);
+    servo_.detach(servoId);
+
+    JsonDocument resp;
+    resp["servo_id"] = servoId;
+    sendAck("SERVO_DETACH_ACK", true, resp);
+}
+
+void CommandHandler::handleServoSetAngle(JsonVariantConst payload) {
+    if (!mode_.canMove()) {
+        sendError("SERVO_SET_ANGLE_ACK", "not_armed");
+        return;
+    }
+
+    int   servoId = payload["servo_id"]    | 0;
+    float angle   = payload["angle_deg"]   | 0.0f;
+    int   durMs   = payload["duration_ms"] | 0;
+
+    DBG_PRINTF("[CMD] SERVO_SET_ANGLE id=%d angle=%.1f dur=%d\n",
+               servoId, angle, durMs);
+
+    mode_.onMotionCommand(millis());
+
+    if (durMs <= 0) {
+        servo_.setAngle(servoId, angle);
+    } else {
+        motion_.setServoTarget(servoId, angle, durMs);
+    }
+
+    JsonDocument resp;
+    resp["servo_id"]    = servoId;
+    resp["angle_deg"]   = angle;
+    resp["duration_ms"] = durMs;
+    sendAck("SERVO_SET_ANGLE_ACK", true, resp);
+}
+
+// -----------------------------------------------------------------------------
+// Stepper
+// -----------------------------------------------------------------------------
+void CommandHandler::handleStepperEnable(JsonVariantConst payload) {
+    int  motorId = payload["motor_id"] | 0;
+    bool enable  = payload["enable"]   | true;
+
+    DBG_PRINTF("[CMD] STEPPER_ENABLE motor=%d enable=%d\n", motorId, (int)enable);
+    stepper_.setEnabled(motorId, enable);
+
+    JsonDocument resp;
+    resp["motor_id"] = motorId;
+    resp["enable"]   = enable;
+    sendAck("STEPPER_ENABLE_ACK", true, resp);
+}
+
+void CommandHandler::handleStepperMoveRel(JsonVariantConst payload) {
+    if (!mode_.canMove()) {
+        sendError("STEPPER_MOVE_REL_ACK", "not_armed");
+        return;
+    }
+
+    int   motorId = payload["motor_id"]      | 0;
+    int   steps   = payload["steps"]         | 0;
+    float speed   = payload["speed_steps_s"] | 1000.0f;
+
+    DBG_PRINTF("[CMD] STEPPER_MOVE_REL motor=%d steps=%d speed=%.1f\n",
+               motorId, steps, speed);
+
+    mode_.onMotionCommand(millis());
+    motion_.moveStepperRelative(motorId, steps, speed);
+
+    JsonDocument resp;
+    resp["motor_id"]      = motorId;
+    resp["steps"]         = steps;
+    resp["speed_steps_s"] = speed;
+    sendAck("STEPPER_MOVE_REL_ACK", true, resp);
+}
+
+void CommandHandler::handleStepperStop(JsonVariantConst payload) {
+    int motorId = payload["motor_id"] | 0;
+
+    DBG_PRINTF("[CMD] STEPPER_STOP motor=%d\n", motorId);
+    stepper_.stop(motorId);
+
+    JsonDocument resp;
+    resp["motor_id"] = motorId;
+    sendAck("STEPPER_STOP_ACK", true, resp);
+}
+
+// -----------------------------------------------------------------------------
+// Ultrasonic
+// -----------------------------------------------------------------------------
 void CommandHandler::handleUltrasonicAttach(JsonVariantConst payload) {
     int sensorId = payload["sensor_id"] | 0;
 
     uint8_t trigPin = 0;
     uint8_t echoPin = 0;
+    bool ok = true;
 
     switch (sensorId) {
         case 0:
-            trigPin = Pins::ULTRA0_TRIG;  // = 5 from your JSON
-            echoPin = Pins::ULTRA0_ECHO;  // = 4
+            trigPin = Pins::ULTRA0_TRIG;
+            echoPin = Pins::ULTRA0_ECHO;
             break;
-
         default:
-            DBG_PRINTF("[CMD] ULTRASONIC_ATTACH: unknown sensorId=%d\n", sensorId);
-            return;
+            ok = false;
+            break;
     }
 
-    DBG_PRINTF("[CMD] ULTRASONIC_ATTACH id=%d trigPin=%d echoPin=%d\n",
-               sensorId, trigPin, echoPin);
-
-    bool ok = ultrasonic_.attach(sensorId, trigPin, echoPin);
+    if (ok) {
+        DBG_PRINTF("[CMD] ULTRASONIC_ATTACH id=%d trig=%d echo=%d\n",
+                   sensorId, trigPin, echoPin);
+        ok = ultrasonic_.attach(sensorId, trigPin, echoPin);
+    } else {
+        DBG_PRINTF("[CMD] ULTRASONIC_ATTACH: unknown sensorId=%d\n", sensorId);
+    }
 
     JsonDocument resp;
-    resp["src"]        = "mcu";
-    resp["cmd"]        = "ULTRASONIC_ATTACH_ACK";
-    resp["sensor_id"]  = sensorId;
-    resp["trig_pin"]   = trigPin;
-    resp["echo_pin"]   = echoPin;
-    resp["ok"]         = ok;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    resp["sensor_id"] = sensorId;
+    resp["trig_pin"]  = trigPin;
+    resp["echo_pin"]  = echoPin;
+    if (!ok) {
+        resp["error"] = "attach_failed";
+    }
+    sendAck("ULTRASONIC_ATTACH_ACK", ok, resp);
 }
 
 void CommandHandler::handleUltrasonicRead(JsonVariantConst payload) {
     int sensorId = payload["sensor_id"] | 0;
 
-    DBG_PRINTF("[CMD] ULTRASONIC_READ id=%d\n", sensorId);
-
     float distCm = ultrasonic_.readDistanceCm(sensorId);
-    bool ok = distCm >= 0.0f;
+    bool ok = (distCm >= 0.0f);
 
-    JsonDocument resp;
-    resp["src"]        = "mcu";
-    resp["cmd"]        = "ULTRASONIC_READ_ACK";
-    resp["sensor_id"]  = sensorId;
-    resp["distance_cm"] = ok ? distCm : -1.0f;
-    resp["ok"]         = ok;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
-
-    DBG_PRINTF("[ULTRA_READ] id=%d dist=%.2f cm ok=%d\n",
+    DBG_PRINTF("[CMD] ULTRASONIC_READ id=%d dist=%.2f ok=%d\n",
                sensorId, distCm, (int)ok);
-}
-
-
-// -----------------------------------------------------------------------------
-// ultrasonic sensor – write / read / toggle / register-channel
-// -----------------------------------------------------------------------------
-void CommandHandler::handleTelemSetInterval(JsonVariantConst payload) {
-    uint32_t interval = payload["interval_ms"] | 0;
-    telemetry_.setInterval(interval);
 
     JsonDocument resp;
-    resp["src"]         = "mcu";
-    resp["cmd"]         = "TELEM_SET_INTERVAL_ACK";
-    resp["interval_ms"] = interval;
-    resp["ok"]          = true;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    resp["sensor_id"]   = sensorId;
+    resp["distance_cm"] = ok ? distCm : -1.0f;
+    if (!ok) {
+        resp["error"] = "read_failed";
+    }
+    sendAck("ULTRASONIC_READ_ACK", ok, resp);
 }
 
-
 // -----------------------------------------------------------------------------
-// Encoder – attach/read via runtime pins from host
+// Encoder
 // -----------------------------------------------------------------------------
 void CommandHandler::handleEncoderAttach(JsonVariantConst payload) {
     int encoderId = payload["encoder_id"] | 0;
     int pinA      = payload["pin_a"]      | Pins::ENC0_A;
     int pinB      = payload["pin_b"]      | Pins::ENC0_B;
 
-    // Call the manager. If attach() is void, just call it.
+    DBG_PRINTF("[CMD] ENCODER_ATTACH id=%d pinA=%d pinB=%d\n",
+               encoderId, pinA, pinB);
+
     encoder_.attach(
         static_cast<uint8_t>(encoderId),
         static_cast<gpio_num_t>(pinA),
         static_cast<gpio_num_t>(pinB)
     );
 
-    bool ok = true;  // assume success; change if you later make attach() return bool
-
     JsonDocument resp;
-    resp["src"]        = "mcu";
-    resp["cmd"]        = "ENCODER_ATTACH_ACK";
     resp["encoder_id"] = encoderId;
     resp["pin_a"]      = pinA;
     resp["pin_b"]      = pinB;
-    resp["ok"]         = ok;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    sendAck("ENCODER_ATTACH_ACK", true, resp);
 }
 
 void CommandHandler::handleEncoderRead(JsonVariantConst payload) {
@@ -833,147 +743,101 @@ void CommandHandler::handleEncoderRead(JsonVariantConst payload) {
 
     int32_t ticks = encoder_.getCount(static_cast<uint8_t>(encoderId));
 
+    DBG_PRINTF("[CMD] ENCODER_READ id=%d ticks=%ld\n", encoderId, (long)ticks);
+
     JsonDocument resp;
-    resp["src"]        = "mcu";
-    resp["cmd"]        = "ENCODER_READ_ACK";
     resp["encoder_id"] = encoderId;
     resp["ticks"]      = ticks;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    sendAck("ENCODER_READ_ACK", true, resp);
 }
 
 void CommandHandler::handleEncoderReset(JsonVariantConst payload) {
     int encoderId = payload["encoder_id"] | 0;
 
+    DBG_PRINTF("[CMD] ENCODER_RESET id=%d\n", encoderId);
     encoder_.reset(static_cast<uint8_t>(encoderId));
 
     JsonDocument resp;
-    resp["src"]        = "mcu";
-    resp["cmd"]        = "ENCODER_RESET_ACK";
     resp["encoder_id"] = encoderId;
-    resp["ok"]         = true;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    sendAck("ENCODER_RESET_ACK", true, resp);
 }
 
-// DC motor stuff
+// -----------------------------------------------------------------------------
+// DC Motor
+// -----------------------------------------------------------------------------
 void CommandHandler::handleDcSetSpeed(JsonVariantConst payload) {
+    if (!mode_.canMove()) {
+        sendError("DC_SET_SPEED_ACK", "not_armed");
+        return;
+    }
+
     int   motorId = payload["motor_id"] | 0;
-    float speed   = payload["speed"]    | 0.0f;  // -1.0 .. +1.0
+    float speed   = payload["speed"]    | 0.0f;
 
     DBG_PRINTF("[CMD] DC_SET_SPEED motor=%d speed=%.3f\n", motorId, speed);
 
-    bool ok = dc_.setSpeed(
-        static_cast<uint8_t>(motorId),
-        speed
-    );
+    mode_.onMotionCommand(millis());
+    bool ok = dc_.setSpeed(static_cast<uint8_t>(motorId), speed);
 
-    using namespace ArduinoJson;
     JsonDocument resp;
-    resp["src"]      = "mcu";
-    resp["cmd"]      = "DC_SET_SPEED_ACK";
     resp["motor_id"] = motorId;
     resp["speed"]    = speed;
-    resp["ok"]       = ok;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    if (!ok) {
+        resp["error"] = "set_speed_failed";
+    }
+    sendAck("DC_SET_SPEED_ACK", ok, resp);
 }
 
 void CommandHandler::handleDcStop(JsonVariantConst payload) {
     int motorId = payload["motor_id"] | 0;
 
     DBG_PRINTF("[CMD] DC_STOP motor=%d\n", motorId);
-
     dc_.stop(static_cast<uint8_t>(motorId));
 
-    using namespace ArduinoJson;
     JsonDocument resp;
-    resp["src"]      = "mcu";
-    resp["cmd"]      = "DC_STOP_ACK";
     resp["motor_id"] = motorId;
-    resp["ok"]       = true;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    sendAck("DC_STOP_ACK", true, resp);
 }
 
-// Enable / disable velocity PID for a DC motor
 void CommandHandler::handleDcVelPidEnable(JsonVariantConst payload) {
     int  motorId = payload["motor_id"] | 0;
     bool enable  = payload["enable"]   | true;
 
     DBG_PRINTF("[CMD] DC_VEL_PID_ENABLE motor=%d enable=%d\n", motorId, (int)enable);
-
     bool ok = dc_.enableVelocityPid(static_cast<uint8_t>(motorId), enable);
 
-    using namespace ArduinoJson;
     JsonDocument resp;
-    resp["src"]      = "mcu";
-    resp["cmd"]      = "DC_VEL_PID_ENABLE_ACK";
     resp["motor_id"] = motorId;
     resp["enable"]   = enable;
-    resp["ok"]       = ok;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    if (!ok) {
+        resp["error"] = "enable_failed";
+    }
+    sendAck("DC_VEL_PID_ENABLE_ACK", ok, resp);
 }
 
-// Set target angular velocity (rad/s) for the DC motor PID
 void CommandHandler::handleDcSetVelTarget(JsonVariantConst payload) {
+    if (!mode_.canMove()) {
+        sendError("DC_SET_VEL_TARGET_ACK", "not_armed");
+        return;
+    }
+
     int   motorId = payload["motor_id"] | 0;
-    float omega   = payload["omega"]    | 0.0f;   // rad/s
+    float omega   = payload["omega"]    | 0.0f;
 
-    DBG_PRINTF("[CMD] DC_SET_VEL_TARGET motor=%d omega=%.3f rad/s\n",
-               motorId, omega);
+    DBG_PRINTF("[CMD] DC_SET_VEL_TARGET motor=%d omega=%.3f\n", motorId, omega);
 
+    mode_.onMotionCommand(millis());
     bool ok = dc_.setVelocityTarget(static_cast<uint8_t>(motorId), omega);
 
-    using namespace ArduinoJson;
     JsonDocument resp;
-    resp["src"]      = "mcu";
-    resp["cmd"]      = "DC_SET_VEL_TARGET_ACK";
     resp["motor_id"] = motorId;
     resp["omega"]    = omega;
-    resp["ok"]       = ok;
-
-    std::string out;
-    serializeJson(resp, out);
-
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    if (!ok) {
+        resp["error"] = "set_target_failed";
+    }
+    sendAck("DC_SET_VEL_TARGET_ACK", ok, resp);
 }
 
-// Configure PID gains for the DC motor velocity controller
 void CommandHandler::handleDcSetVelGains(JsonVariantConst payload) {
     int   motorId = payload["motor_id"] | 0;
     float kp      = payload["kp"]       | 0.0f;
@@ -983,26 +847,46 @@ void CommandHandler::handleDcSetVelGains(JsonVariantConst payload) {
     DBG_PRINTF("[CMD] DC_SET_VEL_GAINS motor=%d kp=%.4f ki=%.4f kd=%.4f\n",
                motorId, kp, ki, kd);
 
-    bool ok = dc_.setVelocityGains(
-        static_cast<uint8_t>(motorId),
-        kp, ki, kd
-    );
+    bool ok = dc_.setVelocityGains(static_cast<uint8_t>(motorId), kp, ki, kd);
 
-    using namespace ArduinoJson;
     JsonDocument resp;
-    resp["src"]      = "mcu";
-    resp["cmd"]      = "DC_SET_VEL_GAINS_ACK";
     resp["motor_id"] = motorId;
     resp["kp"]       = kp;
     resp["ki"]       = ki;
     resp["kd"]       = kd;
-    resp["ok"]       = ok;
+    if (!ok) {
+        resp["error"] = "set_gains_failed";
+    }
+    sendAck("DC_SET_VEL_GAINS_ACK", ok, resp);
+}
 
-    std::string out;
-    serializeJson(resp, out);
+// -----------------------------------------------------------------------------
+// Telemetry
+// -----------------------------------------------------------------------------
+void CommandHandler::handleTelemSetInterval(JsonVariantConst payload) {
+    uint32_t interval = payload["interval_ms"] | 0;
 
-    Event evt;
-    evt.type         = EventType::JSON_MESSAGE_TX;
-    evt.payload.json = std::move(out);
-    bus_.publish(evt);
+    DBG_PRINTF("[CMD] TELEM_SET_INTERVAL interval=%lu\n", (unsigned long)interval);
+    telemetry_.setInterval(interval);
+
+    JsonDocument resp;
+    resp["interval_ms"] = interval;
+    sendAck("TELEM_SET_INTERVAL_ACK", true, resp);
+}
+
+// -----------------------------------------------------------------------------
+// Logging
+// -----------------------------------------------------------------------------
+void CommandHandler::handleSetLogLevel(JsonVariantConst payload) {
+    const char* levelStr = payload["level"] | "info";
+
+    DBG_PRINTF("[CMD] SET_LOG_LEVEL level=%s\n", levelStr);
+
+    if (LoggingModule::instance()) {
+        LoggingModule::instance()->setLogLevel(levelStr);
+    }
+
+    JsonDocument resp;
+    resp["level"] = levelStr;
+    sendAck("SET_LOG_LEVEL_ACK", true, resp);
 }

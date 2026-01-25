@@ -1,4 +1,5 @@
 #pragma once
+
 #include "core/IModule.h"
 #include "core/EventBus.h"
 #include "core/Event.h"
@@ -23,5 +24,7 @@ private:
 
     static IdentityModule* s_instance;
     static void onEventStatic(const Event& evt);
-    void handleEvent(const Event& evt);
+
+    // ✅ Fix warning: explicitly mark override
+    void handleEvent(const Event& evt) override;
 };

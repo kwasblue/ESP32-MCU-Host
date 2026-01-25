@@ -15,7 +15,6 @@
 #include "modules/IdentityModule.h"
 #include "core/ModeManager.h"
 #include "core/CommandHandler.h"
-#include "core/SafetyManager.h"
 #include "core/MotionController.h"
 #include "config/PinConfig.h"
 #include "managers/GpioManager.h"
@@ -49,10 +48,9 @@ const char* AP_PASS  = "robotpass";
 // Globals
 // -----------------------------------------------------------------------------
 
-// Core bus + mode/safety
-EventBus      g_bus;
-ModeManager   g_modeManager;
-SafetyManager g_safetyManager;
+// Core bus + mode (SafetyManager removed - now part of ModeManager)
+EventBus    g_bus;
+ModeManager g_modeManager;
 
 // Hardware managers
 GpioManager    g_gpioManager;
@@ -96,12 +94,11 @@ MCUHost       g_host(g_bus, &g_router);
 // Telemetry
 TelemetryModule g_telemetry(g_bus);
 
-// Command handler (JSON → mode/motion/safety/IO)
+// Command handler (SafetyManager removed from constructor)
 CommandHandler g_commandHandler(
     g_bus,
     g_modeManager,
     g_motionController,
-    g_safetyManager,
     g_gpioManager,
     g_pwmManager,
     g_servoManager,
@@ -117,11 +114,11 @@ HeartbeatModule g_heartbeat(g_bus);
 LoggingModule   g_logger(g_bus);
 IdentityModule  g_identity(g_bus, g_multiTransport, "ESP32-bot");
 
-// For periodic debug printing if you want later
+// For periodic debug printing 
 uint32_t g_lastIpPrintMs = 0;
 
-// --- Encoder / PID config for DC motor 0 ---
-constexpr float ENCODER0_TICKS_PER_REV = 1632.67f;  // without any attachments
+// Encoder / PID config for DC motor 0 
+constexpr float ENCODER0_TICKS_PER_REV = 1632.67f;  // without any attachments change when necesary
 static uint32_t g_lastPidMs   = 0;
 static int32_t  g_lastTicks0  = 0;
 
@@ -133,6 +130,7 @@ void setupOta();
 void setupTransportsAndRouter();
 void setupTelemetryProviders();
 void setupGpioAndMotors();
+void setupSafety();
 void updateDcMotor0VelocityPid(uint32_t now_ms);
 
 // -----------------------------------------------------------------------------
@@ -225,13 +223,41 @@ void setupOta() {
 }
 
 // -----------------------------------------------------------------------------
+// Safety system setup (ModeManager now handles this)
+// -----------------------------------------------------------------------------
+void setupSafety() {
+    SafetyConfig config;
+    config.host_timeout_ms   = 500;
+    config.motion_timeout_ms = 500;
+    config.max_linear_vel    = 0.5f;   // Match motion controller
+    config.max_angular_vel   = 2.0f;   // Match motion controller
+    
+    // Set to -1 if pins not wired yet, or use actual pins
+    config.estop_pin  = -1;  // TODO: Wire physical E-stop button
+    config.bypass_pin = -1;  // TODO: Wire bypass switch for bench work
+    config.relay_pin  = -1;  // TODO: Wire motor power relay
+
+    g_modeManager.configure(config);
+    g_modeManager.begin();
+
+    // Register stop callback - called when safety triggers
+    g_modeManager.onStop([]() {
+        Serial.println("[SAFETY] Stop triggered!");
+        g_motionController.stop();
+        g_dcMotorManager.stopAll();
+    });
+
+    Serial.println("[SAFETY] ModeManager configured and started");
+}
+
+// -----------------------------------------------------------------------------
 // Transports, router, host wiring
 // -----------------------------------------------------------------------------
 void setupTransportsAndRouter() {
     // Compose transports: UART1 + WiFi + BLE
     g_multiTransport.addTransport(&g_uart);   // binary on Serial/USB (or UART1 later)
     g_multiTransport.addTransport(&g_wifi);
-    g_multiTransport.addTransport(&g_ble);    // can disable BLE later if desired
+    g_multiTransport.addTransport(&g_ble);    // this doesnt work for some reason yet
 
     // CommandHandler subscribes to JSON_MESSAGE_RX
     g_commandHandler.setup();
@@ -259,6 +285,18 @@ void setupTransportsAndRouter() {
 void setupTelemetryProviders() {
     // Configure telemetry base interval (0 = off, >0 for periodic)
     g_telemetry.setInterval(0);  // you can bump this from the host
+
+    // Safety/Mode state
+    g_telemetry.registerProvider(
+        "mode",
+        [&](ArduinoJson::JsonObject node) {
+            node["state"]     = robotModeToString(g_modeManager.mode());
+            node["can_move"]  = g_modeManager.canMove();
+            node["estopped"]  = g_modeManager.isEstopped();
+            node["connected"] = g_modeManager.isConnected();
+            node["bypassed"]  = g_modeManager.isBypassed();
+        }
+    );
 
     // Ultrasonic
     g_telemetry.registerProvider(
@@ -469,6 +507,9 @@ void setup() {
     setupWifiDualMode();
     setupOta();
 
+    // Safety system (must be before transports so callbacks are ready)
+    setupSafety();
+
     // Sensors
     bool imuOk   = g_imu.begin(Pins::I2C_SDA, Pins::I2C_SCL, 0x68);
     bool lidarOk = g_lidar.begin(Pins::I2C_SDA, Pins::I2C_SCL);
@@ -478,6 +519,8 @@ void setup() {
     setupTransportsAndRouter();
     setupGpioAndMotors();
     setupTelemetryProviders();
+
+    Serial.println("[MCU] Setup complete. Waiting for host connection...");
 }
 
 void loop() {
@@ -488,6 +531,9 @@ void loop() {
 
     // OTA
     ArduinoOTA.handle();
+
+    // Safety system update (watchdogs, hardware inputs)
+    g_modeManager.update(now_ms);
 
     // Host + router + transports
     g_host.loop(now_ms);
@@ -500,8 +546,10 @@ void loop() {
     // DC motor 0 velocity PID (encoder -> omega -> PID -> PWM)
     updateDcMotor0VelocityPid(now_ms);
 
-    // Motion control (diff-drive + servo interpolation)
-    g_motionController.update(dt);
+    // Motion control (only if allowed by safety)
+    if (g_modeManager.canMove()) {
+        g_motionController.update(dt);
+    }
 
     delay(1);
 }

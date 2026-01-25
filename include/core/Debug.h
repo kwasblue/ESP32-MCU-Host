@@ -1,3 +1,4 @@
+// include/core/Debug.h
 #pragma once
 
 // Toggle this per env or per build.
@@ -7,12 +8,36 @@
 #endif
 
 #if ENABLE_DEBUG_LOGS
-  #define DBG_PRINT(x)           Serial.print(x)
-  #define DBG_PRINTLN(x)         Serial.println(x)
-  #define DBG_PRINTF(fmt, ...)   Serial.printf(fmt, ##__VA_ARGS__)
+
+  // For firmware builds, Serial is available via Arduino.h
+  // (If ENABLE_DEBUG_LOGS is never enabled in native tests, this won't matter.)
+  #include <Arduino.h>
+
+  #ifndef DBG_PRINT
+    #define DBG_PRINT(x)           Serial.print(x)
+  #endif
+
+  #ifndef DBG_PRINTLN
+    #define DBG_PRINTLN(x)         Serial.println(x)
+  #endif
+
+  #ifndef DBG_PRINTF
+    #define DBG_PRINTF(fmt, ...)   Serial.printf(fmt, ##__VA_ARGS__)
+  #endif
+
 #else
+
   // compile-time no-ops so strings/calls get stripped
-  #define DBG_PRINT(x)           do {} while (0)
-  #define DBG_PRINTLN(x)         do {} while (0)
-  #define DBG_PRINTF(fmt, ...)   do {} while (0)
+  #ifndef DBG_PRINT
+    #define DBG_PRINT(x)           do {} while (0)
+  #endif
+
+  #ifndef DBG_PRINTLN
+    #define DBG_PRINTLN(x)         do {} while (0)
+  #endif
+
+  #ifndef DBG_PRINTF
+    #define DBG_PRINTF(fmt, ...)   do {} while (0)
+  #endif
+
 #endif

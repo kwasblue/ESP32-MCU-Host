@@ -5,7 +5,7 @@
 
 #include "core/EventBus.h"
 #include "core/Event.h"
-#include "core/IModule.h"   
+#include "core/IModule.h"
 
 class LoggingModule : public IModule {
 public:
@@ -25,9 +25,9 @@ public:
     // IModule interface
     void setup() override;
     void loop(uint32_t now_ms) override;
+    void handleEvent(const Event& evt) override;   // ✅ add override
 
     static void onEventStatic(const Event& evt);
-    void handleEvent(const Event& evt);
 
     // Access to singleton instance
     static LoggingModule* instance() { return s_instance; }
