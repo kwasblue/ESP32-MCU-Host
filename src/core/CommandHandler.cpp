@@ -64,6 +64,7 @@ void CommandHandler::handleEvent(const Event& evt) {
     if (evt.type != EventType::JSON_MESSAGE_RX) {
         return;
     }
+    mode_.onHostHeartbeat(millis());
     onJsonCommand(evt.payload.json);
 }
 
@@ -81,9 +82,13 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         return;
     }
 
+    // ✅ Any valid parsed message counts as host activity (PING/HELLO/REQ/etc too)
+    //mode_.onHostHeartbeat(millis());
+
     DBG_PRINTF("[CMD] kind=%d typeStr=%s cmdType=%d\n",
                (int)msg.kind, msg.typeStr.c_str(), (int)msg.cmdType);
-    
+
+    // If not a command, we're done (but we still refreshed heartbeat above)
     if (msg.kind != MsgKind::CMD) {
         DBG_PRINT("[CMD] Ignoring non-command: ");
         DBG_PRINTLN(msg.typeStr.c_str());
@@ -94,7 +99,7 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
     currentSeq_ = msg.seq;
     currentCmdType_ = msg.cmdType;
 
-    // If this exact command was already processed (retry), replay previous ACK and exit.
+    // ✅ Replay path still counts as host activity because heartbeat happened earlier
     if (tryReplayAck(msg.cmdType, msg.seq)) {
         return;
     }
@@ -377,28 +382,56 @@ void CommandHandler::handleSetMode(JsonVariantConst payload) {
 // Motion
 // -----------------------------------------------------------------------------
 void CommandHandler::handleSetVel(JsonVariantConst payload) {
-    if (!mode_.canMove()) {
-        sendError("SET_VEL_ACK", "not_armed");
-        return;
-    }
+    const uint32_t now_ms = millis();
 
     float vx    = payload["vx"]    | 0.0f;
     float omega = payload["omega"] | 0.0f;
-    float safe_vx, safe_omega;
 
+    float safe_vx = 0.0f, safe_omega = 0.0f;
     if (!mode_.validateVelocity(vx, omega, safe_vx, safe_omega)) {
+        DBG_PRINTF("[CMD] SET_VEL invalid: vx=%f omega=%f\n", vx, omega);
         sendError("SET_VEL_ACK", "invalid_velocity");
         return;
     }
 
-    DBG_PRINTF("[CMD] SET_VEL vx=%.3f omega=%.3f\n", safe_vx, safe_omega);
+    // ✅ Always allow "STOP" even if not armed (safe behavior)
+    const bool is_stop_cmd = (fabsf(safe_vx) < 1e-6f) && (fabsf(safe_omega) < 1e-6f);
+    if (is_stop_cmd) {
+        // Counts as motion activity (optional, but fine)
+        mode_.onMotionCommand(now_ms);
 
-    mode_.onMotionCommand(millis());
+        motion_.stop();
+
+        JsonDocument resp;
+        resp["vx"]    = safe_vx;
+        resp["omega"] = safe_omega;
+        resp["state"] = robotModeToString(mode_.mode());
+        sendAck("SET_VEL_ACK", true, resp);
+        return;
+    }
+
+    // Gate non-zero motion
+    if (!mode_.canMove()) {
+        DBG_PRINTF("[CMD] SET_VEL rejected: mode=%s hostAge=%lums motionAge=%lums\n",
+                   robotModeToString(mode_.mode()),
+                   (unsigned long)mode_.hostAgeMs(now_ms),
+                   (unsigned long)mode_.motionAgeMs(now_ms));
+        sendError("SET_VEL_ACK", "not_armed");
+        return;
+    }
+
+    // Record motion activity BEFORE commanding actuators
+    mode_.onMotionCommand(now_ms);
+
+    DBG_PRINTF("[CMD] SET_VEL ok: vx=%.3f omega=%.3f mode=%s\n",
+               safe_vx, safe_omega, robotModeToString(mode_.mode()));
+
     motion_.setVelocity(safe_vx, safe_omega);
 
     JsonDocument resp;
     resp["vx"]    = safe_vx;
     resp["omega"] = safe_omega;
+    resp["state"] = robotModeToString(mode_.mode());
     sendAck("SET_VEL_ACK", true, resp);
 }
 

@@ -16,7 +16,7 @@ enum class RobotMode : uint8_t {
 const char* robotModeToString(RobotMode m);
 
 struct SafetyConfig {
-    uint32_t host_timeout_ms = 500;
+    uint32_t host_timeout_ms = 3000;
     uint32_t motion_timeout_ms = 500;
     float max_linear_vel = 2.0f;
     float max_angular_vel = 3.14f;
@@ -53,6 +53,8 @@ public:
     bool isEstopped() const { return mode_ == RobotMode::ESTOPPED; }
     bool isConnected() const { return mode_ != RobotMode::BOOT && mode_ != RobotMode::DISCONNECTED; }
     bool isBypassed() const { return bypassed_; }
+    uint32_t hostAgeMs(uint32_t now_ms) const { return now_ms - lastHostHeartbeat_; }
+    uint32_t motionAgeMs(uint32_t now_ms) const { return now_ms - lastMotionCmd_; }
     
     // Validation
     bool validateVelocity(float vx, float omega, float& out_vx, float& out_omega);
@@ -63,6 +65,8 @@ public:
 private:
     SafetyConfig cfg_;
     RobotMode mode_ = RobotMode::BOOT;
+    RobotMode lastLoggedMode_ = RobotMode::BOOT;
+
     
     uint32_t lastHostHeartbeat_ = 0;
     uint32_t lastMotionCmd_ = 0;
@@ -74,6 +78,7 @@ private:
     void triggerStop();
     void readHardwareInputs();
     bool canTransition(RobotMode from, RobotMode to);
+
 };
 
 // Helper to convert mode to string

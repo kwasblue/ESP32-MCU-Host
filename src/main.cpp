@@ -48,6 +48,9 @@ const char* AP_PASS  = "robotpass";
 // Globals
 // -----------------------------------------------------------------------------
 
+
+
+
 // Core bus + mode (SafetyManager removed - now part of ModeManager)
 EventBus    g_bus;
 ModeManager g_modeManager;
@@ -83,6 +86,7 @@ MultiTransport g_multiTransport;
 // Dedicated UART1 for protocol (note: UartTransport currently bound to Serial)
 HardwareSerial SerialPort(1);          // UART1
 UartTransport  g_uart(Serial, 115200); // protocol over USB Serial (for now)
+//UartTransport g_uart(SerialPort, 115200);
 
 WifiTransport  g_wifi(3333);           // TCP port
 BleTransport   g_ble("ESP32-SPP");
@@ -227,8 +231,8 @@ void setupOta() {
 // -----------------------------------------------------------------------------
 void setupSafety() {
     SafetyConfig config;
-    config.host_timeout_ms   = 500;
-    config.motion_timeout_ms = 500;
+    config.host_timeout_ms   = 2000;
+    config.motion_timeout_ms = 2000;
     config.max_linear_vel    = 0.5f;   // Match motion controller
     config.max_angular_vel   = 2.0f;   // Match motion controller
     

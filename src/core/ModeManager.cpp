@@ -37,20 +37,44 @@ void ModeManager::update(uint32_t now_ms) {
     
     // Host timeout
     if (hostEverSeen_ && isConnected() && !isEstopped()) {
-        if (now_ms - lastHostHeartbeat_ > cfg_.host_timeout_ms) {
-            triggerStop();
-            mode_ = RobotMode::DISCONNECTED;
+        uint32_t dt = now_ms - lastHostHeartbeat_;
+    if (dt > cfg_.host_timeout_ms) {
+        triggerStop();
+
+        if (mode_ == RobotMode::ACTIVE) {
+            mode_ = RobotMode::ARMED;     // fall back from ACTIVE
+        } else if (mode_ == RobotMode::ARMED) {
+            mode_ = RobotMode::ARMED;     // stay ARMED (don’t disarm)
+        } else {
+            mode_ = RobotMode::IDLE;
         }
+
+        lastHostHeartbeat_ = now_ms;      // prevent retrigger spam
+    }
+
     }
     
     // Motion timeout (only in ACTIVE)
     if (mode_ == RobotMode::ACTIVE && lastMotionCmd_ > 0) {
-        if (now_ms - lastMotionCmd_ > cfg_.motion_timeout_ms) {
+        uint32_t dtm = now_ms - lastMotionCmd_;
+        if (dtm > cfg_.motion_timeout_ms) {
             triggerStop();
-            // Stay ACTIVE, just stop motors
+            mode_ = RobotMode::ARMED;
+
+            // Prevent re-triggering every loop iteration
+            lastMotionCmd_ = now_ms;
         }
     }
-    
+    if (mode_ != lastLoggedMode_) {
+        Serial.printf("[MODE] %s -> %s  hostAge=%lu  motionAge=%lu\n",
+            robotModeToString(lastLoggedMode_),
+            robotModeToString(mode_),
+            (unsigned long)hostAgeMs(now_ms),
+            (unsigned long)motionAgeMs(now_ms)
+        );
+        lastLoggedMode_ = mode_;
+    }
+
     // Relay control
     if (cfg_.relay_pin >= 0) {
         bool allow = canMove() && !isEstopped();
@@ -112,6 +136,7 @@ void ModeManager::arm() {
 
 void ModeManager::activate() {
     if (mode_ == RobotMode::ARMED) {
+        lastMotionCmd_ = millis();
         mode_ = RobotMode::ACTIVE;
     }
 }
@@ -120,6 +145,7 @@ void ModeManager::deactivate() {
     if (mode_ == RobotMode::ACTIVE) {
         triggerStop();
         mode_ = RobotMode::ARMED;
+        lastMotionCmd_ = millis();
     }
 }
 
