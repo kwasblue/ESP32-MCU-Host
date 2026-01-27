@@ -1,7 +1,7 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-01-25 14:54:28
-Total Files: 67
+Generated: 2026-01-26 22:10:21
+Total Files: 71
 ================================================================================
 
 🧩 📄 include/audio/Biquad.h
@@ -53,6 +53,9 @@ Total Files: 67
 
 🧩 📄 include/config/PinConfig.h
    📦 namespace Pins
+
+🧩 📄 include/config/Version.h
+   📦 namespace Version
 
 🧩 📄 include/core/BleTransport.h
    ⚙️  name_(deviceName)
@@ -136,6 +139,8 @@ Total Files: 67
       ├── isEstopped()
       ├── isConnected()
       ├── isBypassed()
+      ├── hostAgeMs(uint32_t now_ms)
+      ├── motionAgeMs(uint32_t now_ms)
       └── onStop(StopCallback cb)
    ⚙️  configure(const SafetyConfig& cfg)
    ⚙️  mode()
@@ -143,6 +148,8 @@ Total Files: 67
    ⚙️  isEstopped()
    ⚙️  isConnected()
    ⚙️  isBypassed()
+   ⚙️  hostAgeMs(uint32_t now_ms)
+   ⚙️  motionAgeMs(uint32_t now_ms)
    ⚙️  onStop(StopCallback cb)
 
 🧩 📄 include/core/MotionController.h
@@ -376,7 +383,9 @@ Total Files: 67
    ⚙️  currentLevel()
 
 🧩 📄 include/modules/TelemetryModule.h
-   🧱 struct Provider
+   🧱 struct JsonProvider
+      (no in-class method bodies detected)
+   🧱 struct BinProvider
       (no in-class method bodies detected)
 
 🧩 📄 src/audio/AudioGraphManager.cpp
@@ -455,6 +464,7 @@ Total Files: 67
    ⚙️  IdentityModule::setup()
    ⚙️  IdentityModule::loop(uint32_t)
    ⚙️  IdentityModule::onEventStatic(const Event& evt)
+   ⚙️  publishIdentity(EventBus& bus)
    ⚙️  IdentityModule::handleEvent(const Event& evt)
 
 🧩 📄 src/core/ImuManager.cpp
@@ -499,6 +509,7 @@ Total Files: 67
    ⚙️  MessageRouter::onFrame(const uint8_t* frame, size_t len)
    ⚙️  MessageRouter::onEvent(const Event& evt)
    ⚙️  MessageRouter::sendSimple(uint8_t msgType)
+   ⚙️  MessageRouter::sendVersionResponse()
 
 🧩 📄 src/core/MicManager.cpp
    ⚙️  MicManager::begin(gpio_num_t wsPin,
@@ -547,7 +558,13 @@ Total Files: 67
    ⚙️  TelemetryModule::setup()
    ⚙️  TelemetryModule::loop(uint32_t now_ms)
    ⚙️  TelemetryModule::setInterval(uint32_t intervalMs)
-   ⚙️  TelemetryModule::registerProvider(const char* name, ProviderFn fn)
+   ⚙️  TelemetryModule::registerProvider(const char* name, JsonProviderFn fn)
+   ⚙️  TelemetryModule::registerBinProvider(uint8_t section_id, BinProviderFn fn)
+   ⚙️  TelemetryModule::setBinaryEnabled(bool en)
+   ⚙️  TelemetryModule::setJsonEnabled(bool en)
+   ⚙️  TelemetryModule::put_u8(std::vector<uint8_t>& b, uint8_t v)
+   ⚙️  TelemetryModule::put_u16(std::vector<uint8_t>& b, uint16_t v)
+   ⚙️  TelemetryModule::put_u32(std::vector<uint8_t>& b, uint32_t v)
    ⚙️  TelemetryModule::sendTelemetry(uint32_t now_ms)
 
 🧩 📄 src/main.cpp
@@ -620,6 +637,9 @@ Total Files: 67
    ⚙️  write(float angle)
    ⚙️  writeMicroseconds(int us)
 
+🧩 📄 test/fakes/fakeTransport.h
+   ⚙️  injectRx(const uint8_t* data, size_t len)
+
 🧩 📄 test/support/arduino_stubs.h
    ⚙️  millis()
    ⚙️  test_set_millis(uint32_t v)
@@ -690,6 +710,13 @@ Total Files: 67
    ⚙️  loop()
    ⚙️  main(int, char**)
 
+🧩 📄 test/test_identity_version_handshake/test_identity_version_handshake.cpp
+   ⚙️  captureTx(const Event& evt)
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  test_identity_emits_handshake_on_whoami_request()
+   ⚙️  main(int, char**)
+
 🧩 📄 test/test_messages/test_messages.cpp
    ⚙️  setUp()
    ⚙️  tearDown()
@@ -730,12 +757,77 @@ Total Files: 67
    ⚙️  teardown()
    ⚙️  main(int argc, char** argv)
 
+🧩 📄 test/test_safety/test_safety.cpp
+   🧱 struct SafetyConfig
+      (no in-class method bodies detected)
+   🧱 class TestModeManager
+      ├── configure(const SafetyConfig& cfg)
+      ├── update(uint32_t now_ms)
+      ├── onHostHeartbeat(uint32_t now_ms)
+      ├── onMotionCommand(uint32_t now_ms)
+      ├── arm()
+      ├── activate()
+      ├── deactivate()
+      ├── disarm()
+      ├── estop()
+      ├── clearEstop()
+      ├── validateVelocity(float vx, float omega, float& out_vx, float& out_omega)
+      ├── mode()
+      ├── canMove()
+      ├── isEstopped()
+      ├── isConnected()
+      ├── onStop(StopCallback cb)
+      ├── stopCount()
+      └── triggerStop()
+   ⚙️  configure(const SafetyConfig& cfg)
+   ⚙️  update(uint32_t now_ms)
+   ⚙️  onHostHeartbeat(uint32_t now_ms)
+   ⚙️  onMotionCommand(uint32_t now_ms)
+   ⚙️  arm()
+   ⚙️  activate()
+   ⚙️  deactivate()
+   ⚙️  disarm()
+   ⚙️  estop()
+   ⚙️  clearEstop()
+   ⚙️  validateVelocity(float vx, float omega, float& out_vx, float& out_omega)
+   ⚙️  mode()
+   ⚙️  canMove()
+   ⚙️  isEstopped()
+   ⚙️  isConnected()
+   ⚙️  onStop(StopCallback cb)
+   ⚙️  stopCount()
+   ⚙️  triggerStop()
+   ⚙️  stopCallback()
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  test_host_timeout_triggers_stop()
+   ⚙️  test_heartbeat_prevents_timeout()
+   ⚙️  test_no_timeout_before_first_heartbeat()
+   ⚙️  test_motion_timeout_triggers_stop()
+   ⚙️  test_motion_commands_prevent_timeout()
+   ⚙️  test_motion_timeout_only_in_active()
+   ⚙️  test_arm_from_idle()
+   ⚙️  test_arm_from_disconnected_fails()
+   ⚙️  test_activate_from_armed()
+   ⚙️  test_activate_from_idle_fails()
+   ⚙️  test_deactivate_triggers_stop()
+   ⚙️  test_disarm_from_active_triggers_stop()
+   ⚙️  test_estop_from_active()
+   ⚙️  test_estop_blocks_arm()
+   ⚙️  test_clear_estop_returns_to_idle()
+   ⚙️  test_can_move_states()
+   ⚙️  test_nan_velocity_rejected()
+   ⚙️  test_inf_velocity_rejected()
+   ⚙️  test_velocity_clamping()
+   ⚙️  test_valid_velocity_passes()
+   ⚙️  main()
+
 ================================================================================
 📊 STATISTICS
 ================================================================================
-Namespaces:       8
-Classes/Structs:  51
+Namespaces:       9
+Classes/Structs:  54
 Enums:            3
-Free Functions:   370
-In-class Methods: 86
+Free Functions:   428
+In-class Methods: 106
 ================================================================================

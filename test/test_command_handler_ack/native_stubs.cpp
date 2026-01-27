@@ -102,14 +102,26 @@ void TelemetryModule::loop(uint32_t now_ms) {
     // no-op for native tests
 }
 
-void TelemetryModule::registerProvider(const char* name, ProviderFn fn) {
-    // minimal behavior so code that registers providers won't crash
-    providers_.push_back(Provider{std::string(name ? name : ""), fn});
+void TelemetryModule::registerProvider(const char* name, JsonProviderFn fn) {
+    (void)name;
+    (void)fn;
+    // no-op for native tests
+}
+
+void TelemetryModule::registerBinProvider(uint8_t section_id, BinProviderFn fn) {
+    (void)section_id;
+    (void)fn;
+    // no-op for native tests
 }
 
 void TelemetryModule::setInterval(uint32_t intervalMs) {
-    intervalMs_ = intervalMs;
+    (void)intervalMs;
+    // no-op for native tests
 }
+
+void TelemetryModule::setBinaryEnabled(bool en) { (void)en; }
+void TelemetryModule::setJsonEnabled(bool en)   { (void)en; }
+
 
 // ---- ADD STUBS HERE FOR THE VIRTUALS THAT ARE DECLARED IN TelemetryModule.h ----
 // Example (ONLY if TelemetryModule.h declares it exactly):

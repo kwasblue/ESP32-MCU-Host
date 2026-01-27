@@ -123,7 +123,30 @@ void MessageRouter::onEvent(const Event& evt) {
         }
         break;
     }
+    case EventType::BIN_MESSAGE_TX: {
+        const std::vector<uint8_t>& bin = evt.payload.bin;
+        if (bin.empty()) {
+            DBG_PRINTLN("[Router] BIN_MESSAGE_TX with empty payload");
+            return;
+        }
 
+        DBG_PRINTF("[Router] TX BIN (%u bytes)\n", (unsigned)bin.size());
+
+        txBuffer_.clear();
+        Protocol::encode(
+            Protocol::MSG_TELEMETRY_BIN,
+            bin.data(),
+            bin.size(),
+            txBuffer_
+        );
+
+        if (!txBuffer_.empty()) {
+            transport_.sendBytes(txBuffer_.data(), txBuffer_.size());
+        } else {
+            DBG_PRINTLN("[Router] encode() produced empty buffer");
+        }
+        break;
+    }
     default:
         break;
     }

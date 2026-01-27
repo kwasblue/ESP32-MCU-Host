@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <vector> 
 
 enum class EventType : uint8_t {
     HEARTBEAT = 0,
@@ -11,6 +12,7 @@ enum class EventType : uint8_t {
     JSON_MESSAGE_TX,
     TELEMETRY_SYSTEM,
     TELEMETRY_MOTION,
+    BIN_MESSAGE_TX,
     TELEMETRY_SERVOS,
 };
 
@@ -40,6 +42,7 @@ struct EventPayload {
     uint8_t  u8  = 0;
 
     std::string json;
+    std::vector<uint8_t> bin; 
     // --- telemetry payloads ---
     TelemetrySystemPayload telemSystem{};
     TelemetryMotionPayload telemMotion{};

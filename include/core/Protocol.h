@@ -14,6 +14,7 @@ enum MsgType : uint8_t {
     MSG_VERSION_REQUEST  = 0x04,
     MSG_VERSION_RESPONSE = 0x05,
     MSG_WHOAMI           = 0x10,
+    MSG_TELEMETRY_BIN    = 0x30,
     MSG_CMD_JSON         = 0x50,
 };
 
