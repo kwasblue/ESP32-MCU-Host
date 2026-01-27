@@ -48,9 +48,6 @@ const char* AP_PASS  = "robotpass";
 // Globals
 // -----------------------------------------------------------------------------
 
-
-
-
 // Core bus + mode (SafetyManager removed - now part of ModeManager)
 EventBus    g_bus;
 ModeManager g_modeManager;
