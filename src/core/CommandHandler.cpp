@@ -14,6 +14,11 @@
 #include "managers/DcMotorManager.h"
 #include "core/Debug.h"
 #include <Arduino.h>
+#include "core/LoopRates.h"
+#include "core/ModeManager.h"
+#include "modules/ControlModule.h"
+#include "core/SignalBus.h"
+
 
 using namespace ArduinoJson;
 
@@ -82,13 +87,10 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         return;
     }
 
-    // ✅ Any valid parsed message counts as host activity (PING/HELLO/REQ/etc too)
-    //mode_.onHostHeartbeat(millis());
-
     DBG_PRINTF("[CMD] kind=%d typeStr=%s cmdType=%d\n",
                (int)msg.kind, msg.typeStr.c_str(), (int)msg.cmdType);
 
-    // If not a command, we're done (but we still refreshed heartbeat above)
+    // If not a command, we're done
     if (msg.kind != MsgKind::CMD) {
         DBG_PRINT("[CMD] Ignoring non-command: ");
         DBG_PRINTLN(msg.typeStr.c_str());
@@ -99,7 +101,7 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
     currentSeq_ = msg.seq;
     currentCmdType_ = msg.cmdType;
 
-    // ✅ Replay path still counts as host activity because heartbeat happened earlier
+    // Check for duplicate command replay
     if (tryReplayAck(msg.cmdType, msg.seq)) {
         return;
     }
@@ -165,6 +167,23 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         // ----- Telemetry -----
         case CmdType::TELEM_SET_INTERVAL:     handleTelemSetInterval(payload);   break;
 
+        // ----- Loop Rates -----
+        case CmdType::GET_RATES:              handleGetRates(payload);           break;
+        case CmdType::CTRL_SET_RATE:          handleCtrlSetRate(payload);        break;
+        case CmdType::SAFETY_SET_RATE:        handleSafetySetRate(payload);      break;
+        case CmdType::TELEM_SET_RATE:         handleTelemSetRate(payload);       break;
+
+        // ----- Control Kernel -----
+        case CmdType::CTRL_SIGNAL_DEFINE:     handleCtrlSignalDefine(payload);   break;
+        case CmdType::CTRL_SLOT_CONFIG:       handleCtrlSlotConfig(payload);     break;
+        case CmdType::CTRL_SLOT_ENABLE:       handleCtrlSlotEnable(payload);     break;
+        case CmdType::CTRL_SLOT_RESET:        handleCtrlSlotReset(payload);      break;
+        case CmdType::CTRL_SLOT_SET_PARAM:    handleCtrlSlotSetParam(payload);   break;
+        case CmdType::CTRL_SLOT_STATUS:       handleCtrlSlotStatus(payload);     break;
+        case CmdType::CTRL_SIGNAL_SET:        handleCtrlSignalSet(payload);      break;
+        case CmdType::CTRL_SIGNAL_GET:        handleCtrlSignalGet(payload);      break;
+        case CmdType::CTRL_SIGNALS_LIST:      handleCtrlSignalsList(payload);    break;
+
         // ----- Logging -----
         case CmdType::SET_LOG_LEVEL:          handleSetLogLevel(payload);        break;
 
@@ -179,7 +198,6 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
 // ACK Helpers
 // -----------------------------------------------------------------------------
 bool CommandHandler::tryReplayAck(CmdType cmdType, uint32_t seq) {
-    // If seq is missing/zero, skip replay (optional policy)
     if (seq == 0) return false;
 
     for (int i = 0; i < kAckCacheSize; ++i) {
@@ -195,7 +213,6 @@ bool CommandHandler::tryReplayAck(CmdType cmdType, uint32_t seq) {
 }
 
 void CommandHandler::storeAck(CmdType cmdType, uint32_t seq, const std::string& ackJson) {
-    // Optional policy: don't cache seq==0 commands
     if (seq == 0) return;
 
     auto& e = ackCache_[ackCacheWrite_];
@@ -222,16 +239,11 @@ void CommandHandler::sendAck(const char* cmd, bool ok, JsonDocument& resp) {
     resp["src"] = "mcu";
     resp["cmd"] = cmd;
     resp["ok"]  = ok;
-
-    // NEW: seq echo so host can match this ACK to the request
     resp["seq"] = currentSeq_;
 
     std::string out;
     serializeJson(resp, out);
-
-    // NEW: cache for retry replay (prevents double execution)
     storeAck(currentCmdType_, currentSeq_, out);
-
     publishJson(std::move(out));
 }
 
@@ -241,19 +253,32 @@ void CommandHandler::sendError(const char* cmd, const char* error) {
     resp["cmd"]   = cmd;
     resp["ok"]    = false;
     resp["error"] = error;
-
-    // NEW: seq echo for errors too
-    resp["seq"] = currentSeq_;
+    resp["seq"]   = currentSeq_;
 
     std::string out;
     serializeJson(resp, out);
-
-    // NEW: cache error too (retry should return same error)
     storeAck(currentCmdType_, currentSeq_, out);
-
     publishJson(std::move(out));
 }
 
+// -----------------------------------------------------------------------------
+// State Guards
+// -----------------------------------------------------------------------------
+bool CommandHandler::requireIdle(const char* cmdName) {
+    if (mode_.mode() == RobotMode::IDLE) {
+        return true;
+    }
+    sendError(cmdName, "not_idle");
+    return false;
+}
+
+bool CommandHandler::requireArmed(const char* cmdName) {
+    if (mode_.canMove()) {
+        return true;
+    }
+    sendError(cmdName, "not_armed");
+    return false;
+}
 
 // -----------------------------------------------------------------------------
 // Safety / State Machine Commands
@@ -264,7 +289,7 @@ void CommandHandler::handleHeartbeat() {
 
     JsonDocument resp;
     resp["state"] = robotModeToString(mode_.mode());
-    sendAck("HEARTBEAT_ACK", true, resp);
+    sendAck("CMD_HEARTBEAT", true, resp);
 }
 
 void CommandHandler::handleArm() {
@@ -277,7 +302,7 @@ void CommandHandler::handleArm() {
     if (!ok) {
         resp["error"] = "invalid_transition";
     }
-    sendAck("ARM_ACK", ok, resp);
+    sendAck("CMD_ARM", ok, resp);
 }
 
 void CommandHandler::handleDisarm() {
@@ -290,7 +315,7 @@ void CommandHandler::handleDisarm() {
     if (!ok) {
         resp["error"] = "invalid_transition";
     }
-    sendAck("DISARM_ACK", ok, resp);
+    sendAck("CMD_DISARM", ok, resp);
 }
 
 void CommandHandler::handleActivate() {
@@ -303,7 +328,7 @@ void CommandHandler::handleActivate() {
     if (!ok) {
         resp["error"] = "invalid_transition";
     }
-    sendAck("ACTIVATE_ACK", ok, resp);
+    sendAck("CMD_ACTIVATE", ok, resp);
 }
 
 void CommandHandler::handleDeactivate() {
@@ -312,7 +337,7 @@ void CommandHandler::handleDeactivate() {
 
     JsonDocument resp;
     resp["state"] = robotModeToString(mode_.mode());
-    sendAck("DEACTIVATE_ACK", true, resp);
+    sendAck("CMD_DEACTIVATE", true, resp);
 }
 
 void CommandHandler::handleEstop() {
@@ -321,7 +346,7 @@ void CommandHandler::handleEstop() {
 
     JsonDocument resp;
     resp["state"] = robotModeToString(mode_.mode());
-    sendAck("ESTOP_ACK", true, resp);
+    sendAck("CMD_ESTOP", true, resp);
 }
 
 void CommandHandler::handleClearEstop() {
@@ -333,7 +358,7 @@ void CommandHandler::handleClearEstop() {
     if (!cleared) {
         resp["error"] = "cannot_clear";
     }
-    sendAck("CLEAR_ESTOP_ACK", cleared, resp);
+    sendAck("CMD_CLEAR_ESTOP", cleared, resp);
 }
 
 void CommandHandler::handleStop() {
@@ -341,7 +366,7 @@ void CommandHandler::handleStop() {
     motion_.stop();
 
     JsonDocument resp;
-    sendAck("STOP_ACK", true, resp);
+    sendAck("CMD_STOP", true, resp);
 }
 
 // -----------------------------------------------------------------------------
@@ -375,7 +400,7 @@ void CommandHandler::handleSetMode(JsonVariantConst payload) {
     if (!ok && error) {
         resp["error"] = error;
     }
-    sendAck("SET_MODE_ACK", ok, resp);
+    sendAck("CMD_SET_MODE", ok, resp);
 }
 
 // -----------------------------------------------------------------------------
@@ -390,49 +415,39 @@ void CommandHandler::handleSetVel(JsonVariantConst payload) {
     float safe_vx = 0.0f, safe_omega = 0.0f;
     if (!mode_.validateVelocity(vx, omega, safe_vx, safe_omega)) {
         DBG_PRINTF("[CMD] SET_VEL invalid: vx=%f omega=%f\n", vx, omega);
-        sendError("SET_VEL_ACK", "invalid_velocity");
+        sendError("CMD_SET_VEL", "invalid_velocity");
         return;
     }
 
-    // ✅ Always allow "STOP" even if not armed (safe behavior)
+    // Always allow "STOP" even if not armed
     const bool is_stop_cmd = (fabsf(safe_vx) < 1e-6f) && (fabsf(safe_omega) < 1e-6f);
     if (is_stop_cmd) {
-        // Counts as motion activity (optional, but fine)
         mode_.onMotionCommand(now_ms);
-
         motion_.stop();
 
         JsonDocument resp;
         resp["vx"]    = safe_vx;
         resp["omega"] = safe_omega;
         resp["state"] = robotModeToString(mode_.mode());
-        sendAck("SET_VEL_ACK", true, resp);
+        sendAck("CMD_SET_VEL", true, resp);
         return;
     }
 
     // Gate non-zero motion
     if (!mode_.canMove()) {
-        DBG_PRINTF("[CMD] SET_VEL rejected: mode=%s hostAge=%lums motionAge=%lums\n",
-                   robotModeToString(mode_.mode()),
-                   (unsigned long)mode_.hostAgeMs(now_ms),
-                   (unsigned long)mode_.motionAgeMs(now_ms));
-        sendError("SET_VEL_ACK", "not_armed");
+        DBG_PRINTF("[CMD] SET_VEL rejected: mode=%s\n", robotModeToString(mode_.mode()));
+        sendError("CMD_SET_VEL", "not_armed");
         return;
     }
 
-    // Record motion activity BEFORE commanding actuators
     mode_.onMotionCommand(now_ms);
-
-    DBG_PRINTF("[CMD] SET_VEL ok: vx=%.3f omega=%.3f mode=%s\n",
-               safe_vx, safe_omega, robotModeToString(mode_.mode()));
-
     motion_.setVelocity(safe_vx, safe_omega);
 
     JsonDocument resp;
     resp["vx"]    = safe_vx;
     resp["omega"] = safe_omega;
     resp["state"] = robotModeToString(mode_.mode());
-    sendAck("SET_VEL_ACK", true, resp);
+    sendAck("CMD_SET_VEL", true, resp);
 }
 
 // -----------------------------------------------------------------------------
@@ -445,7 +460,7 @@ void CommandHandler::handleLedOn() {
     JsonDocument resp;
     resp["pin"] = Pins::LED_STATUS;
     resp["on"]  = true;
-    sendAck("LED_ON_ACK", true, resp);
+    sendAck("CMD_LED_ON", true, resp);
 }
 
 void CommandHandler::handleLedOff() {
@@ -455,7 +470,7 @@ void CommandHandler::handleLedOff() {
     JsonDocument resp;
     resp["pin"] = Pins::LED_STATUS;
     resp["on"]  = false;
-    sendAck("LED_OFF_ACK", true, resp);
+    sendAck("CMD_LED_OFF", true, resp);
 }
 
 // -----------------------------------------------------------------------------
@@ -478,7 +493,7 @@ void CommandHandler::handleGpioWrite(JsonVariantConst payload) {
     if (!ok) {
         resp["error"] = "invalid_channel";
     }
-    sendAck("GPIO_WRITE_ACK", ok, resp);
+    sendAck("CMD_GPIO_WRITE", ok, resp);
 }
 
 void CommandHandler::handleGpioRead(JsonVariantConst payload) {
@@ -495,7 +510,7 @@ void CommandHandler::handleGpioRead(JsonVariantConst payload) {
     if (!ok) {
         resp["error"] = "invalid_channel";
     }
-    sendAck("GPIO_READ_ACK", ok, resp);
+    sendAck("CMD_GPIO_READ", ok, resp);
 }
 
 void CommandHandler::handleGpioToggle(JsonVariantConst payload) {
@@ -513,7 +528,7 @@ void CommandHandler::handleGpioToggle(JsonVariantConst payload) {
     if (!ok) {
         resp["error"] = "invalid_channel";
     }
-    sendAck("GPIO_TOGGLE_ACK", ok, resp);
+    sendAck("CMD_GPIO_TOGGLE", ok, resp);
 }
 
 void CommandHandler::handleGpioRegisterChannel(JsonVariantConst payload) {
@@ -543,7 +558,7 @@ void CommandHandler::handleGpioRegisterChannel(JsonVariantConst payload) {
     if (!ok) {
         resp["error"] = "invalid_params";
     }
-    sendAck("GPIO_REGISTER_CHANNEL_ACK", ok, resp);
+    sendAck("CMD_GPIO_REGISTER_CHANNEL", ok, resp);
 }
 
 // -----------------------------------------------------------------------------
@@ -562,7 +577,7 @@ void CommandHandler::handlePwmSet(JsonVariantConst payload) {
     resp["channel"] = channel;
     resp["duty"]    = duty;
     resp["freq_hz"] = freq;
-    sendAck("PWM_SET_ACK", true, resp);
+    sendAck("CMD_PWM_SET", true, resp);
 }
 
 // -----------------------------------------------------------------------------
@@ -599,7 +614,7 @@ void CommandHandler::handleServoAttach(JsonVariantConst payload) {
     if (!ok) {
         resp["error"] = "unknown_servo_id";
     }
-    sendAck("SERVO_ATTACH_ACK", ok, resp);
+    sendAck("CMD_SERVO_ATTACH", ok, resp);
 }
 
 void CommandHandler::handleServoDetach(JsonVariantConst payload) {
@@ -610,12 +625,12 @@ void CommandHandler::handleServoDetach(JsonVariantConst payload) {
 
     JsonDocument resp;
     resp["servo_id"] = servoId;
-    sendAck("SERVO_DETACH_ACK", true, resp);
+    sendAck("CMD_SERVO_DETACH", true, resp);
 }
 
 void CommandHandler::handleServoSetAngle(JsonVariantConst payload) {
     if (!mode_.canMove()) {
-        sendError("SERVO_SET_ANGLE_ACK", "not_armed");
+        sendError("CMD_SERVO_SET_ANGLE", "not_armed");
         return;
     }
 
@@ -638,7 +653,7 @@ void CommandHandler::handleServoSetAngle(JsonVariantConst payload) {
     resp["servo_id"]    = servoId;
     resp["angle_deg"]   = angle;
     resp["duration_ms"] = durMs;
-    sendAck("SERVO_SET_ANGLE_ACK", true, resp);
+    sendAck("CMD_SERVO_SET_ANGLE", true, resp);
 }
 
 // -----------------------------------------------------------------------------
@@ -654,12 +669,12 @@ void CommandHandler::handleStepperEnable(JsonVariantConst payload) {
     JsonDocument resp;
     resp["motor_id"] = motorId;
     resp["enable"]   = enable;
-    sendAck("STEPPER_ENABLE_ACK", true, resp);
+    sendAck("CMD_STEPPER_ENABLE", true, resp);
 }
 
 void CommandHandler::handleStepperMoveRel(JsonVariantConst payload) {
     if (!mode_.canMove()) {
-        sendError("STEPPER_MOVE_REL_ACK", "not_armed");
+        sendError("CMD_STEPPER_MOVE_REL", "not_armed");
         return;
     }
 
@@ -677,7 +692,7 @@ void CommandHandler::handleStepperMoveRel(JsonVariantConst payload) {
     resp["motor_id"]      = motorId;
     resp["steps"]         = steps;
     resp["speed_steps_s"] = speed;
-    sendAck("STEPPER_MOVE_REL_ACK", true, resp);
+    sendAck("CMD_STEPPER_MOVE_REL", true, resp);
 }
 
 void CommandHandler::handleStepperStop(JsonVariantConst payload) {
@@ -688,7 +703,7 @@ void CommandHandler::handleStepperStop(JsonVariantConst payload) {
 
     JsonDocument resp;
     resp["motor_id"] = motorId;
-    sendAck("STEPPER_STOP_ACK", true, resp);
+    sendAck("CMD_STEPPER_STOP", true, resp);
 }
 
 // -----------------------------------------------------------------------------
@@ -726,7 +741,7 @@ void CommandHandler::handleUltrasonicAttach(JsonVariantConst payload) {
     if (!ok) {
         resp["error"] = "attach_failed";
     }
-    sendAck("ULTRASONIC_ATTACH_ACK", ok, resp);
+    sendAck("CMD_ULTRASONIC_ATTACH", ok, resp);
 }
 
 void CommandHandler::handleUltrasonicRead(JsonVariantConst payload) {
@@ -744,7 +759,7 @@ void CommandHandler::handleUltrasonicRead(JsonVariantConst payload) {
     if (!ok) {
         resp["error"] = "read_failed";
     }
-    sendAck("ULTRASONIC_READ_ACK", ok, resp);
+    sendAck("CMD_ULTRASONIC_READ", ok, resp);
 }
 
 // -----------------------------------------------------------------------------
@@ -768,7 +783,7 @@ void CommandHandler::handleEncoderAttach(JsonVariantConst payload) {
     resp["encoder_id"] = encoderId;
     resp["pin_a"]      = pinA;
     resp["pin_b"]      = pinB;
-    sendAck("ENCODER_ATTACH_ACK", true, resp);
+    sendAck("CMD_ENCODER_ATTACH", true, resp);
 }
 
 void CommandHandler::handleEncoderRead(JsonVariantConst payload) {
@@ -781,7 +796,7 @@ void CommandHandler::handleEncoderRead(JsonVariantConst payload) {
     JsonDocument resp;
     resp["encoder_id"] = encoderId;
     resp["ticks"]      = ticks;
-    sendAck("ENCODER_READ_ACK", true, resp);
+    sendAck("CMD_ENCODER_READ", true, resp);
 }
 
 void CommandHandler::handleEncoderReset(JsonVariantConst payload) {
@@ -792,7 +807,7 @@ void CommandHandler::handleEncoderReset(JsonVariantConst payload) {
 
     JsonDocument resp;
     resp["encoder_id"] = encoderId;
-    sendAck("ENCODER_RESET_ACK", true, resp);
+    sendAck("CMD_ENCODER_RESET", true, resp);
 }
 
 // -----------------------------------------------------------------------------
@@ -800,7 +815,7 @@ void CommandHandler::handleEncoderReset(JsonVariantConst payload) {
 // -----------------------------------------------------------------------------
 void CommandHandler::handleDcSetSpeed(JsonVariantConst payload) {
     if (!mode_.canMove()) {
-        sendError("DC_SET_SPEED_ACK", "not_armed");
+        sendError("CMD_DC_SET_SPEED", "not_armed");
         return;
     }
 
@@ -818,7 +833,7 @@ void CommandHandler::handleDcSetSpeed(JsonVariantConst payload) {
     if (!ok) {
         resp["error"] = "set_speed_failed";
     }
-    sendAck("DC_SET_SPEED_ACK", ok, resp);
+    sendAck("CMD_DC_SET_SPEED", ok, resp);
 }
 
 void CommandHandler::handleDcStop(JsonVariantConst payload) {
@@ -829,7 +844,7 @@ void CommandHandler::handleDcStop(JsonVariantConst payload) {
 
     JsonDocument resp;
     resp["motor_id"] = motorId;
-    sendAck("DC_STOP_ACK", true, resp);
+    sendAck("CMD_DC_STOP", true, resp);
 }
 
 void CommandHandler::handleDcVelPidEnable(JsonVariantConst payload) {
@@ -845,12 +860,12 @@ void CommandHandler::handleDcVelPidEnable(JsonVariantConst payload) {
     if (!ok) {
         resp["error"] = "enable_failed";
     }
-    sendAck("DC_VEL_PID_ENABLE_ACK", ok, resp);
+    sendAck("CMD_DC_VEL_PID_ENABLE", ok, resp);
 }
 
 void CommandHandler::handleDcSetVelTarget(JsonVariantConst payload) {
     if (!mode_.canMove()) {
-        sendError("DC_SET_VEL_TARGET_ACK", "not_armed");
+        sendError("CMD_DC_SET_VEL_TARGET", "not_armed");
         return;
     }
 
@@ -868,7 +883,7 @@ void CommandHandler::handleDcSetVelTarget(JsonVariantConst payload) {
     if (!ok) {
         resp["error"] = "set_target_failed";
     }
-    sendAck("DC_SET_VEL_TARGET_ACK", ok, resp);
+    sendAck("CMD_DC_SET_VEL_TARGET", ok, resp);
 }
 
 void CommandHandler::handleDcSetVelGains(JsonVariantConst payload) {
@@ -890,7 +905,7 @@ void CommandHandler::handleDcSetVelGains(JsonVariantConst payload) {
     if (!ok) {
         resp["error"] = "set_gains_failed";
     }
-    sendAck("DC_SET_VEL_GAINS_ACK", ok, resp);
+    sendAck("CMD_DC_SET_VEL_GAINS", ok, resp);
 }
 
 // -----------------------------------------------------------------------------
@@ -904,7 +919,7 @@ void CommandHandler::handleTelemSetInterval(JsonVariantConst payload) {
 
     JsonDocument resp;
     resp["interval_ms"] = interval;
-    sendAck("TELEM_SET_INTERVAL_ACK", true, resp);
+    sendAck("CMD_TELEM_SET_INTERVAL", true, resp);
 }
 
 // -----------------------------------------------------------------------------
@@ -921,5 +936,375 @@ void CommandHandler::handleSetLogLevel(JsonVariantConst payload) {
 
     JsonDocument resp;
     resp["level"] = levelStr;
-    sendAck("SET_LOG_LEVEL_ACK", true, resp);
+    sendAck("CMD_SET_LOG_LEVEL", true, resp);
+}
+
+// -----------------------------------------------------------------------------
+// Loop Rates Commands
+// -----------------------------------------------------------------------------
+void CommandHandler::handleGetRates(JsonVariantConst) {
+    LoopRates& r = getLoopRates();
+    
+    JsonDocument resp;
+    resp["ctrl_hz"]    = r.ctrl_hz;
+    resp["safety_hz"]  = r.safety_hz;
+    resp["telem_hz"]   = r.telem_hz;
+    resp["ctrl_ms"]    = r.ctrl_period_ms();
+    resp["safety_ms"]  = r.safety_period_ms();
+    resp["telem_ms"]   = r.telem_period_ms();
+    sendAck("CMD_GET_RATES", true, resp);
+}
+
+void CommandHandler::handleCtrlSetRate(JsonVariantConst payload) {
+    if (!requireIdle("CMD_CTRL_SET_RATE")) return;
+    
+    if (payload["hz"].isNull()) {
+        sendError("CMD_CTRL_SET_RATE", "missing_hz");
+        return;
+    }
+    
+    uint16_t hz = static_cast<uint16_t>(payload["hz"].as<int>());
+    if (hz == 0) {
+        sendError("CMD_CTRL_SET_RATE", "invalid_hz");
+        return;
+    }
+    
+    bool inRange = clampHz(hz, LoopRates::CTRL_HZ_MIN, LoopRates::CTRL_HZ_MAX);
+    getLoopRates().ctrl_hz = hz;
+    
+    JsonDocument resp;
+    resp["applied_hz"] = hz;
+    resp["in_range"]   = inRange;
+    resp["ctrl_ms"]    = getLoopRates().ctrl_period_ms();
+    sendAck("CMD_CTRL_SET_RATE", true, resp);
+}
+
+void CommandHandler::handleSafetySetRate(JsonVariantConst payload) {
+    if (!requireIdle("CMD_SAFETY_SET_RATE")) return;
+    
+    if (payload["hz"].isNull()) {
+        sendError("CMD_SAFETY_SET_RATE", "missing_hz");
+        return;
+    }
+    
+    uint16_t hz = static_cast<uint16_t>(payload["hz"].as<int>());
+    if (hz == 0) {
+        sendError("CMD_SAFETY_SET_RATE", "invalid_hz");
+        return;
+    }
+    
+    bool inRange = clampHz(hz, LoopRates::SAFETY_HZ_MIN, LoopRates::SAFETY_HZ_MAX);
+    getLoopRates().safety_hz = hz;
+    
+    JsonDocument resp;
+    resp["applied_hz"] = hz;
+    resp["in_range"]   = inRange;
+    resp["safety_ms"]  = getLoopRates().safety_period_ms();
+    sendAck("CMD_SAFETY_SET_RATE", true, resp);
+}
+
+void CommandHandler::handleTelemSetRate(JsonVariantConst payload) {
+    if (!requireIdle("CMD_TELEM_SET_RATE")) return;
+    
+    if (payload["hz"].isNull()) {
+        sendError("CMD_TELEM_SET_RATE", "missing_hz");
+        return;
+    }
+    
+    uint16_t hz = static_cast<uint16_t>(payload["hz"].as<int>());
+    if (hz == 0) {
+        sendError("CMD_TELEM_SET_RATE", "invalid_hz");
+        return;
+    }
+    
+    bool inRange = clampHz(hz, LoopRates::TELEM_HZ_MIN, LoopRates::TELEM_HZ_MAX);
+    getLoopRates().telem_hz = hz;
+    
+    JsonDocument resp;
+    resp["applied_hz"] = hz;
+    resp["in_range"]   = inRange;
+    resp["telem_ms"]   = getLoopRates().telem_period_ms();
+    sendAck("CMD_TELEM_SET_RATE", true, resp);
+}
+
+// -----------------------------------------------------------------------------
+// Control Kernel - Signal Commands
+// -----------------------------------------------------------------------------
+void CommandHandler::handleCtrlSignalDefine(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_CTRL_SIGNAL_DEFINE";
+    Serial.println("[CMD] === CTRL_SIGNAL_DEFINE ===");
+    Serial.printf("[CMD] controlModule_ = %p\n", (void*)controlModule_);
+    Serial.printf("[CMD] Free heap: %u\n", ESP.getFreeHeap());
+
+    DBG_PRINTLN("[CMD] CTRL_SIGNAL_DEFINE entry");
+
+    if (!requireIdle(ACK)) return;
+
+    if (!controlModule_) {
+        DBG_PRINTLN("[CMD] CTRL_SIGNAL_DEFINE: no control module");
+        sendError(ACK, "no_control_module");
+        return;
+    }
+
+    // Validate required fields
+    if (payload["id"].isNull() || payload["name"].isNull() || payload["kind"].isNull()) {
+        DBG_PRINTLN("[CMD] CTRL_SIGNAL_DEFINE: missing fields");
+        sendError(ACK, "missing_fields");
+        return;
+    }
+
+    uint16_t id       = payload["id"].as<uint16_t>();
+    const char* name  = payload["name"].as<const char*>();
+    const char* kindS = payload["signal_kind"].as<const char*>();
+    float initial     = payload["initial"] | 0.0f;
+
+    DBG_PRINTF("[CMD] CTRL_SIGNAL_DEFINE: id=%u name=%s kind=%s initial=%.2f\n",
+               id, name ? name : "null", kindS ? kindS : "null", initial);
+
+    // Use helper from SignalBus.h
+    SignalBus::Kind kind = signalKindFromString(kindS);
+    
+
+    DBG_PRINTLN("[CMD] CTRL_SIGNAL_DEFINE: calling signals().define()");
+    bool ok = controlModule_->signals().define(id, name, kind, initial);
+    DBG_PRINTF("[CMD] CTRL_SIGNAL_DEFINE: define() returned %d\n", (int)ok);
+
+    JsonDocument resp;
+    resp["id"]      = id;
+    resp["name"]    = name ? name : "";
+    resp["kind"]    = kindS ? kindS : "";
+    resp["initial"] = initial;
+    
+    if (!ok) {
+        resp["error"] = "define_failed";
+    }
+    sendAck(ACK, ok, resp);
+
+    DBG_PRINTLN("[CMD] CTRL_SIGNAL_DEFINE: done");
+}
+
+void CommandHandler::handleCtrlSignalSet(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_CTRL_SIGNAL_SET";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    uint16_t id = payload["id"] | 0;
+    float value = payload["value"] | 0.0f;
+    
+    bool ok = controlModule_->signals().set(id, value, millis());
+    
+    JsonDocument resp;
+    resp["id"] = id;
+    resp["value"] = value;
+    if (!ok) {
+        resp["error"] = "signal_not_found";
+    }
+    sendAck(ACK, ok, resp);
+}
+
+void CommandHandler::handleCtrlSignalGet(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_CTRL_SIGNAL_GET";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    uint16_t id = payload["id"] | 0;
+    float value = 0.0f;
+    bool ok = controlModule_->signals().get(id, value);
+    
+    JsonDocument resp;
+    resp["id"] = id;
+    resp["value"] = value;
+    if (!ok) {
+        resp["error"] = "signal_not_found";
+    }
+    sendAck(ACK, ok, resp);
+}
+
+void CommandHandler::handleCtrlSignalsList(JsonVariantConst) {
+    static constexpr const char* ACK = "CMD_CTRL_SIGNALS_LIST";
+
+    JsonDocument resp;
+    
+    if (!controlModule_) {
+        resp["count"] = 0;
+        resp["signals"].to<JsonArray>();
+        sendAck(ACK, true, resp);
+        return;
+    }
+
+    const auto& vec = controlModule_->signals().all();
+    resp["count"] = static_cast<uint16_t>(vec.size());
+    JsonArray arr = resp["signals"].to<JsonArray>();
+
+    for (const auto& sdef : vec) {
+        JsonObject s = arr.add<JsonObject>();
+        s["id"]    = sdef.id;
+        s["name"]  = sdef.name;
+        s["kind"]  = signalKindToString(sdef.kind);
+        s["value"] = sdef.value;
+        s["ts_ms"] = sdef.ts_ms;
+    }
+    
+    sendAck(ACK, true, resp);
+}
+
+// -----------------------------------------------------------------------------
+// Control Kernel - Slot Commands
+// -----------------------------------------------------------------------------
+void CommandHandler::handleCtrlSlotConfig(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_CTRL_SLOT_CONFIG";
+
+    if (!requireIdle(ACK)) return;
+    
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+
+    uint8_t slot = payload["slot"] | 0;
+    const char* type = payload["controller_type"] | "PID";
+
+    // Validate controller type
+    if (strcmp(type, "PID") != 0 && strcmp(type, "SS") != 0) {
+        sendError(ACK, "unknown_type");
+        return;
+    }
+
+    // Check if required signals exist
+    uint16_t ref_id  = payload["ref_id"]  | 0;
+    uint16_t meas_id = payload["meas_id"] | 0;
+    uint16_t out_id  = payload["out_id"]  | 0;
+
+    float tmp = 0.0f;
+    if (ref_id != 0 && !controlModule_->signals().get(ref_id, tmp)) {
+        sendError(ACK, "ref_signal_missing");
+        return;
+    }
+    if (meas_id != 0 && !controlModule_->signals().get(meas_id, tmp)) {
+        sendError(ACK, "meas_signal_missing");
+        return;
+    }
+
+    SlotConfig cfg;
+    cfg.slot = slot;
+    cfg.rate_hz = payload["rate_hz"] | 100;
+    cfg.enabled = false;
+    cfg.io.ref_id  = ref_id;
+    cfg.io.meas_id = meas_id;
+    cfg.io.out_id  = out_id;
+    cfg.require_armed  = payload["require_armed"]  | true;
+    cfg.require_active = payload["require_active"] | true;
+
+    bool ok = controlModule_->kernel().configureSlot(cfg, type);
+
+    JsonDocument resp;
+    resp["slot"] = slot;
+    resp["type"] = type;
+    resp["rate_hz"] = cfg.rate_hz;
+    if (!ok) {
+        resp["error"] = "config_failed";
+    }
+    sendAck(ACK, ok, resp);
+}
+
+void CommandHandler::handleCtrlSlotEnable(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_CTRL_SLOT_ENABLE";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    uint8_t slot = payload["slot"] | 0;
+    bool enable = payload["enable"] | true;
+    
+    bool ok = controlModule_->kernel().enableSlot(slot, enable);
+    
+    JsonDocument resp;
+    resp["slot"] = slot;
+    resp["enable"] = enable;
+    if (!ok) {
+        resp["error"] = "enable_failed";
+    }
+    sendAck(ACK, ok, resp);
+}
+
+void CommandHandler::handleCtrlSlotReset(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_CTRL_SLOT_RESET";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    uint8_t slot = payload["slot"] | 0;
+    bool ok = controlModule_->kernel().resetSlot(slot);
+    
+    JsonDocument resp;
+    resp["slot"] = slot;
+    if (!ok) {
+        resp["error"] = "reset_failed";
+    }
+    sendAck(ACK, ok, resp);
+}
+
+void CommandHandler::handleCtrlSlotSetParam(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_CTRL_SLOT_SET_PARAM";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+
+    uint8_t slot      = payload["slot"] | 0;
+    const char* key   = payload["key"] | "";
+    float value       = payload["value"] | 0.0f;
+
+    if (!key || key[0] == '\0') {
+        sendError(ACK, "missing_key");
+        return;
+    }
+
+    bool ok = controlModule_->kernel().setParam(slot, key, value);
+
+    JsonDocument resp;
+    resp["slot"]  = slot;
+    resp["key"]   = key;
+    resp["value"] = value;
+    if (!ok) {
+        resp["error"] = "set_param_failed";
+    }
+    sendAck(ACK, ok, resp);
+}
+
+void CommandHandler::handleCtrlSlotStatus(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_CTRL_SLOT_STATUS";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    uint8_t slot = payload["slot"] | 0;
+    
+    auto cfg = controlModule_->kernel().getConfig(slot);
+    auto st = controlModule_->kernel().getStatus(slot);
+    
+    JsonDocument resp;
+    resp["slot"] = slot;
+    resp["enabled"] = cfg.enabled;
+    resp["rate_hz"] = cfg.rate_hz;
+    resp["ok"] = st.ok;
+    resp["run_count"] = st.run_count;
+    resp["last_run_ms"] = st.last_run_ms;
+    if (st.last_error) {
+        resp["last_error"] = st.last_error;
+    }
+    sendAck(ACK, true, resp);
 }

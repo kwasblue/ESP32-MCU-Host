@@ -8,6 +8,8 @@
 #include "core/UartTransport.h"
 #include "core/WifiTransport.h"
 #include "core/MessageRouter.h"
+#include "core/LoopRates.h"
+#include "core/LoopScheduler.h"
 #include "modules/HearbeatModule.h"
 #include "modules/LoggingModule.h"
 #include "config/WifiSecrets.h"
@@ -28,6 +30,12 @@
 #include "managers/ImuManager.h"
 #include "managers/LidarManager.h"
 #include "managers/EncoderManager.h"
+#include "modules/ControlModule.h"
+
+// Optional: Control kernel (comment out if not using yet)
+// #include "core/SignalBus.h"
+// #include "core/ControlKernel.h"
+// #include "modules/ControlModule.h"
 
 // -----------------------------------------------------------------------------
 // WiFi defaults (if WifiSecrets.h not configured)
@@ -48,7 +56,7 @@ const char* AP_PASS  = "robotpass";
 // Globals
 // -----------------------------------------------------------------------------
 
-// Core bus + mode (SafetyManager removed - now part of ModeManager)
+// Core bus + mode
 EventBus    g_bus;
 ModeManager g_modeManager;
 
@@ -80,11 +88,9 @@ MotionController g_motionController(
 // Transports
 MultiTransport g_multiTransport;
 
-// Dedicated UART1 for protocol (note: UartTransport currently bound to Serial)
+// Dedicated UART1 for protocol
 HardwareSerial SerialPort(1);          // UART1
-UartTransport  g_uart(Serial, 115200); // protocol over USB Serial (for now)
-//UartTransport g_uart(SerialPort, 115200);
-
+UartTransport  g_uart(Serial, 115200); // protocol over USB Serial
 WifiTransport  g_wifi(3333);           // TCP port
 BleTransport   g_ble("ESP32-SPP");
 
@@ -95,7 +101,7 @@ MCUHost       g_host(g_bus, &g_router);
 // Telemetry
 TelemetryModule g_telemetry(g_bus);
 
-// Command handler (SafetyManager removed from constructor)
+// Command handler
 CommandHandler g_commandHandler(
     g_bus,
     g_modeManager,
@@ -115,12 +121,26 @@ HeartbeatModule g_heartbeat(g_bus);
 LoggingModule   g_logger(g_bus);
 IdentityModule  g_identity(g_bus, g_multiTransport, "ESP32-bot");
 
+// Loop schedulers (initialized in setup)
+LoopScheduler g_safetyScheduler(20);   // Will be updated from LoopRates
+LoopScheduler g_ctrlScheduler(20);     // Will be updated from LoopRates
+LoopScheduler g_telemScheduler(100);   // Will be updated from LoopRates
+
 // For periodic debug printing 
 uint32_t g_lastIpPrintMs = 0;
 
+ControlModule g_controlModule(
+    &g_bus,
+    &g_modeManager,
+    &g_motionController,
+    &g_encoder,
+    &g_imu,
+    &g_telemetry
+);
+
+
 // Encoder / PID config for DC motor 0 
-constexpr float ENCODER0_TICKS_PER_REV = 1632.67f;  // without any attachments change when necesary
-static uint32_t g_lastPidMs   = 0;
+constexpr float ENCODER0_TICKS_PER_REV = 1632.67f;
 static int32_t  g_lastTicks0  = 0;
 
 // -----------------------------------------------------------------------------
@@ -132,7 +152,9 @@ void setupTransportsAndRouter();
 void setupTelemetryProviders();
 void setupGpioAndMotors();
 void setupSafety();
-void updateDcMotor0VelocityPid(uint32_t now_ms);
+void updateLoopSchedulers();
+void runControlLoop(uint32_t now_ms, float dt);
+void runSafetyLoop(uint32_t now_ms);
 
 // -----------------------------------------------------------------------------
 // WiFi: AP + STA
@@ -141,20 +163,17 @@ void setupWifiDualMode() {
     Serial.println("[WiFi] Starting AP + optional STA...");
 
     WiFi.mode(WIFI_AP_STA);
-
-    // Turn off persistent + reconnect BEFORE begin
     WiFi.persistent(false);
     WiFi.setAutoReconnect(false);
-    WiFi.setAutoConnect(false);  // optional, prevents auto-connect at next boot
+    WiFi.setAutoConnect(false);
 
-    // --- Try STA once ---
     Serial.print("[WiFi][STA] Connecting to ");
     Serial.print(WIFI_STA_SSID);
 
     WiFi.begin(WIFI_STA_SSID, WIFI_STA_PASSWORD);
 
     uint32_t start           = millis();
-    const uint32_t timeoutMs = 10000; // 10s timeout
+    const uint32_t timeoutMs = 10000;
 
     while (WiFi.status() != WL_CONNECTED && millis() - start < timeoutMs) {
         delay(500);
@@ -167,13 +186,10 @@ void setupWifiDualMode() {
         Serial.println(WiFi.localIP());
     } else {
         Serial.println("[WiFi][STA] Failed; disabling STA to avoid reconnect spam.");
-
-        // Kill STA cleanly so it stops scanning / reconnecting
-        WiFi.disconnect(true, true);   // drop + clear creds
-        WiFi.mode(WIFI_AP);           // AP only from here
+        WiFi.disconnect(true, true);
+        WiFi.mode(WIFI_AP);
     }
 
-    // --- Start robot AP ---
     bool apOk = WiFi.softAP(AP_SSID, AP_PASS);
     if (apOk) {
         IPAddress apIp = WiFi.softAPIP();
@@ -196,12 +212,7 @@ void setupOta() {
 
     ArduinoOTA
         .onStart([]() {
-            String type;
-            if (ArduinoOTA.getCommand() == U_FLASH) {
-                type = "sketch";
-            } else {
-                type = "filesystem";
-            }
+            String type = (ArduinoOTA.getCommand() == U_FLASH) ? "sketch" : "filesystem";
             Serial.println("[OTA] Start updating " + type);
         })
         .onEnd([]() {
@@ -224,24 +235,22 @@ void setupOta() {
 }
 
 // -----------------------------------------------------------------------------
-// Safety system setup (ModeManager now handles this)
+// Safety system setup
 // -----------------------------------------------------------------------------
 void setupSafety() {
     SafetyConfig config;
     config.host_timeout_ms   = 2000;
     config.motion_timeout_ms = 2000;
-    config.max_linear_vel    = 0.5f;   // Match motion controller
-    config.max_angular_vel   = 2.0f;   // Match motion controller
+    config.max_linear_vel    = 0.5f;
+    config.max_angular_vel   = 2.0f;
     
-    // Set to -1 if pins not wired yet, or use actual pins
     config.estop_pin  = -1;  // TODO: Wire physical E-stop button
-    config.bypass_pin = -1;  // TODO: Wire bypass switch for bench work
+    config.bypass_pin = -1;  // TODO: Wire bypass switch
     config.relay_pin  = -1;  // TODO: Wire motor power relay
 
     g_modeManager.configure(config);
     g_modeManager.begin();
 
-    // Register stop callback - called when safety triggers
     g_modeManager.onStop([]() {
         Serial.println("[SAFETY] Stop triggered!");
         g_motionController.stop();
@@ -255,28 +264,21 @@ void setupSafety() {
 // Transports, router, host wiring
 // -----------------------------------------------------------------------------
 void setupTransportsAndRouter() {
-    // Compose transports: UART1 + WiFi + BLE
-    g_multiTransport.addTransport(&g_uart);   // binary on Serial/USB (or UART1 later)
+    g_multiTransport.addTransport(&g_uart);
     g_multiTransport.addTransport(&g_wifi);
-    g_multiTransport.addTransport(&g_ble);    // this doesnt work for some reason yet
+    g_multiTransport.addTransport(&g_ble);
 
-    // CommandHandler subscribes to JSON_MESSAGE_RX
     g_commandHandler.setup();
-
-    // Router sets frame handler and begins transports
     g_router.setup();
 
-    // Hook router loop into MCUHost
     g_host.setRouterLoop([&]() {
         g_router.loop();
     });
 
-    // Register host modules
     g_host.addModule(&g_heartbeat);
     g_host.addModule(&g_logger);
     g_host.addModule(&g_identity);
 
-    // Setup host (modules, timers, etc.)
     g_host.setup();
 }
 
@@ -284,8 +286,7 @@ void setupTransportsAndRouter() {
 // Telemetry providers
 // -----------------------------------------------------------------------------
 void setupTelemetryProviders() {
-    // Configure telemetry base interval (0 = off, >0 for periodic)
-    g_telemetry.setInterval(0);  // you can bump this from the host
+    g_telemetry.setInterval(0);
 
     // Safety/Mode state
     g_telemetry.registerProvider(
@@ -299,6 +300,17 @@ void setupTelemetryProviders() {
         }
     );
 
+    // Loop rates
+    g_telemetry.registerProvider(
+        "rates",
+        [&](ArduinoJson::JsonObject node) {
+            LoopRates& r = getLoopRates();
+            node["ctrl_hz"]   = r.ctrl_hz;
+            node["safety_hz"] = r.safety_hz;
+            node["telem_hz"]  = r.telem_hz;
+        }
+    );
+
     // Ultrasonic
     g_telemetry.registerProvider(
         "ultrasonic",
@@ -308,9 +320,7 @@ void setupTelemetryProviders() {
                 node["attached"]  = false;
                 return;
             }
-
             float dist_cm = g_ultrasonicManager.readDistanceCm(0);
-
             node["sensor_id"]   = 0;
             node["attached"]    = true;
             node["ok"]          = (dist_cm >= 0.0f);
@@ -327,12 +337,10 @@ void setupTelemetryProviders() {
                 node["ok"] = false;
                 return;
             }
-
             ImuManager::Sample s;
             bool ok = g_imu.readSample(s);
             node["ok"] = ok;
             if (!ok) return;
-
             node["ax_g"]   = s.ax_g;
             node["ay_g"]   = s.ay_g;
             node["az_g"]   = s.az_g;
@@ -352,12 +360,10 @@ void setupTelemetryProviders() {
                 node["ok"] = false;
                 return;
             }
-
             LidarManager::Sample s;
             bool ok = g_lidar.readSample(s);
             node["ok"] = ok;
             if (!ok) return;
-
             node["distance_m"] = s.distance_m;
         }
     );
@@ -381,7 +387,6 @@ void setupTelemetryProviders() {
                 node["attached"] = false;
                 return;
             }
-
             node["motor_id"]        = info.motorId;
             node["attached"]        = info.attached;
             node["enabled"]         = info.enabled;
@@ -402,17 +407,13 @@ void setupTelemetryProviders() {
                 node["attached"] = false;
                 return;
             }
-
             node["motor_id"]        = info.id;
             node["attached"]        = info.attached;
             node["in1_pin"]         = info.in1Pin;
             node["in2_pin"]         = info.in2Pin;
             node["pwm_pin"]         = info.pwmPin;
             node["ledc_channel"]    = info.ledcChannel;
-            node["gpio_ch_in1"]     = info.gpioChIn1;
-            node["gpio_ch_in2"]     = info.gpioChIn2;
-            node["pwm_ch"]          = info.pwmCh;
-            node["speed"]           = info.lastSpeed;  // -1..1
+            node["speed"]           = info.lastSpeed;
             node["freq_hz"]         = info.freqHz;
             node["resolution_bits"] = info.resolution;
         }
@@ -425,79 +426,85 @@ void setupTelemetryProviders() {
 // GPIO + motors/steppers setup
 // -----------------------------------------------------------------------------
 void setupGpioAndMotors() {
-    // Status LED
     pinMode(Pins::LED_STATUS, OUTPUT);
     digitalWrite(Pins::LED_STATUS, LOW);
 
-    // GPIO logical channel mappings
     for (size_t i = 0; i < GPIO_CHANNEL_COUNT; ++i) {
         const auto& def = GPIO_CHANNEL_DEFS[i];
         g_gpioManager.registerChannel(def.channel, def.pin, def.mode);
     }
 
-    // Stepper registration
     g_stepperManager.registerStepper(
-        /*motorId   */ 0,
-        /*pinStep   */ Pins::STEPPER0_STEP,
-        /*pinDir    */ Pins::STEPPER0_DIR,
-        /*pinEnable */ Pins::STEPPER0_EN,
-        /*invertDir */ false
+        0,
+        Pins::STEPPER0_STEP,
+        Pins::STEPPER0_DIR,
+        Pins::STEPPER0_EN,
+        false
     );
     g_stepperManager.dumpAllStepperMappings();
 
-    // DC motor attach (motor 0)
     bool dcOk = g_dcMotorManager.attach(
-        /*id=*/0,
-        Pins::MOTOR_LEFT_IN1,   // IN1
-        Pins::MOTOR_LEFT_IN2,   // IN2
-        Pins::MOTOR_LEFT_PWM,   // ENA (PWM)
-        /*ledcChannel=*/0,      // hardware LEDC channel
-        /*freq=*/15000,
-        /*resolutionBits=*/12
+        0,
+        Pins::MOTOR_LEFT_IN1,
+        Pins::MOTOR_LEFT_IN2,
+        Pins::MOTOR_LEFT_PWM,
+        0,
+        15000,
+        12
     );
-    (void)dcOk; // if you want, you can log this
+    (void)dcOk;
 
     g_dcMotorManager.dumpAllMotorMappings();
 }
 
 // -----------------------------------------------------------------------------
-// DC motor 0 velocity PID update helper
+// Update loop schedulers from LoopRates
 // -----------------------------------------------------------------------------
-void updateDcMotor0VelocityPid(uint32_t now_ms) {
-    const uint32_t PID_PERIOD_MS = 2;  // ~500 Hz
-
-    if (now_ms - g_lastPidMs < PID_PERIOD_MS) {
-        return;
-    }
-
-    uint32_t elapsed = now_ms - g_lastPidMs;
-    g_lastPidMs = now_ms;
-
-    float dt_pid = elapsed / 1000.0f;
-    if (dt_pid <= 0.0f) return;
-
-    int32_t ticks = g_encoder.getCount(0);
-    int32_t deltaTicks = ticks - g_lastTicks0;
-    g_lastTicks0 = ticks;
-
-    // ticks -> revs -> rad/s
-    float revs        = deltaTicks / ENCODER0_TICKS_PER_REV;
-    float omega_rad_s = revs * 2.0f * PI / dt_pid;
-
-    // This will do nothing if PID is disabled for motor 0
-    g_dcMotorManager.updateVelocityPid(0, omega_rad_s, dt_pid);
+void updateLoopSchedulers() {
+    LoopRates& r = getLoopRates();
+    g_safetyScheduler.setPeriodMs(r.safety_period_ms());
+    g_ctrlScheduler.setPeriodMs(r.ctrl_period_ms());
+    g_telemScheduler.setPeriodMs(r.telem_period_ms());
 }
 
 // -----------------------------------------------------------------------------
-// setup() and loop()
+// Control loop (motion, PID, etc.)
+// -----------------------------------------------------------------------------
+void runControlLoop(uint32_t now_ms, float dt) {
+    // DC motor 0 velocity PID (encoder -> omega -> PID -> PWM)
+    static int32_t lastTicks = 0;
+    
+    int32_t ticks = g_encoder.getCount(0);
+    int32_t deltaTicks = ticks - lastTicks;
+    lastTicks = ticks;
+
+    if (dt > 0.0f) {
+        float revs = deltaTicks / ENCODER0_TICKS_PER_REV;
+        float omega_rad_s = revs * 2.0f * PI / dt;
+        g_dcMotorManager.updateVelocityPid(0, omega_rad_s, dt);
+    }
+
+    // Motion controller update (only if allowed)
+    if (g_modeManager.canMove()) {
+        g_motionController.update(dt);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Safety loop
+// -----------------------------------------------------------------------------
+void runSafetyLoop(uint32_t now_ms) {
+    g_modeManager.update(now_ms);
+}
+
+// -----------------------------------------------------------------------------
+// setup()
 // -----------------------------------------------------------------------------
 void setup() {
-    // USB Serial for logs
     Serial.begin(115200);
     delay(500);
     Serial.println("\n[MCU] Booting with UART1 + WiFi (AP+STA)...");
 
-    // UART1 for protocol (pins from PinConfig)
     SerialPort.begin(
         115200,
         SERIAL_8N1,
@@ -507,11 +514,8 @@ void setup() {
 
     setupWifiDualMode();
     setupOta();
-
-    // Safety system (must be before transports so callbacks are ready)
     setupSafety();
 
-    // Sensors
     bool imuOk   = g_imu.begin(Pins::I2C_SDA, Pins::I2C_SCL, 0x68);
     bool lidarOk = g_lidar.begin(Pins::I2C_SDA, Pins::I2C_SCL);
     Serial.printf("[MCU] IMU init: %s\n",   imuOk   ? "OK" : "FAILED");
@@ -520,10 +524,24 @@ void setup() {
     setupTransportsAndRouter();
     setupGpioAndMotors();
     setupTelemetryProviders();
+    g_commandHandler.setControlModule(&g_controlModule);
+    g_host.addModule(&g_controlModule);
+
+
+    // Initialize loop schedulers from LoopRates
+    updateLoopSchedulers();
 
     Serial.println("[MCU] Setup complete. Waiting for host connection...");
+    
+    // Print initial rates
+    LoopRates& r = getLoopRates();
+    Serial.printf("[MCU] Loop rates: ctrl=%dHz safety=%dHz telem=%dHz\n",
+                  r.ctrl_hz, r.safety_hz, r.telem_hz);
 }
 
+// -----------------------------------------------------------------------------
+// loop()
+// -----------------------------------------------------------------------------
 void loop() {
     static uint32_t last_ms = millis();
     uint32_t now_ms = millis();
@@ -533,24 +551,30 @@ void loop() {
     // OTA
     ArduinoOTA.handle();
 
-    // Safety system update (watchdogs, hardware inputs)
-    g_modeManager.update(now_ms);
+    // Update scheduler periods (in case rates changed via command)
+    updateLoopSchedulers();
 
-    // Host + router + transports
+    // Rate-limited safety loop
+    if (g_safetyScheduler.tick(now_ms)) {
+        runSafetyLoop(now_ms);
+    }
+
+    // Rate-limited control loop
+    if (g_ctrlScheduler.tick(now_ms)) {
+        float ctrl_dt = getLoopRates().ctrl_period_ms() / 1000.0f;
+        runControlLoop(now_ms, ctrl_dt);
+    }
+
+    // Rate-limited telemetry
+    if (g_telemScheduler.tick(now_ms)) {
+        g_telemetry.loop(now_ms);
+    }
+
+    // Host + router + transports (always run)
     g_host.loop(now_ms);
     g_wifi.loop();
     g_ble.loop();
 
-    // Telemetry (periodic JSON -> host)
-    g_telemetry.loop(now_ms);
-
-    // DC motor 0 velocity PID (encoder -> omega -> PID -> PWM)
-    updateDcMotor0VelocityPid(now_ms);
-
-    // Motion control (only if allowed by safety)
-    if (g_modeManager.canMove()) {
-        g_motionController.update(dt);
-    }
-
+    // Minimal delay to prevent watchdog issues
     delay(1);
 }

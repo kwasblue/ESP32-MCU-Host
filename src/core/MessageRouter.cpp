@@ -153,6 +153,7 @@ void MessageRouter::onEvent(const Event& evt) {
 }
 
 void MessageRouter::sendSimple(uint8_t msgType) {
+    txBuffer_.clear();                 // ✅ add this
     Protocol::encode(msgType, nullptr, 0, txBuffer_);
     if (!txBuffer_.empty()) {
         transport_.sendBytes(txBuffer_.data(), txBuffer_.size());

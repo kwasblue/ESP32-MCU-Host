@@ -8,6 +8,16 @@ enum class CmdType {
     ACTIVATE,
     ARM,
     CLEAR_ESTOP,
+    CTRL_SET_RATE,
+    CTRL_SIGNALS_LIST,
+    CTRL_SIGNAL_DEFINE,
+    CTRL_SIGNAL_GET,
+    CTRL_SIGNAL_SET,
+    CTRL_SLOT_CONFIG,
+    CTRL_SLOT_ENABLE,
+    CTRL_SLOT_RESET,
+    CTRL_SLOT_SET_PARAM,
+    CTRL_SLOT_STATUS,
     DC_SET_SPEED,
     DC_SET_VEL_GAINS,
     DC_SET_VEL_TARGET,
@@ -19,6 +29,7 @@ enum class CmdType {
     ENCODER_READ,
     ENCODER_RESET,
     ESTOP,
+    GET_RATES,
     GPIO_READ,
     GPIO_REGISTER_CHANNEL,
     GPIO_TOGGLE,
@@ -27,6 +38,7 @@ enum class CmdType {
     LED_OFF,
     LED_ON,
     PWM_SET,
+    SAFETY_SET_RATE,
     SERVO_ATTACH,
     SERVO_DETACH,
     SERVO_SET_ANGLE,
@@ -38,6 +50,7 @@ enum class CmdType {
     STEPPER_STOP,
     STOP,
     TELEM_SET_INTERVAL,
+    TELEM_SET_RATE,
     ULTRASONIC_ATTACH,
     ULTRASONIC_READ,
     UNKNOWN
@@ -47,6 +60,16 @@ inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_ACTIVATE") return CmdType::ACTIVATE;
     if (s == "CMD_ARM") return CmdType::ARM;
     if (s == "CMD_CLEAR_ESTOP") return CmdType::CLEAR_ESTOP;
+    if (s == "CMD_CTRL_SET_RATE") return CmdType::CTRL_SET_RATE;
+    if (s == "CMD_CTRL_SIGNALS_LIST") return CmdType::CTRL_SIGNALS_LIST;
+    if (s == "CMD_CTRL_SIGNAL_DEFINE") return CmdType::CTRL_SIGNAL_DEFINE;
+    if (s == "CMD_CTRL_SIGNAL_GET") return CmdType::CTRL_SIGNAL_GET;
+    if (s == "CMD_CTRL_SIGNAL_SET") return CmdType::CTRL_SIGNAL_SET;
+    if (s == "CMD_CTRL_SLOT_CONFIG") return CmdType::CTRL_SLOT_CONFIG;
+    if (s == "CMD_CTRL_SLOT_ENABLE") return CmdType::CTRL_SLOT_ENABLE;
+    if (s == "CMD_CTRL_SLOT_RESET") return CmdType::CTRL_SLOT_RESET;
+    if (s == "CMD_CTRL_SLOT_SET_PARAM") return CmdType::CTRL_SLOT_SET_PARAM;
+    if (s == "CMD_CTRL_SLOT_STATUS") return CmdType::CTRL_SLOT_STATUS;
     if (s == "CMD_DC_SET_SPEED") return CmdType::DC_SET_SPEED;
     if (s == "CMD_DC_SET_VEL_GAINS") return CmdType::DC_SET_VEL_GAINS;
     if (s == "CMD_DC_SET_VEL_TARGET") return CmdType::DC_SET_VEL_TARGET;
@@ -58,6 +81,7 @@ inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_ENCODER_READ") return CmdType::ENCODER_READ;
     if (s == "CMD_ENCODER_RESET") return CmdType::ENCODER_RESET;
     if (s == "CMD_ESTOP") return CmdType::ESTOP;
+    if (s == "CMD_GET_RATES") return CmdType::GET_RATES;
     if (s == "CMD_GPIO_READ") return CmdType::GPIO_READ;
     if (s == "CMD_GPIO_REGISTER_CHANNEL") return CmdType::GPIO_REGISTER_CHANNEL;
     if (s == "CMD_GPIO_TOGGLE") return CmdType::GPIO_TOGGLE;
@@ -66,6 +90,7 @@ inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_LED_OFF") return CmdType::LED_OFF;
     if (s == "CMD_LED_ON") return CmdType::LED_ON;
     if (s == "CMD_PWM_SET") return CmdType::PWM_SET;
+    if (s == "CMD_SAFETY_SET_RATE") return CmdType::SAFETY_SET_RATE;
     if (s == "CMD_SERVO_ATTACH") return CmdType::SERVO_ATTACH;
     if (s == "CMD_SERVO_DETACH") return CmdType::SERVO_DETACH;
     if (s == "CMD_SERVO_SET_ANGLE") return CmdType::SERVO_SET_ANGLE;
@@ -77,6 +102,7 @@ inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_STEPPER_STOP") return CmdType::STEPPER_STOP;
     if (s == "CMD_STOP") return CmdType::STOP;
     if (s == "CMD_TELEM_SET_INTERVAL") return CmdType::TELEM_SET_INTERVAL;
+    if (s == "CMD_TELEM_SET_RATE") return CmdType::TELEM_SET_RATE;
     if (s == "CMD_ULTRASONIC_ATTACH") return CmdType::ULTRASONIC_ATTACH;
     if (s == "CMD_ULTRASONIC_READ") return CmdType::ULTRASONIC_READ;
     return CmdType::UNKNOWN;
@@ -87,6 +113,16 @@ inline const char* cmdTypeToString(CmdType c) {
         case CmdType::ACTIVATE: return "CMD_ACTIVATE";
         case CmdType::ARM: return "CMD_ARM";
         case CmdType::CLEAR_ESTOP: return "CMD_CLEAR_ESTOP";
+        case CmdType::CTRL_SET_RATE: return "CMD_CTRL_SET_RATE";
+        case CmdType::CTRL_SIGNALS_LIST: return "CMD_CTRL_SIGNALS_LIST";
+        case CmdType::CTRL_SIGNAL_DEFINE: return "CMD_CTRL_SIGNAL_DEFINE";
+        case CmdType::CTRL_SIGNAL_GET: return "CMD_CTRL_SIGNAL_GET";
+        case CmdType::CTRL_SIGNAL_SET: return "CMD_CTRL_SIGNAL_SET";
+        case CmdType::CTRL_SLOT_CONFIG: return "CMD_CTRL_SLOT_CONFIG";
+        case CmdType::CTRL_SLOT_ENABLE: return "CMD_CTRL_SLOT_ENABLE";
+        case CmdType::CTRL_SLOT_RESET: return "CMD_CTRL_SLOT_RESET";
+        case CmdType::CTRL_SLOT_SET_PARAM: return "CMD_CTRL_SLOT_SET_PARAM";
+        case CmdType::CTRL_SLOT_STATUS: return "CMD_CTRL_SLOT_STATUS";
         case CmdType::DC_SET_SPEED: return "CMD_DC_SET_SPEED";
         case CmdType::DC_SET_VEL_GAINS: return "CMD_DC_SET_VEL_GAINS";
         case CmdType::DC_SET_VEL_TARGET: return "CMD_DC_SET_VEL_TARGET";
@@ -98,6 +134,7 @@ inline const char* cmdTypeToString(CmdType c) {
         case CmdType::ENCODER_READ: return "CMD_ENCODER_READ";
         case CmdType::ENCODER_RESET: return "CMD_ENCODER_RESET";
         case CmdType::ESTOP: return "CMD_ESTOP";
+        case CmdType::GET_RATES: return "CMD_GET_RATES";
         case CmdType::GPIO_READ: return "CMD_GPIO_READ";
         case CmdType::GPIO_REGISTER_CHANNEL: return "CMD_GPIO_REGISTER_CHANNEL";
         case CmdType::GPIO_TOGGLE: return "CMD_GPIO_TOGGLE";
@@ -106,6 +143,7 @@ inline const char* cmdTypeToString(CmdType c) {
         case CmdType::LED_OFF: return "CMD_LED_OFF";
         case CmdType::LED_ON: return "CMD_LED_ON";
         case CmdType::PWM_SET: return "CMD_PWM_SET";
+        case CmdType::SAFETY_SET_RATE: return "CMD_SAFETY_SET_RATE";
         case CmdType::SERVO_ATTACH: return "CMD_SERVO_ATTACH";
         case CmdType::SERVO_DETACH: return "CMD_SERVO_DETACH";
         case CmdType::SERVO_SET_ANGLE: return "CMD_SERVO_SET_ANGLE";
@@ -117,6 +155,7 @@ inline const char* cmdTypeToString(CmdType c) {
         case CmdType::STEPPER_STOP: return "CMD_STEPPER_STOP";
         case CmdType::STOP: return "CMD_STOP";
         case CmdType::TELEM_SET_INTERVAL: return "CMD_TELEM_SET_INTERVAL";
+        case CmdType::TELEM_SET_RATE: return "CMD_TELEM_SET_RATE";
         case CmdType::ULTRASONIC_ATTACH: return "CMD_ULTRASONIC_ATTACH";
         case CmdType::ULTRASONIC_READ: return "CMD_ULTRASONIC_READ";
         default: return "UNKNOWN";

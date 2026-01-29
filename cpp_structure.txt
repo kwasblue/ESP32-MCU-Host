@@ -1,7 +1,7 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-01-26 22:10:21
-Total Files: 71
+Generated: 2026-01-28 08:26:59
+Total Files: 78
 ================================================================================
 
 🧩 📄 include/audio/Biquad.h
@@ -156,6 +156,10 @@ Total Files: 71
    🧱 class MotionController
       └── baseEnabled()
    ⚙️  baseEnabled()
+
+🧩 📄 include/core/MqttTransport.h
+   ⚙️  setFrameHandler(FrameCallback cb)
+   ⚙️  isConnected()
 
 🧩 📄 include/core/MultiTransport.h
    ⚙️  addTransport(ITransport* t)
@@ -553,6 +557,15 @@ Total Files: 71
    ⚙️  MotionController::enableStepper(int motorId, bool enabled)
    ⚙️  MotionController::update(float dt)
 
+🧩 📄 src/core/MqttTransport.cpp
+   ⚙️  password_(password ? password : "")
+   ⚙️  MqttTransport::begin()
+   ⚙️  MqttTransport::loop()
+   ⚙️  MqttTransport::reconnect()
+   ⚙️  MqttTransport::onMessage(char* topic, uint8_t* payload, unsigned int length)
+   ⚙️  MqttTransport::sendBytes(const uint8_t* data, size_t len)
+   ⚙️  MqttTransport::publishDiscoveryResponse()
+
 🧩 📄 src/core/TelemetryModule.cpp
    ⚙️  bus_(bus)
    ⚙️  TelemetryModule::setup()
@@ -645,6 +658,18 @@ Total Files: 71
    ⚙️  test_set_millis(uint32_t v)
    ⚙️  test_advance_millis(uint32_t d)
 
+🧩 📄 test/support/arduino_test_main.cpp
+   ⚙️  setup()
+   ⚙️  loop()
+
+🧩 📄 test/telemetry_module_scheduling/telemetry_module_scheduling.cpp
+   ⚙️  capture(const Event& evt)
+   ⚙️  test_telemetry_interval_gating(void)
+   ⚙️  test_telemetry_interval_zero_disables(void)
+   ⚙️  setUp(void)
+   ⚙️  tearDown(void)
+   ⚙️  main(int argc, char** argv)
+
 🧩 📄 test/test_command_handler_ack/native_stubs.cpp
    ⚙️  robotModeToString(RobotMode)
    ⚙️  ModeManager::onHostHeartbeat(unsigned int)
@@ -664,8 +689,11 @@ Total Files: 71
    ⚙️  bus_(bus)
    ⚙️  TelemetryModule::setup()
    ⚙️  TelemetryModule::loop(uint32_t now_ms)
-   ⚙️  TelemetryModule::registerProvider(const char* name, ProviderFn fn)
+   ⚙️  TelemetryModule::registerProvider(const char* name, JsonProviderFn fn)
+   ⚙️  TelemetryModule::registerBinProvider(uint8_t section_id, BinProviderFn fn)
    ⚙️  TelemetryModule::setInterval(uint32_t intervalMs)
+   ⚙️  TelemetryModule::setBinaryEnabled(bool en)
+   ⚙️  TelemetryModule::setJsonEnabled(bool en)
    ⚙️  MotionController::setVelocity(float vx, float omega)
    ⚙️  MotionController::stop()
    ⚙️  MotionController::vx()
@@ -716,6 +744,27 @@ Total Files: 71
    ⚙️  tearDown()
    ⚙️  test_identity_emits_handshake_on_whoami_request()
    ⚙️  main(int, char**)
+
+🧩 📄 test/test_message_router_bin_tx/test_message_router_bin_tx.cpp
+   ⚙️  checksum_for(uint16_t length, uint8_t msgType, const std::vector<uint8_t>& payload)
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  test_router_forwards_bin_message_tx_as_telem_bin_frame()
+   ⚙️  main(int argc, char** argv)
+   ⚙️  setup()
+   ⚙️  loop()
+
+🧩 📄 test/test_message_router_rx/test_message_router_rx.cpp
+   ⚙️  captureEvent(const Event& evt)
+   ⚙️  decode_one_body_or_fail(const std::vector<uint8_t>& tx)
+   ⚙️  Protocol::extractFrames(buf, [&](const uint8_t* frame, size_t len)
+   ⚙️  find_event(EventType t, Event* out = nullptr)
+   ⚙️  test_router_RX_version_request_sends_version_response(void)
+   ⚙️  test_router_RX_whoami_publishes_WHOAMI_REQUEST_event(void)
+   ⚙️  test_router_RX_cmd_json_publishes_JSON_MESSAGE_RX_exact_payload(void)
+   ⚙️  setUp(void)
+   ⚙️  tearDown(void)
+   ⚙️  main(int argc, char** argv)
 
 🧩 📄 test/test_messages/test_messages.cpp
    ⚙️  setUp()
@@ -822,12 +871,23 @@ Total Files: 71
    ⚙️  test_valid_velocity_passes()
    ⚙️  main()
 
+🧩 📄 test/test_telemetry_module_bin/test_telemetry_module_bin.cpp
+   ⚙️  capture_evt(const Event& evt)
+   ⚙️  le_u16(const std::vector<uint8_t>& b, size_t off)
+   ⚙️  le_u32(const std::vector<uint8_t>& b, size_t off)
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  test_telemetry_module_emits_bin_payload_layout()
+   ⚙️  main(int argc, char** argv)
+   ⚙️  setup()
+   ⚙️  loop()
+
 ================================================================================
 📊 STATISTICS
 ================================================================================
 Namespaces:       9
 Classes/Structs:  54
 Enums:            3
-Free Functions:   428
+Free Functions:   474
 In-class Methods: 106
 ================================================================================

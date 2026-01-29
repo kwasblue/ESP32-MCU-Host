@@ -1,8 +1,11 @@
+// src/core/MCUHost.cpp
+
 #include "core/MCUHost.h"
 #include "core/MessageRouter.h"
+#include "core/LoopScheduler.h"
+#include "core/LoopRates.h"
 #include <Arduino.h>
 
-// Define the static instance pointer
 MCUHost* MCUHost::s_instance = nullptr;
 
 MCUHost::MCUHost(EventBus& bus, MessageRouter* router)
@@ -19,28 +22,41 @@ void MCUHost::addModule(IModule* module) {
 }
 
 void MCUHost::setup() {
-    // Let each module set itself up (and subscribe to the bus)
     for (auto* m : modules_) {
         if (m) m->setup();
     }
-
-    // Subscribe host to the EventBus via static trampoline
     bus_.subscribe(&MCUHost::onEventStatic);
 }
 
 void MCUHost::loop(uint32_t now_ms) {
-    // Let router pump incoming frames
+    // Router/transport handling
     if (routerLoop_) {
         routerLoop_();
     }
+    
+    // Rate-limited loops
+    static LoopScheduler safetySched(getLoopRates().safety_period_ms());
+    static LoopScheduler ctrlSched(getLoopRates().ctrl_period_ms());
+    static LoopScheduler telemSched(getLoopRates().telem_period_ms());
 
-    // Let modules run
+    // Update periods dynamically
+    safetySched.setPeriodMs(getLoopRates().safety_period_ms());
+    ctrlSched.setPeriodMs(getLoopRates().ctrl_period_ms());
+    telemSched.setPeriodMs(getLoopRates().telem_period_ms());
+
+    if (safetySched.tick(now_ms)) {
+        runSafety(now_ms);
+    }
+
+    if (ctrlSched.tick(now_ms)) {
+        // Control loop tick - modules handle their own timing internally
+        // but this provides a global rate limit
+    }
+
+    // Let modules run (they may have their own rate limiting)
     for (auto* m : modules_) {
         if (m) m->loop(now_ms);
     }
-
-    // Optional safety/wd logic
-    runSafety(now_ms);
 }
 
 void MCUHost::onEventStatic(const Event& evt) {
@@ -52,11 +68,10 @@ void MCUHost::onEventStatic(const Event& evt) {
 void MCUHost::onEvent(const Event& evt) {
     if (evt.type == EventType::HEARTBEAT) {
         lastHeartbeatMs_ = evt.timestamp_ms;
-        // Later: you can add watchdog or diagnostics here
     }
 }
 
 void MCUHost::runSafety(uint32_t now_ms) {
     (void)now_ms;
-    // Placeholder for future safety checks
+    // Safety checks run at safety_hz
 }

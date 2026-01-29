@@ -189,3 +189,4 @@ void ModeManager::triggerStop() {
     if (bypassed_) return;
     if (stopCallback_) stopCallback_();
 }
+

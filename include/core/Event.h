@@ -14,6 +14,9 @@ enum class EventType : uint8_t {
     TELEMETRY_MOTION,
     BIN_MESSAGE_TX,
     TELEMETRY_SERVOS,
+    ESTOP_TRIGGERED,      
+    ESTOP_CLEARED,        
+    MODE_CHANGED,         
 };
 
 struct TelemetrySystemPayload {
