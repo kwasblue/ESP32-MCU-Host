@@ -9,6 +9,7 @@
 #include "managers/EncoderManager.h"
 #include "managers/ImuManager.h"
 #include "modules/TelemetryModule.h"
+#include <algorithm>
 
 ControlModule::ControlModule(
     EventBus* bus,
@@ -32,77 +33,40 @@ void ControlModule::setup() {
     if (telemetry_) {
         telemetry_->registerProvider("control", [this](ArduinoJson::JsonObject node) {
             node["signals"] = static_cast<uint16_t>(signals_.count());
-            
-            // Could add more detailed status here
         });
     }
 }
 
 void ControlModule::loop(uint32_t now_ms) {
-    // The control kernel is stepped via commands or can be integrated here later.
-    // For now, keep this minimal to avoid conflicts with main.cpp's runControlLoop().
-    // 
-    // If you want the kernel to auto-step, uncomment the code below.
-    // But ensure you're not double-running control logic.
+    // Compute dt
+    float dt_s = (last_step_ms_ > 0) 
+        ? (now_ms - last_step_ms_) / 1000.0f 
+        : 0.01f;
     
-    (void)now_ms;
+    // Clamp dt to reasonable range
+    dt_s = std::max(0.001f, std::min(0.1f, dt_s));
     
-    // Uncomment below to enable automatic kernel stepping:
-    /*
-    if (!mode_) return;
-    
-    // Get control loop period from global rates
-    LoopRates& rates = getLoopRates();
-    uint32_t period_ms = rates.ctrl_period_ms();
-    
-    // Rate limit control loop
-    if (now_ms - last_step_ms_ < period_ms) {
-        return;
-    }
-    
-    float dt_s = (now_ms - last_step_ms_) / 1000.0f;
     last_step_ms_ = now_ms;
     
-    // Sample sensors into signal bus
-    sampleSensors(now_ms);
-    
     // Determine state flags
-    bool is_armed = mode_->canMove();
-    bool is_active = (mode_->mode() == RobotMode::ACTIVE);
+    bool is_armed = false;
+    bool is_active = false;
     
-    // Step all controllers
+    if (mode_) {
+        is_armed = mode_->mode() >= RobotMode::ARMED;
+        is_active = mode_->mode() == RobotMode::ACTIVE;
+    }
+    
+    // Step observers FIRST (they provide state estimates to controllers)
+    observers_.step(now_ms, dt_s, signals_);
+    
+    // Step controllers
     kernel_.step(now_ms, dt_s, signals_, is_armed, is_active);
-    
-    // Apply outputs to actuators
-    applyOutputs(now_ms);
-    */
 }
 
 void ControlModule::handleEvent(const Event& evt) {
     (void)evt;
     // No special event handling needed.
-    // The kernel already checks is_armed/is_active each step,
+    // The kernel checks is_armed/is_active each step,
     // so ESTOP automatically stops all controllers.
-}
-
-void ControlModule::sampleSensors(uint32_t now_ms) {
-    // Example: Sample encoder 0 into a measurement signal
-    // This would be configured by the user defining signals and slots
-    
-    // For now, this is a placeholder. Users define signals via commands
-    // and can set up their own sensor sampling outside this module,
-    // or we can add auto-sampling configuration later.
-    
-    (void)now_ms;
-}
-
-void ControlModule::applyOutputs(uint32_t now_ms) {
-    // Example: Read output signals and apply to motors
-    // This would be configured by the user
-    
-    // For now, this is a placeholder. Users can read output signals
-    // via commands or telemetry and apply them externally,
-    // or we can add auto-application configuration later.
-    
-    (void)now_ms;
 }

@@ -35,6 +35,7 @@ public:
     // Remote-controlled log level (from CommandHandler)
     void setLogLevel(const char* levelStr);
     LogLevel currentLevel() const { return currentLevel_; }
+    const char* name() const override { return "LoggingModule"; }
 
 private:
     LogLevel parseLevel(const char* s) const;

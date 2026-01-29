@@ -183,6 +183,14 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         case CmdType::CTRL_SIGNAL_SET:        handleCtrlSignalSet(payload);      break;
         case CmdType::CTRL_SIGNAL_GET:        handleCtrlSignalGet(payload);      break;
         case CmdType::CTRL_SLOT_SET_PARAM_ARRAY: handleCtrlSlotSetParamArray(payload); break;
+
+        // ----- Control Module Observers -----
+        case CmdType::OBSERVER_CONFIG:          handleObserverConfig(payload);          break;
+        case CmdType::OBSERVER_ENABLE:          handleObserverEnable(payload);          break;
+        case CmdType::OBSERVER_RESET:           handleObserverReset(payload);           break;
+        case CmdType::OBSERVER_SET_PARAM:       handleObserverSetParam(payload);        break;
+        case CmdType::OBSERVER_SET_PARAM_ARRAY: handleObserverSetParamArray(payload);   break;
+        case CmdType::OBSERVER_STATUS:          handleObserverStatus(payload);          break;
         
         case CmdType::CTRL_SIGNALS_LIST:      handleCtrlSignalsList(payload);    break;
 
@@ -1355,5 +1363,201 @@ void CommandHandler::handleCtrlSlotStatus(JsonVariantConst payload) {
     if (st.last_error) {
         resp["last_error"] = st.last_error;
     }
+    sendAck(ACK, true, resp);
+}
+
+// -----------------------------------------------------------------------------
+// Observer Commands
+// -----------------------------------------------------------------------------
+
+void CommandHandler::handleObserverConfig(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_OBSERVER_CONFIG";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    ObserverConfig cfg;
+    cfg.num_states = payload["num_states"] | 2;
+    cfg.num_inputs = payload["num_inputs"] | 1;
+    cfg.num_outputs = payload["num_outputs"] | 1;
+    
+    // Input signal IDs (control commands u)
+    JsonArrayConst input_ids = payload["input_ids"].as<JsonArrayConst>();
+    if (input_ids) {
+        for (size_t i = 0; i < input_ids.size() && i < ObserverConfig::MAX_INPUTS; i++) {
+            cfg.input_ids[i] = input_ids[i].as<uint16_t>();
+        }
+    }
+    
+    // Output signal IDs (measurements y)
+    JsonArrayConst output_ids = payload["output_ids"].as<JsonArrayConst>();
+    if (output_ids) {
+        for (size_t i = 0; i < output_ids.size() && i < ObserverConfig::MAX_OUTPUTS; i++) {
+            cfg.output_ids[i] = output_ids[i].as<uint16_t>();
+        }
+    }
+    
+    // Estimate signal IDs (where to write x̂)
+    JsonArrayConst estimate_ids = payload["estimate_ids"].as<JsonArrayConst>();
+    if (estimate_ids) {
+        for (size_t i = 0; i < estimate_ids.size() && i < ObserverConfig::MAX_STATES; i++) {
+            cfg.estimate_ids[i] = estimate_ids[i].as<uint16_t>();
+        }
+    }
+    
+    uint8_t slot = payload["slot"] | 0;
+    uint16_t rate_hz = payload["rate_hz"] | 200;
+    
+    bool ok = controlModule_->observers().configure(slot, cfg, rate_hz);
+    
+    JsonDocument resp;
+    resp["slot"] = slot;
+    resp["num_states"] = cfg.num_states;
+    resp["num_inputs"] = cfg.num_inputs;
+    resp["num_outputs"] = cfg.num_outputs;
+    resp["rate_hz"] = rate_hz;
+    if (!ok) {
+        resp["error"] = "config_failed";
+    }
+    sendAck(ACK, ok, resp);
+}
+
+void CommandHandler::handleObserverEnable(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_OBSERVER_ENABLE";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    uint8_t slot = payload["slot"] | 0;
+    bool enable = payload["enable"] | true;
+    
+    bool ok = controlModule_->observers().enable(slot, enable);
+    
+    JsonDocument resp;
+    resp["slot"] = slot;
+    resp["enable"] = enable;
+    if (!ok) {
+        resp["error"] = "enable_failed";
+    }
+    sendAck(ACK, ok, resp);
+}
+
+void CommandHandler::handleObserverReset(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_OBSERVER_RESET";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    uint8_t slot = payload["slot"] | 0;
+    bool ok = controlModule_->observers().reset(slot);
+    
+    JsonDocument resp;
+    resp["slot"] = slot;
+    if (!ok) {
+        resp["error"] = "reset_failed";
+    }
+    sendAck(ACK, ok, resp);
+}
+
+void CommandHandler::handleObserverSetParam(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_OBSERVER_SET_PARAM";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    uint8_t slot = payload["slot"] | 0;
+    const char* key = payload["key"] | "";
+    float value = payload["value"] | 0.0f;
+    
+    if (!key || strlen(key) < 3) {
+        sendError(ACK, "invalid_key");
+        return;
+    }
+    
+    bool ok = controlModule_->observers().setParam(slot, key, value);
+    
+    JsonDocument resp;
+    resp["slot"] = slot;
+    resp["key"] = key;
+    resp["value"] = value;
+    if (!ok) {
+        resp["error"] = "set_param_failed";
+    }
+    sendAck(ACK, ok, resp);
+}
+
+void CommandHandler::handleObserverSetParamArray(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_OBSERVER_SET_PARAM_ARRAY";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    uint8_t slot = payload["slot"] | 0;
+    const char* key = payload["key"] | "";
+    JsonArrayConst arr = payload["values"].as<JsonArrayConst>();
+    
+    if (!arr || arr.size() == 0) {
+        JsonDocument resp;
+        resp["slot"] = slot;
+        resp["key"] = key;
+        resp["error"] = "missing_values";
+        sendAck(ACK, false, resp);
+        return;
+    }
+    
+    // Extract float array (max 36 for 6x6 matrix)
+    float values[36];
+    size_t len = std::min(arr.size(), sizeof(values)/sizeof(values[0]));
+    for (size_t i = 0; i < len; i++) {
+        values[i] = arr[i].as<float>();
+    }
+    
+    bool ok = controlModule_->observers().setParamArray(slot, key, values, len);
+    
+    JsonDocument resp;
+    resp["slot"] = slot;
+    resp["key"] = key;
+    resp["count"] = (int)len;
+    if (!ok) {
+        resp["error"] = "set_param_array_failed";
+    }
+    sendAck(ACK, ok, resp);
+}
+
+void CommandHandler::handleObserverStatus(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_OBSERVER_STATUS";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    uint8_t slot = payload["slot"] | 0;
+    const auto& s = controlModule_->observers().getSlot(slot);
+    
+    JsonDocument resp;
+    resp["slot"] = slot;
+    resp["configured"] = s.configured;
+    resp["enabled"] = s.enabled;
+    resp["rate_hz"] = s.rate_hz;
+    resp["initialized"] = s.observer.isInitialized();
+    resp["update_count"] = s.update_count;
+    
+    // Current state estimates
+    JsonArray estimates = resp["estimates"].to<JsonArray>();
+    for (uint8_t i = 0; i < s.config.num_states; i++) {
+        estimates.add(s.observer.getState(i));
+    }
+    
     sendAck(ACK, true, resp);
 }

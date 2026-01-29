@@ -19,6 +19,7 @@ public:
             bus_.publish(evt);
         }
     }
+    const char* name() const override { return "HeartbeatModule"; }
 
 private:
     EventBus& bus_;

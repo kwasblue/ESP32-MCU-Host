@@ -158,6 +158,15 @@ private:
     void handleCtrlSlotSetParamArray(JsonVariantConst payload);
     void handleCtrlSignalsList(JsonVariantConst payload);
 
+    // Observer
+    void handleObserverConfig(JsonVariantConst payload);
+    void handleObserverEnable(JsonVariantConst payload);
+    void handleObserverReset(JsonVariantConst payload);
+    void handleObserverSetParam(JsonVariantConst payload);
+    void handleObserverSetParamArray(JsonVariantConst payload);
+    void handleObserverStatus(JsonVariantConst payload);
+
+
     // ----- Members -----
     EventBus&          bus_;
     ModeManager&       mode_;

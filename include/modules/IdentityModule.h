@@ -16,7 +16,8 @@ public:
 
     void setup() override;
     void loop(uint32_t now_ms) override;
-
+    const char* name() const override { return "IdentityModule"; }
+        
 private:
     EventBus&       bus_;
     MultiTransport& transports_;

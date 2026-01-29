@@ -38,6 +38,12 @@ enum class CmdType {
     HEARTBEAT,
     LED_OFF,
     LED_ON,
+    OBSERVER_CONFIG,
+    OBSERVER_ENABLE,
+    OBSERVER_RESET,
+    OBSERVER_SET_PARAM,
+    OBSERVER_SET_PARAM_ARRAY,
+    OBSERVER_STATUS,
     PWM_SET,
     SAFETY_SET_RATE,
     SERVO_ATTACH,
@@ -91,6 +97,12 @@ inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_HEARTBEAT") return CmdType::HEARTBEAT;
     if (s == "CMD_LED_OFF") return CmdType::LED_OFF;
     if (s == "CMD_LED_ON") return CmdType::LED_ON;
+    if (s == "CMD_OBSERVER_CONFIG") return CmdType::OBSERVER_CONFIG;
+    if (s == "CMD_OBSERVER_ENABLE") return CmdType::OBSERVER_ENABLE;
+    if (s == "CMD_OBSERVER_RESET") return CmdType::OBSERVER_RESET;
+    if (s == "CMD_OBSERVER_SET_PARAM") return CmdType::OBSERVER_SET_PARAM;
+    if (s == "CMD_OBSERVER_SET_PARAM_ARRAY") return CmdType::OBSERVER_SET_PARAM_ARRAY;
+    if (s == "CMD_OBSERVER_STATUS") return CmdType::OBSERVER_STATUS;
     if (s == "CMD_PWM_SET") return CmdType::PWM_SET;
     if (s == "CMD_SAFETY_SET_RATE") return CmdType::SAFETY_SET_RATE;
     if (s == "CMD_SERVO_ATTACH") return CmdType::SERVO_ATTACH;
@@ -145,6 +157,12 @@ inline const char* cmdTypeToString(CmdType c) {
         case CmdType::HEARTBEAT: return "CMD_HEARTBEAT";
         case CmdType::LED_OFF: return "CMD_LED_OFF";
         case CmdType::LED_ON: return "CMD_LED_ON";
+        case CmdType::OBSERVER_CONFIG: return "CMD_OBSERVER_CONFIG";
+        case CmdType::OBSERVER_ENABLE: return "CMD_OBSERVER_ENABLE";
+        case CmdType::OBSERVER_RESET: return "CMD_OBSERVER_RESET";
+        case CmdType::OBSERVER_SET_PARAM: return "CMD_OBSERVER_SET_PARAM";
+        case CmdType::OBSERVER_SET_PARAM_ARRAY: return "CMD_OBSERVER_SET_PARAM_ARRAY";
+        case CmdType::OBSERVER_STATUS: return "CMD_OBSERVER_STATUS";
         case CmdType::PWM_SET: return "CMD_PWM_SET";
         case CmdType::SAFETY_SET_RATE: return "CMD_SAFETY_SET_RATE";
         case CmdType::SERVO_ATTACH: return "CMD_SERVO_ATTACH";

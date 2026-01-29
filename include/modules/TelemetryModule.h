@@ -22,6 +22,7 @@ public:
     using BinProviderFn  = std::function<void(std::vector<uint8_t>& out)>;
 
     explicit TelemetryModule(EventBus& bus);
+    const char* name() const override { return "TelemetryModule"; }
 
     void setup() override;
     void loop(uint32_t now_ms) override;
