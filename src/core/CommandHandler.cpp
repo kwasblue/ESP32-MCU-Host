@@ -182,6 +182,8 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         case CmdType::CTRL_SLOT_STATUS:       handleCtrlSlotStatus(payload);     break;
         case CmdType::CTRL_SIGNAL_SET:        handleCtrlSignalSet(payload);      break;
         case CmdType::CTRL_SIGNAL_GET:        handleCtrlSignalGet(payload);      break;
+        case CmdType::CTRL_SLOT_SET_PARAM_ARRAY: handleCtrlSlotSetParamArray(payload); break;
+        
         case CmdType::CTRL_SIGNALS_LIST:      handleCtrlSignalsList(payload);    break;
 
         // ----- Logging -----
@@ -1154,58 +1156,65 @@ void CommandHandler::handleCtrlSignalsList(JsonVariantConst) {
     sendAck(ACK, true, resp);
 }
 
-// -----------------------------------------------------------------------------
+/// -----------------------------------------------------------------------------
 // Control Kernel - Slot Commands
 // -----------------------------------------------------------------------------
 void CommandHandler::handleCtrlSlotConfig(JsonVariantConst payload) {
     static constexpr const char* ACK = "CMD_CTRL_SLOT_CONFIG";
 
-    if (!requireIdle(ACK)) return;
-    
     if (!controlModule_) {
         sendError(ACK, "no_control_module");
         return;
     }
-
-    uint8_t slot = payload["slot"] | 0;
-    const char* type = payload["controller_type"] | "PID";
-
-    // Validate controller type
-    if (strcmp(type, "PID") != 0 && strcmp(type, "SS") != 0) {
-        sendError(ACK, "unknown_type");
-        return;
-    }
-
-    // Check if required signals exist
-    uint16_t ref_id  = payload["ref_id"]  | 0;
-    uint16_t meas_id = payload["meas_id"] | 0;
-    uint16_t out_id  = payload["out_id"]  | 0;
-
-    float tmp = 0.0f;
-    if (ref_id != 0 && !controlModule_->signals().get(ref_id, tmp)) {
-        sendError(ACK, "ref_signal_missing");
-        return;
-    }
-    if (meas_id != 0 && !controlModule_->signals().get(meas_id, tmp)) {
-        sendError(ACK, "meas_signal_missing");
-        return;
-    }
-
+    
     SlotConfig cfg;
-    cfg.slot = slot;
+    cfg.slot = payload["slot"] | 0;
     cfg.rate_hz = payload["rate_hz"] | 100;
-    cfg.enabled = false;
-    cfg.io.ref_id  = ref_id;
-    cfg.io.meas_id = meas_id;
-    cfg.io.out_id  = out_id;
-    cfg.require_armed  = payload["require_armed"]  | true;
+    cfg.require_armed = payload["require_armed"] | true;
     cfg.require_active = payload["require_active"] | true;
-
+    
+    const char* type = payload["controller_type"] | "PID";
+    
+    if (strcmp(type, "STATE_SPACE") == 0 || strcmp(type, "SS") == 0) {
+        // State-space configuration
+        cfg.ss_io.num_states = payload["num_states"] | 2;
+        cfg.ss_io.num_inputs = payload["num_inputs"] | 1;
+        
+        // State signal IDs
+        JsonArrayConst state_ids = payload["state_ids"].as<JsonArrayConst>();
+        if (state_ids) {
+            for (size_t i = 0; i < state_ids.size() && i < StateSpaceIO::MAX_STATES; i++) {
+                cfg.ss_io.state_ids[i] = state_ids[i].as<uint16_t>();
+            }
+        }
+        
+        // Reference signal IDs
+        JsonArrayConst ref_ids = payload["ref_ids"].as<JsonArrayConst>();
+        if (ref_ids) {
+            for (size_t i = 0; i < ref_ids.size() && i < StateSpaceIO::MAX_STATES; i++) {
+                cfg.ss_io.ref_ids[i] = ref_ids[i].as<uint16_t>();
+            }
+        }
+        
+        // Output signal IDs
+        JsonArrayConst out_ids = payload["output_ids"].as<JsonArrayConst>();
+        if (out_ids) {
+            for (size_t i = 0; i < out_ids.size() && i < StateSpaceIO::MAX_INPUTS; i++) {
+                cfg.ss_io.output_ids[i] = out_ids[i].as<uint16_t>();
+            }
+        }
+    } else {
+        // PID configuration
+        cfg.io.ref_id = payload["ref_id"] | 0;
+        cfg.io.meas_id = payload["meas_id"] | 0;
+        cfg.io.out_id = payload["out_id"] | 0;
+    }
+    
     bool ok = controlModule_->kernel().configureSlot(cfg, type);
-
+    
     JsonDocument resp;
-    resp["slot"] = slot;
-    resp["type"] = type;
+    resp["slot"] = cfg.slot;
+    resp["controller_type"] = type;
     resp["rate_hz"] = cfg.rate_hz;
     if (!ok) {
         resp["error"] = "config_failed";
@@ -1279,6 +1288,46 @@ void CommandHandler::handleCtrlSlotSetParam(JsonVariantConst payload) {
     resp["value"] = value;
     if (!ok) {
         resp["error"] = "set_param_failed";
+    }
+    sendAck(ACK, ok, resp);
+}
+
+void CommandHandler::handleCtrlSlotSetParamArray(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_CTRL_SLOT_SET_PARAM_ARRAY";
+
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    uint8_t slot = payload["slot"] | 0;
+    const char* key = payload["key"] | "";
+    JsonArrayConst arr = payload["values"].as<JsonArrayConst>();
+    
+    if (!arr || arr.size() == 0) {
+        JsonDocument resp;
+        resp["slot"] = slot;
+        resp["key"] = key;
+        resp["error"] = "missing_values";
+        sendAck(ACK, false, resp);
+        return;
+    }
+    
+    // Extract float array
+    float values[12];  // Max size for K matrix (2x6)
+    size_t len = std::min(arr.size(), sizeof(values)/sizeof(values[0]));
+    for (size_t i = 0; i < len; i++) {
+        values[i] = arr[i].as<float>();
+    }
+    
+    bool ok = controlModule_->kernel().setParamArray(slot, key, values, len);
+    
+    JsonDocument resp;
+    resp["slot"] = slot;
+    resp["key"] = key;
+    resp["count"] = (int)len;
+    if (!ok) {
+        resp["error"] = "set_param_array_failed";
     }
     sendAck(ACK, ok, resp);
 }

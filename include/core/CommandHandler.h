@@ -155,6 +155,7 @@ private:
     void handleCtrlSignalDefine(JsonVariantConst payload);
     void handleCtrlSignalSet(JsonVariantConst payload);
     void handleCtrlSignalGet(JsonVariantConst payload);
+    void handleCtrlSlotSetParamArray(JsonVariantConst payload);
     void handleCtrlSignalsList(JsonVariantConst payload);
 
     // ----- Members -----

@@ -17,6 +17,7 @@ enum class CmdType {
     CTRL_SLOT_ENABLE,
     CTRL_SLOT_RESET,
     CTRL_SLOT_SET_PARAM,
+    CTRL_SLOT_SET_PARAM_ARRAY,
     CTRL_SLOT_STATUS,
     DC_SET_SPEED,
     DC_SET_VEL_GAINS,
@@ -69,6 +70,7 @@ inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_CTRL_SLOT_ENABLE") return CmdType::CTRL_SLOT_ENABLE;
     if (s == "CMD_CTRL_SLOT_RESET") return CmdType::CTRL_SLOT_RESET;
     if (s == "CMD_CTRL_SLOT_SET_PARAM") return CmdType::CTRL_SLOT_SET_PARAM;
+    if (s == "CMD_CTRL_SLOT_SET_PARAM_ARRAY") return CmdType::CTRL_SLOT_SET_PARAM_ARRAY;
     if (s == "CMD_CTRL_SLOT_STATUS") return CmdType::CTRL_SLOT_STATUS;
     if (s == "CMD_DC_SET_SPEED") return CmdType::DC_SET_SPEED;
     if (s == "CMD_DC_SET_VEL_GAINS") return CmdType::DC_SET_VEL_GAINS;
@@ -122,6 +124,7 @@ inline const char* cmdTypeToString(CmdType c) {
         case CmdType::CTRL_SLOT_ENABLE: return "CMD_CTRL_SLOT_ENABLE";
         case CmdType::CTRL_SLOT_RESET: return "CMD_CTRL_SLOT_RESET";
         case CmdType::CTRL_SLOT_SET_PARAM: return "CMD_CTRL_SLOT_SET_PARAM";
+        case CmdType::CTRL_SLOT_SET_PARAM_ARRAY: return "CMD_CTRL_SLOT_SET_PARAM_ARRAY";
         case CmdType::CTRL_SLOT_STATUS: return "CMD_CTRL_SLOT_STATUS";
         case CmdType::DC_SET_SPEED: return "CMD_DC_SET_SPEED";
         case CmdType::DC_SET_VEL_GAINS: return "CMD_DC_SET_VEL_GAINS";
