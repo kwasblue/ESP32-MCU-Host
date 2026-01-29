@@ -1,7 +1,7 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-01-28 08:26:59
-Total Files: 78
+Generated: 2026-01-29 10:58:54
+Total Files: 88
 ================================================================================
 
 🧩 📄 include/audio/Biquad.h
@@ -64,8 +64,36 @@ Total Files: 78
 
 🧩 📄 include/core/CommandHandler.h
    🧱 class CommandHandler
-      (no in-class method bodies detected)
+      └── setControlModule(ControlModule* cm)
+   ⚙️  setControlModule(ControlModule* cm)
    🧱 struct AckCacheEntry
+      (no in-class method bodies detected)
+   ⚙️  clampHz(uint16_t& hz, uint16_t min_hz, uint16_t max_hz)
+
+🧩 📄 include/core/ControlKernel.h
+   🧱 struct StateSpaceIO
+      (no in-class method bodies detected)
+   🧱 struct SlotIO
+      (no in-class method bodies detected)
+   🧱 struct SlotConfig
+      (no in-class method bodies detected)
+   🧱 struct SlotStatus
+      (no in-class method bodies detected)
+   🧱 class IController
+      ├── computeMulti(const float* states, const float* refs, uint8_t num_states,
+        float* outputs, uint8_t num_outputs,
+        float dt_s, SignalBus& signals, const StateSpaceIO& io)
+      ├── setParamArray(const char* key, const float* values, size_t len)
+      └── isMultiState()
+   ⚙️  computeMulti(const float* states, const float* refs, uint8_t num_states,
+        float* outputs, uint8_t num_outputs,
+        float dt_s, SignalBus& signals, const StateSpaceIO& io)
+   ⚙️  setParamArray(const char* key, const float* values, size_t len)
+   ⚙️  isMultiState()
+   ⚙️  clamp(float val, float min_val, float max_val)
+   🧱 class ControlKernel
+      (no in-class method bodies detected)
+   🧱 struct Slot
       (no in-class method bodies detected)
 
 🧩 📄 include/core/Event.h
@@ -98,6 +126,17 @@ Total Files: 78
    ⚙️  addr(const std::string& name)
    ⚙️  bus()
 
+🧩 📄 include/core/IController.h
+   🧱 struct ControlIO
+      (no in-class method bodies detected)
+   🧱 struct ControlCtx
+      (no in-class method bodies detected)
+   🧱 class IController
+      ├── configureIO(const ControlIO& io)
+      └── io()
+   ⚙️  configureIO(const ControlIO& io)
+   ⚙️  io()
+
 🧩 📄 include/core/IModule.h
    🧱 class IModule
       ├── setup()
@@ -111,6 +150,22 @@ Total Files: 78
    🧱 class ITransport
       └── setFrameHandler(FrameHandler handler)
    ⚙️  setFrameHandler(FrameHandler handler)
+
+🧩 📄 include/core/LoopRates.h
+   🧱 struct LoopRates
+      ├── ctrl_period_ms()
+      ├── safety_period_ms()
+      └── telem_period_ms()
+   ⚙️  ctrl_period_ms()
+   ⚙️  safety_period_ms()
+   ⚙️  telem_period_ms()
+
+🧩 📄 include/core/LoopScheduler.h
+   🧱 class LoopScheduler
+      ├── setPeriodMs(uint32_t p)
+      └── tick(uint32_t now_ms)
+   ⚙️  setPeriodMs(uint32_t p)
+   ⚙️  tick(uint32_t now_ms)
 
 🧩 📄 include/core/MCUHost.h
    🧱 class MCUHost
@@ -198,6 +253,19 @@ Total Files: 78
    ⚙️  estop()
    ⚙️  clearEstop()
    ⚙️  isEstopActive()
+
+🧩 📄 include/core/SignalBus.h
+   🧱 class SignalBus
+      ├── all()
+      ├── count()
+      └── clear()
+   🧱 struct SignalDef
+      (no in-class method bodies detected)
+   ⚙️  all()
+   ⚙️  count()
+   ⚙️  clear()
+   ⚙️  signalKindToString(SignalBus::Kind k)
+   ⚙️  signalKindFromString(const char* s)
 
 🧩 📄 include/core/UartTransport.h
    ⚙️  Protocol::extractFrames(rxBuffer_, [this](const uint8_t* frame, size_t len)
@@ -379,6 +447,13 @@ Total Files: 78
    ⚙️  isAttached(uint8_t id)
    ⚙️  readDistanceCm(uint8_t id)
 
+🧩 📄 include/modules/ControlModule.h
+   ⚙️  name()
+   ⚙️  signals()
+   ⚙️  signals()
+   ⚙️  kernel()
+   ⚙️  kernel()
+
 🧩 📄 include/modules/HearbeatModule.h
    ⚙️  bus_(bus)
 
@@ -420,6 +495,8 @@ Total Files: 78
    ⚙️  CommandHandler::publishJsonCopy(const std::string& out)
    ⚙️  CommandHandler::sendAck(const char* cmd, bool ok, JsonDocument& resp)
    ⚙️  CommandHandler::sendError(const char* cmd, const char* error)
+   ⚙️  CommandHandler::requireIdle(const char* cmdName)
+   ⚙️  CommandHandler::requireArmed(const char* cmdName)
    ⚙️  CommandHandler::handleHeartbeat()
    ⚙️  CommandHandler::handleArm()
    ⚙️  CommandHandler::handleDisarm()
@@ -455,6 +532,64 @@ Total Files: 78
    ⚙️  CommandHandler::handleDcSetVelGains(JsonVariantConst payload)
    ⚙️  CommandHandler::handleTelemSetInterval(JsonVariantConst payload)
    ⚙️  CommandHandler::handleSetLogLevel(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleGetRates(JsonVariantConst)
+   ⚙️  CommandHandler::handleCtrlSetRate(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleSafetySetRate(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleTelemSetRate(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleCtrlSignalDefine(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleCtrlSignalSet(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleCtrlSignalGet(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleCtrlSignalsList(JsonVariantConst)
+   ⚙️  CommandHandler::handleCtrlSlotConfig(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleCtrlSlotEnable(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleCtrlSlotReset(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleCtrlSlotSetParam(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleCtrlSlotSetParamArray(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleCtrlSlotStatus(JsonVariantConst payload)
+
+🧩 📄 src/core/ControlKernel.cpp
+   ⚙️  ControlKernel::getSlot_(uint8_t slot)
+   ⚙️  ControlKernel::getSlot_(uint8_t slot)
+   ⚙️  ControlKernel::ensureSlot_(uint8_t slot)
+   ⚙️  ControlKernel::configureSlot(const SlotConfig& cfg, const char* type)
+   ⚙️  ControlKernel::enableSlot(uint8_t slot, bool enable)
+   ⚙️  ControlKernel::resetSlot(uint8_t slot)
+   ⚙️  ControlKernel::setParam(uint8_t slot, const char* key, float value)
+   ⚙️  ControlKernel::setParamArray(uint8_t slot, const char* key, const float* values, size_t len)
+   ⚙️  ControlKernel::getConfig(uint8_t slot)
+   ⚙️  ControlKernel::getStatus(uint8_t slot)
+   ⚙️  ControlKernel::step(uint32_t now_ms, float dt_s, SignalBus& signals, bool is_armed, bool is_active)
+   ⚙️  ControlKernel::resetAll()
+   ⚙️  ControlKernel::disableAll()
+   ⚙️  PidController::compute(float ref, float meas, float dt_s)
+   ⚙️  PidController::reset()
+   ⚙️  PidController::setParam(const char* key, float value)
+   ⚙️  PidController::getParam(const char* key, float& value)
+   ⚙️  PidController::setGains(float kp, float ki, float kd)
+   ⚙️  PidController::setOutputLimits(float min_out, float max_out)
+   ⚙️  PidController::setIntegralLimits(float min_i, float max_i)
+   ⚙️  StateSpaceController::StateSpaceController()
+   ⚙️  StateSpaceController::setDimensions(uint8_t num_states, uint8_t num_inputs)
+   ⚙️  StateSpaceController::computeMulti(const float* states, const float* refs, uint8_t num_states,
+    float* outputs, uint8_t num_outputs,
+    float dt_s, SignalBus& signals, const StateSpaceIO& io)
+   ⚙️  StateSpaceController::reset()
+   ⚙️  StateSpaceController::setParam(const char* key, float value)
+   ⚙️  StateSpaceController::getParam(const char* key, float& value)
+   ⚙️  StateSpaceController::setParamArray(const char* key, const float* values, size_t len)
+   ⚙️  StateSpaceController::setGainK(const float* K, size_t len)
+   ⚙️  StateSpaceController::setGainKr(const float* Kr, size_t len)
+   ⚙️  StateSpaceController::setGainKi(const float* Ki, size_t len)
+   ⚙️  StateSpaceController::setOutputLimits(uint8_t idx, float min_val, float max_val)
+   ⚙️  StateSpaceController::setIntegralLimits(uint8_t idx, float min_val, float max_val)
+   ⚙️  StateSpaceController::setFeedbackMode(bool error_based)
+
+🧩 📄 src/core/ControlModule.cpp
+   ⚙️  ControlModule::setup()
+   ⚙️  ControlModule::loop(uint32_t now_ms)
+   ⚙️  ControlModule::handleEvent(const Event& evt)
+   ⚙️  ControlModule::sampleSensors(uint32_t now_ms)
+   ⚙️  ControlModule::applyOutputs(uint32_t now_ms)
 
 🧩 📄 src/core/EncoderManager.cpp
    ⚙️  getGlobalEncoderManager()
@@ -497,6 +632,10 @@ Total Files: 78
                                 const char* tag,
                                 const std::string& json,
                                 uint32_t ts_ms)
+
+🧩 📄 src/core/LoopRates.cpp
+   ⚙️  getLoopRates()
+   ⚙️  clampHz(uint16_t& hz, uint16_t lo, uint16_t hi)
 
 🧩 📄 src/core/McuHost.cpp
    ⚙️  MCUHost::addModule(IModule* module)
@@ -566,6 +705,15 @@ Total Files: 78
    ⚙️  MqttTransport::sendBytes(const uint8_t* data, size_t len)
    ⚙️  MqttTransport::publishDiscoveryResponse()
 
+🧩 📄 src/core/SignalBus.cpp
+   ⚙️  SignalBus::indexOf_(uint16_t id)
+   ⚙️  SignalBus::define(uint16_t id, const char* name, Kind kind, float initial)
+   ⚙️  SignalBus::exists(uint16_t id)
+   ⚙️  SignalBus::set(uint16_t id, float v, uint32_t now_ms)
+   ⚙️  SignalBus::get(uint16_t id, float& out)
+   ⚙️  SignalBus::getTimestamp(uint16_t id, uint32_t& out)
+   ⚙️  SignalBus::find(uint16_t id)
+
 🧩 📄 src/core/TelemetryModule.cpp
    ⚙️  bus_(bus)
    ⚙️  TelemetryModule::setup()
@@ -587,7 +735,9 @@ Total Files: 78
    ⚙️  setupTransportsAndRouter()
    ⚙️  setupTelemetryProviders()
    ⚙️  setupGpioAndMotors()
-   ⚙️  updateDcMotor0VelocityPid(uint32_t now_ms)
+   ⚙️  updateLoopSchedulers()
+   ⚙️  runControlLoop(uint32_t now_ms, float dt)
+   ⚙️  runSafetyLoop(uint32_t now_ms)
    ⚙️  setup()
    ⚙️  loop()
 
@@ -886,8 +1036,8 @@ Total Files: 78
 📊 STATISTICS
 ================================================================================
 Namespaces:       9
-Classes/Structs:  54
+Classes/Structs:  68
 Enums:            3
-Free Functions:   474
-In-class Methods: 106
+Free Functions:   562
+In-class Methods: 120
 ================================================================================
