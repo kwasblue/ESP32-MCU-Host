@@ -40,6 +40,8 @@ public:
 
     // Wire control module after construction
     void setControlModule(ControlModule* cm) { controlModule_ = cm; }
+    // want ack for current command
+    bool currentWantAck_ = true;
 
 private:
     // Event handling

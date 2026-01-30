@@ -100,7 +100,15 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
     // Set current context for ACK/Error helpers
     currentSeq_ = msg.seq;
     currentCmdType_ = msg.cmdType;
+    currentWantAck_ = msg.wantAck;
 
+    bool forceAck =
+    (msg.cmdType == CmdType::ESTOP ||
+     msg.cmdType == CmdType::ARM ||
+     msg.cmdType == CmdType::DISARM);
+
+    currentWantAck_ = forceAck ? true : msg.wantAck;
+    
     // Check for duplicate command replay
     if (tryReplayAck(msg.cmdType, msg.seq)) {
         return;
@@ -185,6 +193,7 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         case CmdType::CTRL_SIGNALS_CLEAR: handleCtrlSignalsClear(payload); break;
         case CmdType::CTRL_SIGNAL_DELETE: handleCtrlSignalDelete(payload); break;
         case CmdType::CTRL_SLOT_SET_PARAM_ARRAY: handleCtrlSlotSetParamArray(payload); break;
+        case CmdType::CTRL_SIGNALS_LIST:      handleCtrlSignalsList(payload);    break;
 
         // ----- Control Module Observers -----
         case CmdType::OBSERVER_CONFIG:          handleObserverConfig(payload);          break;
@@ -193,8 +202,7 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         case CmdType::OBSERVER_SET_PARAM:       handleObserverSetParam(payload);        break;
         case CmdType::OBSERVER_SET_PARAM_ARRAY: handleObserverSetParamArray(payload);   break;
         case CmdType::OBSERVER_STATUS:          handleObserverStatus(payload);          break;
-        
-        case CmdType::CTRL_SIGNALS_LIST:      handleCtrlSignalsList(payload);    break;
+
 
         // ----- Logging -----
         case CmdType::SET_LOG_LEVEL:          handleSetLogLevel(payload);        break;
@@ -210,6 +218,7 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
 // ACK Helpers
 // -----------------------------------------------------------------------------
 bool CommandHandler::tryReplayAck(CmdType cmdType, uint32_t seq) {
+    if (!currentWantAck_) return false;  // NEW: do not replay if ack not requested
     if (seq == 0) return false;
 
     for (int i = 0; i < kAckCacheSize; ++i) {
@@ -248,6 +257,8 @@ void CommandHandler::publishJsonCopy(const std::string& out) {
 }
 
 void CommandHandler::sendAck(const char* cmd, bool ok, JsonDocument& resp) {
+    if (!currentWantAck_) return;   // NEW
+
     resp["src"] = "mcu";
     resp["cmd"] = cmd;
     resp["ok"]  = ok;
@@ -255,11 +266,14 @@ void CommandHandler::sendAck(const char* cmd, bool ok, JsonDocument& resp) {
 
     std::string out;
     serializeJson(resp, out);
+
     storeAck(currentCmdType_, currentSeq_, out);
     publishJson(std::move(out));
 }
 
 void CommandHandler::sendError(const char* cmd, const char* error) {
+    if (!currentWantAck_) return;   // NEW
+
     JsonDocument resp;
     resp["src"]   = "mcu";
     resp["cmd"]   = cmd;

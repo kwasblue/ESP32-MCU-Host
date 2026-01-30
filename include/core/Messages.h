@@ -62,7 +62,7 @@ struct JsonMessage {
     std::string typeStr;                       // raw "type" field (e.g. "CMD_SET_MODE")
     uint32_t    seq       = 0;
     JsonDocument payload;                      // ArduinoJson v7 document
-
+    bool wantAck = true;
     explicit JsonMessage()
         : payload() {}                         // default-constructed JsonDocument
 };
@@ -82,6 +82,7 @@ inline bool parseJsonToMessage(const std::string& jsonStr, JsonMessage& outMsg) 
 
     outMsg.kind    = msgKindFromString(kindStr);
     outMsg.typeStr = typeStr ? typeStr : "UNKNOWN";
+    outMsg.wantAck = doc["ack"] | true;
 
     // Use generated function from CommandDefs.h
     outMsg.cmdType = (outMsg.kind == MsgKind::CMD)
