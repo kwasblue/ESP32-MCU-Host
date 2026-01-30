@@ -186,6 +186,7 @@ public:
             return false;
         }
         Motor& m = motors_[id];
+        m.pidEnabled = false;
         m.targetOmegaRadS = 0.0f;
         if (m.pidEnabled) {
             m.pid.reset();

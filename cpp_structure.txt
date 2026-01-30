@@ -1,7 +1,7 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-01-29 10:58:54
-Total Files: 88
+Generated: 2026-01-29 19:38:00
+Total Files: 90
 ================================================================================
 
 🧩 📄 include/audio/Biquad.h
@@ -218,6 +218,29 @@ Total Files: 88
 
 🧩 📄 include/core/MultiTransport.h
    ⚙️  addTransport(ITransport* t)
+
+🧩 📄 include/core/Observer.h
+   🧱 struct ObserverConfig
+      (no in-class method bodies detected)
+   🧱 class LuenbergerObserver
+      ├── LuenbergerObserver()
+      ├── getStates()
+      ├── isInitialized()
+      ├── numStates()
+      ├── numInputs()
+      ├── numOutputs()
+      └── clamp(float v, float lo, float hi)
+   ⚙️  LuenbergerObserver()
+   ⚙️  getStates()
+   ⚙️  isInitialized()
+   ⚙️  numStates()
+   ⚙️  numInputs()
+   ⚙️  numOutputs()
+   ⚙️  clamp(float v, float lo, float hi)
+   🧱 class ObserverManager
+      (no in-class method bodies detected)
+   🧱 struct Slot
+      (no in-class method bodies detected)
 
 🧩 📄 include/core/PID.h
    🧱 class PID
@@ -448,11 +471,12 @@ Total Files: 88
    ⚙️  readDistanceCm(uint8_t id)
 
 🧩 📄 include/modules/ControlModule.h
-   ⚙️  name()
-   ⚙️  signals()
    ⚙️  signals()
    ⚙️  kernel()
+   ⚙️  observers()
+   ⚙️  signals()
    ⚙️  kernel()
+   ⚙️  observers()
 
 🧩 📄 include/modules/HearbeatModule.h
    ⚙️  bus_(bus)
@@ -546,6 +570,12 @@ Total Files: 88
    ⚙️  CommandHandler::handleCtrlSlotSetParam(JsonVariantConst payload)
    ⚙️  CommandHandler::handleCtrlSlotSetParamArray(JsonVariantConst payload)
    ⚙️  CommandHandler::handleCtrlSlotStatus(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleObserverConfig(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleObserverEnable(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleObserverReset(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleObserverSetParam(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleObserverSetParamArray(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleObserverStatus(JsonVariantConst payload)
 
 🧩 📄 src/core/ControlKernel.cpp
    ⚙️  ControlKernel::getSlot_(uint8_t slot)
@@ -588,8 +618,6 @@ Total Files: 88
    ⚙️  ControlModule::setup()
    ⚙️  ControlModule::loop(uint32_t now_ms)
    ⚙️  ControlModule::handleEvent(const Event& evt)
-   ⚙️  ControlModule::sampleSensors(uint32_t now_ms)
-   ⚙️  ControlModule::applyOutputs(uint32_t now_ms)
 
 🧩 📄 src/core/EncoderManager.cpp
    ⚙️  getGlobalEncoderManager()
@@ -704,6 +732,30 @@ Total Files: 88
    ⚙️  MqttTransport::onMessage(char* topic, uint8_t* payload, unsigned int length)
    ⚙️  MqttTransport::sendBytes(const uint8_t* data, size_t len)
    ⚙️  MqttTransport::publishDiscoveryResponse()
+
+🧩 📄 src/core/Observer.cpp
+   ⚙️  LuenbergerObserver::configure(uint8_t num_states, uint8_t num_inputs, uint8_t num_outputs)
+   ⚙️  LuenbergerObserver::update(const float* u, const float* y, float dt, float* x_hat_out)
+   ⚙️  LuenbergerObserver::reset()
+   ⚙️  LuenbergerObserver::initState(const float* x0)
+   ⚙️  LuenbergerObserver::setState(uint8_t idx, float value)
+   ⚙️  LuenbergerObserver::getState(uint8_t idx)
+   ⚙️  LuenbergerObserver::setA(const float* A, size_t len)
+   ⚙️  LuenbergerObserver::setB(const float* B, size_t len)
+   ⚙️  LuenbergerObserver::setC(const float* C, size_t len)
+   ⚙️  LuenbergerObserver::setL(const float* L, size_t len)
+   ⚙️  LuenbergerObserver::setParam(const char* key, float value)
+   ⚙️  LuenbergerObserver::setParamArray(const char* key, const float* values, size_t len)
+   ⚙️  ObserverManager::configure(uint8_t slot, const ObserverConfig& config, uint16_t rate_hz)
+   ⚙️  ObserverManager::enable(uint8_t slot, bool en)
+   ⚙️  ObserverManager::reset(uint8_t slot)
+   ⚙️  ObserverManager::setParam(uint8_t slot, const char* key, float value)
+   ⚙️  ObserverManager::setParamArray(uint8_t slot, const char* key, const float* values, size_t len)
+   ⚙️  ObserverManager::step(uint32_t now_ms, float dt_s, SignalBus& signals)
+   ⚙️  ObserverManager::getObserver(uint8_t slot)
+   ⚙️  ObserverManager::getSlot(uint8_t slot)
+   ⚙️  ObserverManager::resetAll()
+   ⚙️  ObserverManager::disableAll()
 
 🧩 📄 src/core/SignalBus.cpp
    ⚙️  SignalBus::indexOf_(uint16_t id)
@@ -1036,8 +1088,8 @@ Total Files: 88
 📊 STATISTICS
 ================================================================================
 Namespaces:       9
-Classes/Structs:  68
+Classes/Structs:  72
 Enums:            3
-Free Functions:   562
-In-class Methods: 120
+Free Functions:   596
+In-class Methods: 127
 ================================================================================

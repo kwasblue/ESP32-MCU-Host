@@ -31,6 +31,7 @@
 #include "managers/LidarManager.h"
 #include "managers/EncoderManager.h"
 #include "modules/ControlModule.h"
+#include "core/Observer.h"
 
 // Optional: Control kernel (comment out if not using yet)
 // #include "core/SignalBus.h"
@@ -137,7 +138,7 @@ ControlModule g_controlModule(
     &g_imu,
     &g_telemetry
 );
-
+ObserverManager& g_observers = g_controlModule.observers();
 
 // Encoder / PID config for DC motor 0 
 constexpr float ENCODER0_TICKS_PER_REV = 1632.67f;

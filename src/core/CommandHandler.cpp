@@ -1042,9 +1042,9 @@ void CommandHandler::handleTelemSetRate(JsonVariantConst payload) {
 // -----------------------------------------------------------------------------
 void CommandHandler::handleCtrlSignalDefine(JsonVariantConst payload) {
     static constexpr const char* ACK = "CMD_CTRL_SIGNAL_DEFINE";
-    Serial.println("[CMD] === CTRL_SIGNAL_DEFINE ===");
-    Serial.printf("[CMD] controlModule_ = %p\n", (void*)controlModule_);
-    Serial.printf("[CMD] Free heap: %u\n", ESP.getFreeHeap());
+    //Serial.println("[CMD] === CTRL_SIGNAL_DEFINE ===");
+    //Serial.printf("[CMD] controlModule_ = %p\n", (void*)controlModule_);
+    //Serial.printf("[CMD] Free heap: %u\n", ESP.getFreeHeap());
 
     DBG_PRINTLN("[CMD] CTRL_SIGNAL_DEFINE entry");
 
@@ -1065,7 +1065,7 @@ void CommandHandler::handleCtrlSignalDefine(JsonVariantConst payload) {
 
     uint16_t id       = payload["id"].as<uint16_t>();
     const char* name  = payload["name"].as<const char*>();
-    const char* kindS = payload["signal_kind"].as<const char*>();
+    const char* kindS = payload["signal_kind"] | payload["kind"] | "STATE";
     float initial     = payload["initial"] | 0.0f;
 
     DBG_PRINTF("[CMD] CTRL_SIGNAL_DEFINE: id=%u name=%s kind=%s initial=%.2f\n",

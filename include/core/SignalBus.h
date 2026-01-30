@@ -13,7 +13,8 @@ public:
     enum class Kind : uint8_t { 
         REF  = 0,   // Reference/setpoint
         MEAS = 1,   // Measurement/feedback
-        OUT  = 2    // Control output
+        OUT  = 2,    // Control output
+        EST = 3    // State estimate
     };
 
     // Fixed-size name buffer to avoid dangling pointer issues with JSON strings
@@ -65,6 +66,8 @@ inline const char* signalKindToString(SignalBus::Kind k) {
         case SignalBus::Kind::REF:  return "REF";
         case SignalBus::Kind::MEAS: return "MEAS";
         case SignalBus::Kind::OUT:  return "OUT";
+        case SignalBus::Kind::EST:  return "EST";
+        
         default: return "UNK";
     }
 }
@@ -75,5 +78,6 @@ inline SignalBus::Kind signalKindFromString(const char* s) {
     if (strcmp(s, "REF") == 0)  return SignalBus::Kind::REF;
     if (strcmp(s, "MEAS") == 0) return SignalBus::Kind::MEAS;
     if (strcmp(s, "OUT") == 0)  return SignalBus::Kind::OUT;
+    if (strcmp(s, "EST") == 0)  return SignalBus::Kind::EST;
     return SignalBus::Kind::REF;
 }
