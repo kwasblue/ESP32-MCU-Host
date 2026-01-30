@@ -26,6 +26,6 @@ private:
     static IdentityModule* s_instance;
     static void onEventStatic(const Event& evt);
 
-    // ✅ Fix warning: explicitly mark override
+    // Fix warning: explicitly mark override
     void handleEvent(const Event& evt) override;
 };
