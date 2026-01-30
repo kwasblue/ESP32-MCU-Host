@@ -18,7 +18,7 @@ public:
     };
 
     // Fixed-size name buffer to avoid dangling pointer issues with JSON strings
-    static constexpr size_t NAME_MAX_LEN = 31;
+    static constexpr size_t NAME_MAX_LEN = 64;
 
     struct SignalDef {
         uint16_t id = 0;
@@ -42,6 +42,9 @@ public:
     
     // Get signal timestamp
     bool getTimestamp(uint16_t id, uint32_t& out) const;
+    
+    //remove
+    bool remove(uint16_t id);
     
     // Get signal by ID (returns nullptr if not found)
     const SignalDef* find(uint16_t id) const;

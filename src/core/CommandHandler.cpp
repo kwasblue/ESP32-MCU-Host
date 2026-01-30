@@ -182,6 +182,8 @@ void CommandHandler::onJsonCommand(const std::string& jsonStr) {
         case CmdType::CTRL_SLOT_STATUS:       handleCtrlSlotStatus(payload);     break;
         case CmdType::CTRL_SIGNAL_SET:        handleCtrlSignalSet(payload);      break;
         case CmdType::CTRL_SIGNAL_GET:        handleCtrlSignalGet(payload);      break;
+        case CmdType::CTRL_SIGNALS_CLEAR: handleCtrlSignalsClear(payload); break;
+        case CmdType::CTRL_SIGNAL_DELETE: handleCtrlSignalDelete(payload); break;
         case CmdType::CTRL_SLOT_SET_PARAM_ARRAY: handleCtrlSlotSetParamArray(payload); break;
 
         // ----- Control Module Observers -----
@@ -1560,4 +1562,38 @@ void CommandHandler::handleObserverStatus(JsonVariantConst payload) {
     }
     
     sendAck(ACK, true, resp);
+}
+
+void CommandHandler::handleCtrlSignalsClear(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_CTRL_SIGNALS_CLEAR";
+    (void)payload;
+    
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    controlModule_->signals().clear();
+    
+    JsonDocument resp;
+    resp["cleared"] = true;
+    resp["count"] = 0;
+    sendAck(ACK, true, resp);
+}
+
+void CommandHandler::handleCtrlSignalDelete(JsonVariantConst payload) {
+    static constexpr const char* ACK = "CMD_CTRL_SIGNAL_DELETE";
+    
+    if (!controlModule_) {
+        sendError(ACK, "no_control_module");
+        return;
+    }
+    
+    uint16_t id = payload["id"] | 0;
+    bool ok = controlModule_->signals().remove(id);
+    
+    JsonDocument resp;
+    resp["id"] = id;
+    resp["deleted"] = ok;
+    sendAck(ACK, ok, resp);
 }

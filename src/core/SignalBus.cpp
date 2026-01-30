@@ -12,19 +12,34 @@ int SignalBus::indexOf_(uint16_t id) const {
 }
 
 bool SignalBus::define(uint16_t id, const char* name, Kind kind, float initial) {
-    // Don't allow duplicate IDs
-    if (exists(id)) return false;
+    // Check if already exists - update instead of failing
+    for (auto& d : signals_) {
+        if (d.id == id) {
+            // Update existing signal (idempotent)
+            d.kind = kind;
+            d.value = initial;
+            d.ts_ms = 0;
+            if (name && name[0] != '\0') {
+                strncpy(d.name, name, NAME_MAX_LEN);
+                d.name[NAME_MAX_LEN] = '\0';
+            }
+            return true;
+        }
+    }
     
+    // Check capacity (optional safety limit)
+    if (signals_.size() >= NAME_MAX_LEN) return false;
+    
+    // Create new signal
     SignalDef d;
     d.id = id;
     d.kind = kind;
     d.value = initial;
     d.ts_ms = 0;
     
-    // Safe string copy - prevents dangling pointer when JSON goes out of scope
     if (name && name[0] != '\0') {
         strncpy(d.name, name, NAME_MAX_LEN);
-        d.name[NAME_MAX_LEN] = '\0';  // Ensure null termination
+        d.name[NAME_MAX_LEN] = '\0';
     } else {
         d.name[0] = '\0';
     }
@@ -56,6 +71,14 @@ bool SignalBus::getTimestamp(uint16_t id, uint32_t& out) const {
     int idx = indexOf_(id);
     if (idx < 0) return false;
     out = signals_[static_cast<size_t>(idx)].ts_ms;
+    return true;
+}
+bool SignalBus::remove(uint16_t id) {
+    int idx = indexOf_(id);
+    if (idx < 0) return false;
+    
+    // Erase from vector
+    signals_.erase(signals_.begin() + idx);
     return true;
 }
 

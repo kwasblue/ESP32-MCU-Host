@@ -9,8 +9,10 @@ enum class CmdType {
     ARM,
     CLEAR_ESTOP,
     CTRL_SET_RATE,
+    CTRL_SIGNALS_CLEAR,
     CTRL_SIGNALS_LIST,
     CTRL_SIGNAL_DEFINE,
+    CTRL_SIGNAL_DELETE,
     CTRL_SIGNAL_GET,
     CTRL_SIGNAL_SET,
     CTRL_SLOT_CONFIG,
@@ -68,8 +70,10 @@ inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_ARM") return CmdType::ARM;
     if (s == "CMD_CLEAR_ESTOP") return CmdType::CLEAR_ESTOP;
     if (s == "CMD_CTRL_SET_RATE") return CmdType::CTRL_SET_RATE;
+    if (s == "CMD_CTRL_SIGNALS_CLEAR") return CmdType::CTRL_SIGNALS_CLEAR;
     if (s == "CMD_CTRL_SIGNALS_LIST") return CmdType::CTRL_SIGNALS_LIST;
     if (s == "CMD_CTRL_SIGNAL_DEFINE") return CmdType::CTRL_SIGNAL_DEFINE;
+    if (s == "CMD_CTRL_SIGNAL_DELETE") return CmdType::CTRL_SIGNAL_DELETE;
     if (s == "CMD_CTRL_SIGNAL_GET") return CmdType::CTRL_SIGNAL_GET;
     if (s == "CMD_CTRL_SIGNAL_SET") return CmdType::CTRL_SIGNAL_SET;
     if (s == "CMD_CTRL_SLOT_CONFIG") return CmdType::CTRL_SLOT_CONFIG;
@@ -128,8 +132,10 @@ inline const char* cmdTypeToString(CmdType c) {
         case CmdType::ARM: return "CMD_ARM";
         case CmdType::CLEAR_ESTOP: return "CMD_CLEAR_ESTOP";
         case CmdType::CTRL_SET_RATE: return "CMD_CTRL_SET_RATE";
+        case CmdType::CTRL_SIGNALS_CLEAR: return "CMD_CTRL_SIGNALS_CLEAR";
         case CmdType::CTRL_SIGNALS_LIST: return "CMD_CTRL_SIGNALS_LIST";
         case CmdType::CTRL_SIGNAL_DEFINE: return "CMD_CTRL_SIGNAL_DEFINE";
+        case CmdType::CTRL_SIGNAL_DELETE: return "CMD_CTRL_SIGNAL_DELETE";
         case CmdType::CTRL_SIGNAL_GET: return "CMD_CTRL_SIGNAL_GET";
         case CmdType::CTRL_SIGNAL_SET: return "CMD_CTRL_SIGNAL_SET";
         case CmdType::CTRL_SLOT_CONFIG: return "CMD_CTRL_SLOT_CONFIG";
