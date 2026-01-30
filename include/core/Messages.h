@@ -83,6 +83,7 @@ inline bool parseJsonToMessage(const std::string& jsonStr, JsonMessage& outMsg) 
     outMsg.kind    = msgKindFromString(kindStr);
     outMsg.typeStr = typeStr ? typeStr : "UNKNOWN";
     outMsg.wantAck = doc["ack"] | true;
+    outMsg.wantAck = doc["wantAck"] | false;
 
     // Use generated function from CommandDefs.h
     outMsg.cmdType = (outMsg.kind == MsgKind::CMD)
