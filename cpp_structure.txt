@@ -1,8 +1,13 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-01-30 18:37:21
-Total Files: 94
+Generated: 2026-01-30 20:46:55
+Total Files: 96
 ================================================================================
+
+🧩 📄 include/audio/AudioGraphManager.h
+   🧱 class AudioGraphManager
+      └── activeChain()
+   ⚙️  activeChain()
 
 🧩 📄 include/audio/Biquad.h
    📦 namespace audio
@@ -42,6 +47,58 @@ Total Files: 94
    ⚙️  biquad_(c.b0, c.b1, c.b2, c.a1, c.a2, ch)
    ⚙️  ch_(ch)
 
+🧩 📄 include/command/BinaryCommands.h
+   📦 namespace BinaryCommands
+   🧱 struct SetVelCmd
+      (no in-class method bodies detected)
+   🧱 struct SetSignalCmd
+      (no in-class method bodies detected)
+   🧱 struct SetSignalsCmd
+      (no in-class method bodies detected)
+   🧱 struct DecodeResult
+      (no in-class method bodies detected)
+   ⚙️  read_u16_le(const uint8_t* buf)
+   ⚙️  read_f32_le(const uint8_t* buf)
+   ⚙️  decode(const uint8_t* data, size_t len, uint8_t opcode)
+   ⚙️  parseSignal(const uint8_t* data, uint8_t index, uint16_t& id_out, float& value_out)
+   ⚙️  encodeSetVel(float vx, float omega, uint8_t* buf)
+   ⚙️  encodeSetSignal(uint16_t id, float value, uint8_t* buf)
+
+🧩 📄 include/command/CommandHandler.h
+   🧱 class CommandHandler
+      └── setControlModule(ControlModule* cm)
+   ⚙️  setControlModule(ControlModule* cm)
+   🧱 struct AckCacheEntry
+      (no in-class method bodies detected)
+   ⚙️  clampHz(uint16_t& hz, uint16_t min_hz, uint16_t max_hz)
+
+🧩 📄 include/command/MessageRouter.h
+   🧱 class MessageRouter
+      (no in-class method bodies detected)
+
+🧩 📄 include/command/ModeManager.h
+   🧱 struct SafetyConfig
+      (no in-class method bodies detected)
+   🧱 class ModeManager
+      ├── configure(const SafetyConfig& cfg)
+      ├── mode()
+      ├── canMove()
+      ├── isEstopped()
+      ├── isConnected()
+      ├── isBypassed()
+      ├── hostAgeMs(uint32_t now_ms)
+      ├── motionAgeMs(uint32_t now_ms)
+      └── onStop(StopCallback cb)
+   ⚙️  configure(const SafetyConfig& cfg)
+   ⚙️  mode()
+   ⚙️  canMove()
+   ⚙️  isEstopped()
+   ⚙️  isConnected()
+   ⚙️  isBypassed()
+   ⚙️  hostAgeMs(uint32_t now_ms)
+   ⚙️  motionAgeMs(uint32_t now_ms)
+   ⚙️  onStop(StopCallback cb)
+
 🧩 📄 include/config/CommandDefs.h
    🧾 enum CmdType
    ⚙️  cmdTypeFromString(const std::string& s)
@@ -57,20 +114,16 @@ Total Files: 94
 🧩 📄 include/config/Version.h
    📦 namespace Version
 
-🧩 📄 include/core/BleTransport.h
-   ⚙️  name_(deviceName)
-   ⚙️  Protocol::extractFrames(rxBuffer_,
-                [this](const uint8_t* frame, size_t len)
-
-🧩 📄 include/core/CommandHandler.h
-   🧱 class CommandHandler
-      └── setControlModule(ControlModule* cm)
-   ⚙️  setControlModule(ControlModule* cm)
-   🧱 struct AckCacheEntry
+🧩 📄 include/control/ControlKernel.h
+   🧱 class ControlWatchdog
+      ├── setTimeout(uint32_t timeout_ms)
+      ├── getTimeout()
+      └── onTimeout(TimeoutCallback cb)
+   ⚙️  setTimeout(uint32_t timeout_ms)
+   ⚙️  getTimeout()
+   ⚙️  onTimeout(TimeoutCallback cb)
+   🧱 struct SlotTiming
       (no in-class method bodies detected)
-   ⚙️  clampHz(uint16_t& hz, uint16_t min_hz, uint16_t max_hz)
-
-🧩 📄 include/core/ControlKernel.h
    🧱 struct StateSpaceIO
       (no in-class method bodies detected)
    🧱 struct SlotIO
@@ -92,9 +145,211 @@ Total Files: 94
    ⚙️  isMultiState()
    ⚙️  clamp(float val, float min_val, float max_val)
    🧱 class ControlKernel
+      ├── watchdog()
+      └── watchdog()
+   ⚙️  watchdog()
+   ⚙️  watchdog()
+   🧱 struct Slot
+      (no in-class method bodies detected)
+
+🧩 📄 include/control/ControlTelemetry.h
+   📦 namespace ControlTelemetry
+   ⚙️  provideSignalsJson(JsonObject& out, const SignalBus& bus)
+   ⚙️  provideObserversJson(JsonObject& out, const ObserverManager& mgr)
+   ⚙️  provideSlotsJson(JsonObject& out, const ControlKernel& kernel)
+   ⚙️  provideControlJson(JsonObject& out, const SignalBus& bus,
+                               const ControlKernel& kernel, const ObserverManager& observers)
+   ⚙️  provideSignalsBin(uint8_t* buf, size_t max_len, const SignalBus& bus)
+   ⚙️  provideObserversBin(uint8_t* buf, size_t max_len, const ObserverManager& mgr)
+   ⚙️  provideSlotsBin(uint8_t* buf, size_t max_len, const ControlKernel& kernel)
+
+🧩 📄 include/control/IController.h
+   🧱 struct ControlIO
+      (no in-class method bodies detected)
+   🧱 struct ControlCtx
+      (no in-class method bodies detected)
+   🧱 class IController
+      ├── configureIO(const ControlIO& io)
+      └── io()
+   ⚙️  configureIO(const ControlIO& io)
+   ⚙️  io()
+
+🧩 📄 include/control/Observer.h
+   🧱 struct ObserverConfig
+      (no in-class method bodies detected)
+   🧱 class LuenbergerObserver
+      ├── LuenbergerObserver()
+      ├── getStates()
+      ├── isInitialized()
+      ├── numStates()
+      ├── numInputs()
+      ├── numOutputs()
+      └── clamp(float v, float lo, float hi)
+   ⚙️  LuenbergerObserver()
+   ⚙️  getStates()
+   ⚙️  isInitialized()
+   ⚙️  numStates()
+   ⚙️  numInputs()
+   ⚙️  numOutputs()
+   ⚙️  clamp(float v, float lo, float hi)
+   🧱 class ObserverManager
       (no in-class method bodies detected)
    🧱 struct Slot
       (no in-class method bodies detected)
+   🧱 struct ObserverConfig
+      (no in-class method bodies detected)
+   🧱 class LuenbergerObserver
+      ├── LuenbergerObserver()
+      ├── configure(uint8_t, uint8_t, uint8_t)
+      ├── update(const float*, const float*, float, float*)
+      ├── reset()
+      ├── initState(const float*)
+      ├── setState(uint8_t, float)
+      ├── getState(uint8_t)
+      ├── getStates()
+      ├── isInitialized()
+      ├── setA(const float*, size_t)
+      ├── setB(const float*, size_t)
+      ├── setC(const float*, size_t)
+      ├── setL(const float*, size_t)
+      ├── setParam(const char*, float)
+      ├── setParamArray(const char*, const float*, size_t)
+      ├── numStates()
+      ├── numInputs()
+      └── numOutputs()
+   ⚙️  LuenbergerObserver()
+   ⚙️  configure(uint8_t, uint8_t, uint8_t)
+   ⚙️  update(const float*, const float*, float, float*)
+   ⚙️  reset()
+   ⚙️  initState(const float*)
+   ⚙️  setState(uint8_t, float)
+   ⚙️  getState(uint8_t)
+   ⚙️  getStates()
+   ⚙️  isInitialized()
+   ⚙️  setA(const float*, size_t)
+   ⚙️  setB(const float*, size_t)
+   ⚙️  setC(const float*, size_t)
+   ⚙️  setL(const float*, size_t)
+   ⚙️  setParam(const char*, float)
+   ⚙️  setParamArray(const char*, const float*, size_t)
+   ⚙️  numStates()
+   ⚙️  numInputs()
+   ⚙️  numOutputs()
+   🧱 class ObserverManager
+      ├── configure(uint8_t, const ObserverConfig&, uint16_t = 200)
+      ├── enable(uint8_t, bool)
+      ├── reset(uint8_t)
+      ├── setParam(uint8_t, const char*, float)
+      ├── setParamArray(uint8_t, const char*, const float*, size_t)
+      ├── step(uint32_t, float, SignalBus&)
+      ├── getObserver(uint8_t)
+      ├── getSlot(uint8_t slot)
+      ├── resetAll()
+      └── disableAll()
+   🧱 struct Slot
+      (no in-class method bodies detected)
+   ⚙️  configure(uint8_t, const ObserverConfig&, uint16_t = 200)
+   ⚙️  enable(uint8_t, bool)
+   ⚙️  reset(uint8_t)
+   ⚙️  setParam(uint8_t, const char*, float)
+   ⚙️  setParamArray(uint8_t, const char*, const float*, size_t)
+   ⚙️  step(uint32_t, float, SignalBus&)
+   ⚙️  getObserver(uint8_t)
+   ⚙️  getSlot(uint8_t slot)
+   ⚙️  resetAll()
+   ⚙️  disableAll()
+
+🧩 📄 include/control/SignalBus.h
+   🧱 class SignalBus
+      ├── getMinInterval()
+      ├── getMaxUpdatesPerSec()
+      ├── all()
+      ├── count()
+      └── clear()
+   🧱 struct SignalDef
+      (no in-class method bodies detected)
+   ⚙️  getMinInterval()
+   ⚙️  getMaxUpdatesPerSec()
+   ⚙️  all()
+   ⚙️  count()
+   ⚙️  clear()
+   🧱 struct Alias
+      (no in-class method bodies detected)
+   🧱 class SignalRef
+      ├── resolve()
+      ├── isResolved()
+      ├── get(float& out)
+      ├── set(float v, uint32_t now_ms = 0)
+      └── id()
+   ⚙️  resolve()
+   ⚙️  isResolved()
+   ⚙️  get(float& out)
+   ⚙️  set(float v, uint32_t now_ms = 0)
+   ⚙️  id()
+   ⚙️  signalKindToString(SignalBus::Kind k)
+   ⚙️  signalKindFromString(const char* s)
+   🧱 class SignalBus
+      ├── define(uint16_t, const char*, Kind, float = 0.0f)
+      ├── exists(uint16_t)
+      ├── set(uint16_t, float, uint32_t = 0)
+      ├── setWithRateLimit(uint16_t, float, uint32_t)
+      ├── setGlobalRateLimit(uint32_t, uint16_t)
+      ├── getMinInterval()
+      ├── getMaxUpdatesPerSec()
+      ├── get(uint16_t, float&)
+      ├── getWithTs(uint16_t, float&, uint32_t&)
+      ├── getTimestamp(uint16_t, uint32_t&)
+      ├── find(uint16_t)
+      ├── all()
+      ├── count()
+      ├── getByIndex(size_t)
+      ├── remove(uint16_t)
+      ├── deleteSignal(uint16_t)
+      ├── clear()
+      ├── createAlias(uint16_t, const char*)
+      ├── removeAlias(const char*)
+      ├── getByName(const char*, float&)
+      ├── setByName(const char*, float, uint32_t = 0)
+      └── resolveId(const char*)
+   🧱 struct SignalDef
+      (no in-class method bodies detected)
+   ⚙️  define(uint16_t, const char*, Kind, float = 0.0f)
+   ⚙️  exists(uint16_t)
+   ⚙️  set(uint16_t, float, uint32_t = 0)
+   ⚙️  setWithRateLimit(uint16_t, float, uint32_t)
+   ⚙️  setGlobalRateLimit(uint32_t, uint16_t)
+   ⚙️  getMinInterval()
+   ⚙️  getMaxUpdatesPerSec()
+   ⚙️  get(uint16_t, float&)
+   ⚙️  getWithTs(uint16_t, float&, uint32_t&)
+   ⚙️  getTimestamp(uint16_t, uint32_t&)
+   ⚙️  find(uint16_t)
+   ⚙️  all()
+   ⚙️  count()
+   ⚙️  getByIndex(size_t)
+   ⚙️  remove(uint16_t)
+   ⚙️  deleteSignal(uint16_t)
+   ⚙️  clear()
+   ⚙️  createAlias(uint16_t, const char*)
+   ⚙️  removeAlias(const char*)
+   ⚙️  getByName(const char*, float&)
+   ⚙️  setByName(const char*, float, uint32_t = 0)
+   ⚙️  resolveId(const char*)
+   🧱 class SignalRef
+      ├── SignalRef(SignalBus&, const char*)
+      ├── resolve()
+      ├── isResolved()
+      ├── get(float&)
+      ├── set(float, uint32_t = 0)
+      └── id()
+   ⚙️  SignalRef(SignalBus&, const char*)
+   ⚙️  resolve()
+   ⚙️  isResolved()
+   ⚙️  get(float&)
+   ⚙️  set(float, uint32_t = 0)
+   ⚙️  id()
+   ⚙️  signalKindToString(SignalBus::Kind)
+   ⚙️  signalKindFromString(const char*)
 
 🧩 📄 include/core/Event.h
    🧱 struct TelemetrySystemPayload
@@ -114,28 +369,6 @@ Total Files: 94
       └── publish(const Event& evt)
    ⚙️  subscribe(Handler h)
    ⚙️  publish(const Event& evt)
-
-🧩 📄 include/core/I2CBusManager.h
-   🧱 class I2CBusManager
-      ├── begin(int sda_pin, int scl_pin, uint32_t freq_hz = 400000)
-      ├── registerDevice(const std::string& name, uint8_t address)
-      ├── addr(const std::string& name)
-      └── bus()
-   ⚙️  begin(int sda_pin, int scl_pin, uint32_t freq_hz = 400000)
-   ⚙️  registerDevice(const std::string& name, uint8_t address)
-   ⚙️  addr(const std::string& name)
-   ⚙️  bus()
-
-🧩 📄 include/core/IController.h
-   🧱 struct ControlIO
-      (no in-class method bodies detected)
-   🧱 struct ControlCtx
-      (no in-class method bodies detected)
-   🧱 class IController
-      ├── configureIO(const ControlIO& io)
-      └── io()
-   ⚙️  configureIO(const ControlIO& io)
-   ⚙️  io()
 
 🧩 📄 include/core/IModule.h
    🧱 class IModule
@@ -172,10 +405,6 @@ Total Files: 94
       └── bus()
    ⚙️  bus()
 
-🧩 📄 include/core/MessageRouter.h
-   🧱 class MessageRouter
-      (no in-class method bodies detected)
-
 🧩 📄 include/core/Messages.h
    🧾 enum MsgKind
    ⚙️  msgKindFromString(const std::string& s)
@@ -184,83 +413,6 @@ Total Files: 94
    ⚙️  payload()
    ⚙️  parseJsonToMessage(const std::string& jsonStr, JsonMessage& outMsg)
 
-🧩 📄 include/core/ModeManager.h
-   🧱 struct SafetyConfig
-      (no in-class method bodies detected)
-   🧱 class ModeManager
-      ├── configure(const SafetyConfig& cfg)
-      ├── mode()
-      ├── canMove()
-      ├── isEstopped()
-      ├── isConnected()
-      ├── isBypassed()
-      ├── hostAgeMs(uint32_t now_ms)
-      ├── motionAgeMs(uint32_t now_ms)
-      └── onStop(StopCallback cb)
-   ⚙️  configure(const SafetyConfig& cfg)
-   ⚙️  mode()
-   ⚙️  canMove()
-   ⚙️  isEstopped()
-   ⚙️  isConnected()
-   ⚙️  isBypassed()
-   ⚙️  hostAgeMs(uint32_t now_ms)
-   ⚙️  motionAgeMs(uint32_t now_ms)
-   ⚙️  onStop(StopCallback cb)
-
-🧩 📄 include/core/MotionController.h
-   🧱 class MotionController
-      └── baseEnabled()
-   ⚙️  baseEnabled()
-
-🧩 📄 include/core/MqttTransport.h
-   ⚙️  setFrameHandler(FrameCallback cb)
-   ⚙️  isConnected()
-
-🧩 📄 include/core/MultiTransport.h
-   ⚙️  addTransport(ITransport* t)
-
-🧩 📄 include/core/Observer.h
-   🧱 struct ObserverConfig
-      (no in-class method bodies detected)
-   🧱 class LuenbergerObserver
-      ├── LuenbergerObserver()
-      ├── getStates()
-      ├── isInitialized()
-      ├── numStates()
-      ├── numInputs()
-      ├── numOutputs()
-      └── clamp(float v, float lo, float hi)
-   ⚙️  LuenbergerObserver()
-   ⚙️  getStates()
-   ⚙️  isInitialized()
-   ⚙️  numStates()
-   ⚙️  numInputs()
-   ⚙️  numOutputs()
-   ⚙️  clamp(float v, float lo, float hi)
-   🧱 class ObserverManager
-      (no in-class method bodies detected)
-   🧱 struct Slot
-      (no in-class method bodies detected)
-
-🧩 📄 include/core/PID.h
-   🧱 class PID
-      ├── prevDeriv_(0.0f)
-      ├── setGains(float kp, float ki, float kd)
-      ├── setOutputLimits(float minVal, float maxVal)
-      ├── setIntegratorLimits(float minVal, float maxVal)
-      ├── setDerivativeFilter(float alpha)
-      ├── reset()
-      ├── compute(float target, float measurement, float dt)
-      └── clamp(float v, float lo, float hi)
-   ⚙️  prevDeriv_(0.0f)
-   ⚙️  setGains(float kp, float ki, float kd)
-   ⚙️  setOutputLimits(float minVal, float maxVal)
-   ⚙️  setIntegratorLimits(float minVal, float maxVal)
-   ⚙️  setDerivativeFilter(float alpha)
-   ⚙️  reset()
-   ⚙️  compute(float target, float measurement, float dt)
-   ⚙️  clamp(float v, float lo, float hi)
-
 🧩 📄 include/core/Protocol.h
    📦 namespace Protocol
    ⚙️  encode(uint8_t msgType,
@@ -268,7 +420,33 @@ Total Files: 94
                    size_t payloadLen,
                    std::vector<uint8_t>& outFrame)
 
-🧩 📄 include/core/SafetyManager.h
+🧩 📄 include/hw/GpioManager.h
+   🧱 class GpioManager
+      ├── GpioManager()
+      ├── registerChannel(int ch, int pin, int mode = OUTPUT)
+      ├── hasChannel(int ch)
+      ├── write(int ch, int value)
+      ├── read(int ch)
+      ├── toggle(int ch)
+      └── configureLimitSwitch(uint8_t pin)
+   ⚙️  GpioManager()
+   ⚙️  registerChannel(int ch, int pin, int mode = OUTPUT)
+   ⚙️  hasChannel(int ch)
+   ⚙️  write(int ch, int value)
+   ⚙️  read(int ch)
+   ⚙️  toggle(int ch)
+   ⚙️  configureLimitSwitch(uint8_t pin)
+
+🧩 📄 include/hw/PwmManager.h
+   🧱 class PwmManager
+      ├── registerChannel(int ch, int pin, int ledcChannel, float defaultFreq = 50.0f)
+      ├── set(int ch, float duty, float freq=0.0f)
+      └── exists(int ch)
+   ⚙️  registerChannel(int ch, int pin, int ledcChannel, float defaultFreq = 50.0f)
+   ⚙️  set(int ch, float duty, float freq=0.0f)
+   ⚙️  exists(int ch)
+
+🧩 📄 include/hw/SafetyManager.h
    🧱 class SafetyManager
       ├── estop()
       ├── clearEstop()
@@ -277,33 +455,28 @@ Total Files: 94
    ⚙️  clearEstop()
    ⚙️  isEstopActive()
 
-🧩 📄 include/core/SignalBus.h
-   🧱 class SignalBus
-      ├── all()
-      ├── count()
-      └── clear()
-   🧱 struct SignalDef
+🧩 📄 include/module/ControlModule.h
+   ⚙️  signals()
+   ⚙️  kernel()
+   ⚙️  observers()
+   ⚙️  signals()
+   ⚙️  kernel()
+   ⚙️  observers()
+
+🧩 📄 include/module/HearbeatModule.h
+   ⚙️  bus_(bus)
+
+🧩 📄 include/module/LoggingModule.h
+   ⚙️  instance()
+   ⚙️  currentLevel()
+
+🧩 📄 include/module/TelemetryModule.h
+   🧱 struct JsonProvider
       (no in-class method bodies detected)
-   ⚙️  all()
-   ⚙️  count()
-   ⚙️  clear()
-   ⚙️  signalKindToString(SignalBus::Kind k)
-   ⚙️  signalKindFromString(const char* s)
+   🧱 struct BinProvider
+      (no in-class method bodies detected)
 
-🧩 📄 include/core/UartTransport.h
-   ⚙️  Protocol::extractFrames(rxBuffer_, [this](const uint8_t* frame, size_t len)
-
-🧩 📄 include/core/WifiTransport.h
-   ⚙️  port_(port)
-   ⚙️  Protocol::extractFrames(rxBuffer_,
-            [this](const uint8_t* frame, size_t len)
-
-🧩 📄 include/managers/AudioGraphManager.h
-   🧱 class AudioGraphManager
-      └── activeChain()
-   ⚙️  activeChain()
-
-🧩 📄 include/managers/DcMotorManager.h
+🧩 📄 include/motor/DcMotorManager.h
    🧱 class DcMotorManager
       ├── attach(uint8_t id,
                 int in1Pin,
@@ -345,73 +518,63 @@ Total Files: 94
    ⚙️  setVelocityTarget(uint8_t id, float omegaRadPerSec)
    ⚙️  setVelocityGains(uint8_t id, float kp, float ki, float kd)
    ⚙️  updateVelocityPid(uint8_t id, float measuredOmegaRadS, float dt)
-
-🧩 📄 include/managers/EncoderManager.h
-   🧱 class EncoderManager
-      └── isAttached(uint8_t id)
-   🧱 struct Encoder
+   🧱 class DcMotorManager
+      ├── DcMotorManager(GpioManager&, PwmManager&)
+      ├── attach(uint8_t, int, int, int, int, int = 15000, int = 12)
+      ├── isAttached(uint8_t)
+      ├── setSpeed(uint8_t, float)
+      ├── stop(uint8_t)
+      ├── stopAll()
+      ├── getMotorDebugInfo(uint8_t, MotorDebugInfo&)
+      ├── dumpAllMotorMappings()
+      ├── enableVelocityPid(uint8_t, bool)
+      ├── isVelocityPidEnabled(uint8_t)
+      ├── setVelocityTarget(uint8_t, float)
+      ├── setVelocityGains(uint8_t, float, float, float)
+      └── updateVelocityPid(uint8_t, float, float)
+   🧱 struct Motor
       (no in-class method bodies detected)
-   ⚙️  isAttached(uint8_t id)
-
-🧩 📄 include/managers/GpioManager.h
-   🧱 class GpioManager
-      ├── GpioManager()
-      ├── registerChannel(int ch, int pin, int mode = OUTPUT)
-      ├── hasChannel(int ch)
-      ├── write(int ch, int value)
-      ├── read(int ch)
-      ├── toggle(int ch)
-      └── configureLimitSwitch(uint8_t pin)
-   ⚙️  GpioManager()
-   ⚙️  registerChannel(int ch, int pin, int mode = OUTPUT)
-   ⚙️  hasChannel(int ch)
-   ⚙️  write(int ch, int value)
-   ⚙️  read(int ch)
-   ⚙️  toggle(int ch)
-   ⚙️  configureLimitSwitch(uint8_t pin)
-
-🧩 📄 include/managers/ImuManager.h
-   🧱 class ImuManager
-      └── isOnline()
-   🧱 struct Sample
+   🧱 struct MotorDebugInfo
       (no in-class method bodies detected)
-   ⚙️  isOnline()
+   ⚙️  DcMotorManager(GpioManager&, PwmManager&)
+   ⚙️  attach(uint8_t, int, int, int, int, int = 15000, int = 12)
+   ⚙️  isAttached(uint8_t)
+   ⚙️  setSpeed(uint8_t, float)
+   ⚙️  stop(uint8_t)
+   ⚙️  stopAll()
+   ⚙️  getMotorDebugInfo(uint8_t, MotorDebugInfo&)
+   ⚙️  dumpAllMotorMappings()
+   ⚙️  enableVelocityPid(uint8_t, bool)
+   ⚙️  isVelocityPidEnabled(uint8_t)
+   ⚙️  setVelocityTarget(uint8_t, float)
+   ⚙️  setVelocityGains(uint8_t, float, float, float)
+   ⚙️  updateVelocityPid(uint8_t, float, float)
 
-🧩 📄 include/managers/LidarManager.h
-   🧱 class LidarManager
-      └── isOnline()
-   🧱 struct Sample
-      (no in-class method bodies detected)
-   ⚙️  isOnline()
+🧩 📄 include/motor/MotionController.h
+   🧱 class MotionController
+      └── baseEnabled()
+   ⚙️  baseEnabled()
 
-🧩 📄 include/managers/LimitSwitchManagr.h
-   🧱 struct LimitSwitchConfig
-      (no in-class method bodies detected)
-   🧱 class LimitSwitchManager
-      ├── addSwitch(const LimitSwitchConfig& cfg)
-      └── poll()
-   ⚙️  addSwitch(const LimitSwitchConfig& cfg)
-   ⚙️  poll()
-   🧱 struct SwitchState
-      (no in-class method bodies detected)
+🧩 📄 include/motor/PID.h
+   🧱 class PID
+      ├── prevDeriv_(0.0f)
+      ├── setGains(float kp, float ki, float kd)
+      ├── setOutputLimits(float minVal, float maxVal)
+      ├── setIntegratorLimits(float minVal, float maxVal)
+      ├── setDerivativeFilter(float alpha)
+      ├── reset()
+      ├── compute(float target, float measurement, float dt)
+      └── clamp(float v, float lo, float hi)
+   ⚙️  prevDeriv_(0.0f)
+   ⚙️  setGains(float kp, float ki, float kd)
+   ⚙️  setOutputLimits(float minVal, float maxVal)
+   ⚙️  setIntegratorLimits(float minVal, float maxVal)
+   ⚙️  setDerivativeFilter(float alpha)
+   ⚙️  reset()
+   ⚙️  compute(float target, float measurement, float dt)
+   ⚙️  clamp(float v, float lo, float hi)
 
-🧩 📄 include/managers/MicManager.h
-   🧱 class MicManager
-      └── isOnline()
-   🧱 struct Level
-      (no in-class method bodies detected)
-   ⚙️  isOnline()
-
-🧩 📄 include/managers/PwmManager.h
-   🧱 class PwmManager
-      ├── registerChannel(int ch, int pin, int ledcChannel, float defaultFreq = 50.0f)
-      ├── set(int ch, float duty, float freq=0.0f)
-      └── exists(int ch)
-   ⚙️  registerChannel(int ch, int pin, int ledcChannel, float defaultFreq = 50.0f)
-   ⚙️  set(int ch, float duty, float freq=0.0f)
-   ⚙️  exists(int ch)
-
-🧩 📄 include/managers/ServoManager.h
+🧩 📄 include/motor/ServoManager.h
    🧱 class ServoManager
       ├── attach(int servoId, int pin, int minUs = 500, int maxUs = 2500)
       ├── detach(int servoId)
@@ -423,8 +586,19 @@ Total Files: 94
    ⚙️  setAngle(int servoId, float angleDeg)
    ⚙️  setOffset(float offsetDeg)
    ⚙️  setScale(float scale)
+   🧱 class ServoManager
+      ├── attach(int, int, int = 500, int = 2500)
+      ├── detach(int)
+      ├── setAngle(int, float)
+      ├── setOffset(float)
+      └── setScale(float)
+   ⚙️  attach(int, int, int = 500, int = 2500)
+   ⚙️  detach(int)
+   ⚙️  setAngle(int, float)
+   ⚙️  setOffset(float)
+   ⚙️  setScale(float)
 
-🧩 📄 include/managers/StepperManager.h
+🧩 📄 include/motor/StepperManager.h
    🧱 struct StepperConfig
       (no in-class method bodies detected)
    🧱 struct StepperState
@@ -458,8 +632,109 @@ Total Files: 94
    ⚙️  dumpAllStepperMappings()
    ⚙️  getState(int motorId)
    ⚙️  getState(int motorId)
+   🧱 class StepperManager
+      ├── StepperManager(GpioManager&)
+      ├── registerStepper(int, int, int, int = -1, bool = false)
+      ├── setEnabled(int, bool)
+      ├── moveRelative(int, int, float = 1000.0f)
+      ├── stop(int)
+      ├── getStepperDebugInfo(int, StepperDebugInfo&)
+      └── dumpAllStepperMappings()
+   🧱 struct StepperDebugInfo
+      (no in-class method bodies detected)
+   ⚙️  StepperManager(GpioManager&)
+   ⚙️  registerStepper(int, int, int, int = -1, bool = false)
+   ⚙️  setEnabled(int, bool)
+   ⚙️  moveRelative(int, int, float = 1000.0f)
+   ⚙️  stop(int)
+   ⚙️  getStepperDebugInfo(int, StepperDebugInfo&)
+   ⚙️  dumpAllStepperMappings()
 
-🧩 📄 include/managers/UltrasonicManager.h
+🧩 📄 include/sensor/EncoderManager.h
+   🧱 class EncoderManager
+      └── isAttached(uint8_t id)
+   🧱 struct Encoder
+      (no in-class method bodies detected)
+   ⚙️  isAttached(uint8_t id)
+   🧱 class EncoderManager
+      ├── attach(uint8_t, uint8_t, uint8_t)
+      ├── getCount(uint8_t)
+      ├── reset(uint8_t)
+      ├── handleA(uint8_t)
+      ├── handleB(uint8_t)
+      └── isAttached(uint8_t)
+   🧱 struct Encoder
+      (no in-class method bodies detected)
+   ⚙️  attach(uint8_t, uint8_t, uint8_t)
+   ⚙️  getCount(uint8_t)
+   ⚙️  reset(uint8_t)
+   ⚙️  handleA(uint8_t)
+   ⚙️  handleB(uint8_t)
+   ⚙️  isAttached(uint8_t)
+   ⚙️  getGlobalEncoderManager()
+
+🧩 📄 include/sensor/I2CBusManager.h
+   🧱 class I2CBusManager
+      ├── begin(int sda_pin, int scl_pin, uint32_t freq_hz = 400000)
+      ├── registerDevice(const std::string& name, uint8_t address)
+      ├── addr(const std::string& name)
+      └── bus()
+   ⚙️  begin(int sda_pin, int scl_pin, uint32_t freq_hz = 400000)
+   ⚙️  registerDevice(const std::string& name, uint8_t address)
+   ⚙️  addr(const std::string& name)
+   ⚙️  bus()
+
+🧩 📄 include/sensor/ImuManager.h
+   🧱 class ImuManager
+      └── isOnline()
+   🧱 struct Sample
+      (no in-class method bodies detected)
+   ⚙️  isOnline()
+   🧱 class ImuManager
+      ├── begin(int, int, uint8_t = 0x68)
+      ├── isOnline()
+      └── readSample(Sample&)
+   🧱 struct Sample
+      (no in-class method bodies detected)
+   ⚙️  begin(int, int, uint8_t = 0x68)
+   ⚙️  isOnline()
+   ⚙️  readSample(Sample&)
+
+🧩 📄 include/sensor/LidarManager.h
+   🧱 class LidarManager
+      └── isOnline()
+   🧱 struct Sample
+      (no in-class method bodies detected)
+   ⚙️  isOnline()
+   🧱 class LidarManager
+      ├── begin(uint8_t, uint8_t, uint8_t = DEFAULT_ADDR)
+      ├── isOnline()
+      └── readSample(Sample&)
+   🧱 struct Sample
+      (no in-class method bodies detected)
+   ⚙️  begin(uint8_t, uint8_t, uint8_t = DEFAULT_ADDR)
+   ⚙️  isOnline()
+   ⚙️  readSample(Sample&)
+
+🧩 📄 include/sensor/LimitSwitchManagr.h
+   🧱 struct LimitSwitchConfig
+      (no in-class method bodies detected)
+   🧱 class LimitSwitchManager
+      ├── addSwitch(const LimitSwitchConfig& cfg)
+      └── poll()
+   ⚙️  addSwitch(const LimitSwitchConfig& cfg)
+   ⚙️  poll()
+   🧱 struct SwitchState
+      (no in-class method bodies detected)
+
+🧩 📄 include/sensor/MicManager.h
+   🧱 class MicManager
+      └── isOnline()
+   🧱 struct Level
+      (no in-class method bodies detected)
+   ⚙️  isOnline()
+
+🧩 📄 include/sensor/UltrasonicManager.h
    🧱 class UltrasonicManager
       ├── attach(uint8_t id, int trigPin, int echoPin)
       ├── isAttached(uint8_t id)
@@ -469,27 +744,40 @@ Total Files: 94
    ⚙️  attach(uint8_t id, int trigPin, int echoPin)
    ⚙️  isAttached(uint8_t id)
    ⚙️  readDistanceCm(uint8_t id)
-
-🧩 📄 include/modules/ControlModule.h
-   ⚙️  signals()
-   ⚙️  kernel()
-   ⚙️  observers()
-   ⚙️  signals()
-   ⚙️  kernel()
-   ⚙️  observers()
-
-🧩 📄 include/modules/HearbeatModule.h
-   ⚙️  bus_(bus)
-
-🧩 📄 include/modules/LoggingModule.h
-   ⚙️  instance()
-   ⚙️  currentLevel()
-
-🧩 📄 include/modules/TelemetryModule.h
-   🧱 struct JsonProvider
+   🧱 class UltrasonicManager
+      ├── attach(uint8_t, int, int)
+      ├── isAttached(uint8_t)
+      └── readDistanceCm(uint8_t)
+   🧱 struct Sensor
       (no in-class method bodies detected)
-   🧱 struct BinProvider
-      (no in-class method bodies detected)
+   ⚙️  attach(uint8_t, int, int)
+   ⚙️  isAttached(uint8_t)
+   ⚙️  readDistanceCm(uint8_t)
+
+🧩 📄 include/transport/BleTransport.h
+   ⚙️  name_(deviceName)
+   ⚙️  Protocol::extractFrames(rxBuffer_,
+                [this](const uint8_t* frame, size_t len)
+   ⚙️  BleTransport(const char*)
+
+🧩 📄 include/transport/MqttTransport.h
+   ⚙️  setFrameHandler(FrameCallback cb)
+   ⚙️  isConnected()
+   ⚙️  MqttTransport(const char*, uint16_t, const char*, const char* = nullptr, const char* = nullptr)
+   ⚙️  isConnected()
+
+🧩 📄 include/transport/MultiTransport.h
+   ⚙️  addTransport(ITransport* t)
+
+🧩 📄 include/transport/UartTransport.h
+   ⚙️  Protocol::extractFrames(rxBuffer_, [this](const uint8_t* frame, size_t len)
+   ⚙️  UartTransport(HardwareSerial&, uint32_t)
+
+🧩 📄 include/transport/WifiTransport.h
+   ⚙️  port_(port)
+   ⚙️  Protocol::extractFrames(rxBuffer_,
+            [this](const uint8_t* frame, size_t len)
+   ⚙️  WifiTransport(uint16_t)
 
 🧩 📄 src/audio/AudioGraphManager.cpp
    ⚙️  AudioGraphManager::attach(EventBus* bus, CommandHandler* cmd)
@@ -508,11 +796,12 @@ Total Files: 94
    ⚙️  designLowShelf(float sr, float freq, float Q, float db)
    ⚙️  designHighShelf(float sr, float freq, float Q, float db)
 
-🧩 📄 src/core/CommandHandler.cpp
+🧩 📄 src/command/CommandHandler.cpp
    ⚙️  CommandHandler::setup()
    ⚙️  CommandHandler::handleEventStatic(const Event& evt)
    ⚙️  CommandHandler::handleEvent(const Event& evt)
    ⚙️  CommandHandler::onJsonCommand(const std::string& jsonStr)
+   ⚙️  CommandHandler::onBinaryCommand(const std::vector<uint8_t>& binData)
    ⚙️  CommandHandler::tryReplayAck(CmdType cmdType, uint32_t seq)
    ⚙️  CommandHandler::storeAck(CmdType cmdType, uint32_t seq, const std::string& ackJson)
    ⚙️  CommandHandler::publishJson(std::string&& out)
@@ -578,8 +867,35 @@ Total Files: 94
    ⚙️  CommandHandler::handleObserverStatus(JsonVariantConst payload)
    ⚙️  CommandHandler::handleCtrlSignalsClear(JsonVariantConst payload)
    ⚙️  CommandHandler::handleCtrlSignalDelete(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleCtrlSlotGetParam(JsonVariantConst payload)
 
-🧩 📄 src/core/ControlKernel.cpp
+🧩 📄 src/command/MessageRouter.cpp
+   ⚙️  MessageRouter::setup()
+   ⚙️  MessageRouter::loop()
+   ⚙️  MessageRouter::onEventStatic(const Event& evt)
+   ⚙️  MessageRouter::onFrame(const uint8_t* frame, size_t len)
+   ⚙️  MessageRouter::onEvent(const Event& evt)
+   ⚙️  MessageRouter::sendSimple(uint8_t msgType)
+   ⚙️  MessageRouter::sendVersionResponse()
+
+🧩 📄 src/command/ModeManager.cpp
+   ⚙️  robotModeToString(RobotMode m)
+   ⚙️  ModeManager::begin()
+   ⚙️  ModeManager::update(uint32_t now_ms)
+   ⚙️  ModeManager::readHardwareInputs()
+   ⚙️  ModeManager::onHostHeartbeat(uint32_t now_ms)
+   ⚙️  ModeManager::onMotionCommand(uint32_t now_ms)
+   ⚙️  ModeManager::canTransition(RobotMode from, RobotMode to)
+   ⚙️  ModeManager::arm()
+   ⚙️  ModeManager::activate()
+   ⚙️  ModeManager::deactivate()
+   ⚙️  ModeManager::disarm()
+   ⚙️  ModeManager::estop()
+   ⚙️  ModeManager::clearEstop()
+   ⚙️  ModeManager::validateVelocity(float vx, float omega, float& out_vx, float& out_omega)
+   ⚙️  ModeManager::triggerStop()
+
+🧩 📄 src/control/ControlKernel.cpp
    ⚙️  ControlKernel::getSlot_(uint8_t slot)
    ⚙️  ControlKernel::getSlot_(uint8_t slot)
    ⚙️  ControlKernel::ensureSlot_(uint8_t slot)
@@ -615,127 +931,14 @@ Total Files: 94
    ⚙️  StateSpaceController::setOutputLimits(uint8_t idx, float min_val, float max_val)
    ⚙️  StateSpaceController::setIntegralLimits(uint8_t idx, float min_val, float max_val)
    ⚙️  StateSpaceController::setFeedbackMode(bool error_based)
+   ⚙️  ControlKernel::getParam(uint8_t slot, const char* key, float& value)
+   ⚙️  ControlWatchdog::beginSlot(uint8_t slot, uint32_t now_ms)
+   ⚙️  ControlWatchdog::endSlot(uint8_t slot, uint32_t now_ms)
+   ⚙️  ControlWatchdog::check(uint32_t now_ms)
+   ⚙️  ControlWatchdog::getMaxExecTime(uint8_t slot)
+   ⚙️  ControlWatchdog::resetStats()
 
-🧩 📄 src/core/ControlModule.cpp
-   ⚙️  ControlModule::setup()
-   ⚙️  ControlModule::loop(uint32_t now_ms)
-   ⚙️  ControlModule::handleEvent(const Event& evt)
-
-🧩 📄 src/core/EncoderManager.cpp
-   ⚙️  getGlobalEncoderManager()
-   ⚙️  EncoderManager::attach(uint8_t id, uint8_t pinA, uint8_t pinB)
-   ⚙️  EncoderManager::getCount(uint8_t id)
-   ⚙️  EncoderManager::reset(uint8_t id)
-   ⚙️  EncoderManager::handleA(uint8_t id)
-   ⚙️  EncoderManager::handleB(uint8_t id)
-
-🧩 📄 src/core/IdentityModule.cpp
-   ⚙️  IdentityModule::setup()
-   ⚙️  IdentityModule::loop(uint32_t)
-   ⚙️  IdentityModule::onEventStatic(const Event& evt)
-   ⚙️  publishIdentity(EventBus& bus)
-   ⚙️  IdentityModule::handleEvent(const Event& evt)
-
-🧩 📄 src/core/ImuManager.cpp
-   ⚙️  ImuManager::begin(int sdaPin, int sclPin, uint8_t addr)
-   ⚙️  ImuManager::writeByte(uint8_t reg, uint8_t value)
-   ⚙️  ImuManager::readByte(uint8_t reg)
-   ⚙️  ImuManager::readBytes(uint8_t startReg, uint8_t* buffer, size_t length)
-   ⚙️  ImuManager::readSample(Sample& out)
-
-🧩 📄 src/core/LidarManager.cpp
-   ⚙️  LidarManager::begin(uint8_t sdaPin, uint8_t sclPin, uint8_t addr)
-   ⚙️  LidarManager::readSample(Sample& out)
-
-🧩 📄 src/core/LoggingModule.cpp
-   ⚙️  LoggingModule::setup()
-   ⚙️  LoggingModule::loop(uint32_t)
-   ⚙️  LoggingModule::onEventStatic(const Event& evt)
-   ⚙️  LoggingModule::handleEvent(const Event& evt)
-   ⚙️  LoggingModule::setLogLevel(const char* levelStr)
-   ⚙️  LoggingModule::parseLevel(const char* s)
-   ⚙️  LoggingModule::sendLog(const char* level,
-                            const char* tag,
-                            const char* msg,
-                            uint32_t ts_ms)
-   ⚙️  LoggingModule::sendLogJson(const char* level,
-                                const char* tag,
-                                const std::string& json,
-                                uint32_t ts_ms)
-
-🧩 📄 src/core/LoopRates.cpp
-   ⚙️  getLoopRates()
-   ⚙️  clampHz(uint16_t& hz, uint16_t lo, uint16_t hi)
-
-🧩 📄 src/core/McuHost.cpp
-   ⚙️  MCUHost::addModule(IModule* module)
-   ⚙️  MCUHost::setup()
-   ⚙️  MCUHost::loop(uint32_t now_ms)
-   ⚙️  MCUHost::onEventStatic(const Event& evt)
-   ⚙️  MCUHost::onEvent(const Event& evt)
-   ⚙️  MCUHost::runSafety(uint32_t now_ms)
-
-🧩 📄 src/core/MessageRouter.cpp
-   ⚙️  MessageRouter::setup()
-   ⚙️  MessageRouter::loop()
-   ⚙️  MessageRouter::onEventStatic(const Event& evt)
-   ⚙️  MessageRouter::onFrame(const uint8_t* frame, size_t len)
-   ⚙️  MessageRouter::onEvent(const Event& evt)
-   ⚙️  MessageRouter::sendSimple(uint8_t msgType)
-   ⚙️  MessageRouter::sendVersionResponse()
-
-🧩 📄 src/core/MicManager.cpp
-   ⚙️  MicManager::begin(gpio_num_t wsPin,
-                       gpio_num_t sckPin,
-                       gpio_num_t sdPin,
-                       i2s_port_t port)
-   ⚙️  MicManager::readLevel(Level& outLevel, size_t sampleCount)
-
-🧩 📄 src/core/ModeManager.cpp
-   ⚙️  robotModeToString(RobotMode m)
-   ⚙️  ModeManager::begin()
-   ⚙️  ModeManager::update(uint32_t now_ms)
-   ⚙️  ModeManager::readHardwareInputs()
-   ⚙️  ModeManager::onHostHeartbeat(uint32_t now_ms)
-   ⚙️  ModeManager::onMotionCommand(uint32_t now_ms)
-   ⚙️  ModeManager::canTransition(RobotMode from, RobotMode to)
-   ⚙️  ModeManager::arm()
-   ⚙️  ModeManager::activate()
-   ⚙️  ModeManager::deactivate()
-   ⚙️  ModeManager::disarm()
-   ⚙️  ModeManager::estop()
-   ⚙️  ModeManager::clearEstop()
-   ⚙️  ModeManager::validateVelocity(float vx, float omega, float& out_vx, float& out_omega)
-   ⚙️  ModeManager::triggerStop()
-
-🧩 📄 src/core/MotionController.cpp
-   ⚙️  baseEnabled_(false)
-   ⚙️  MotionController::setVelocity(float vx, float omega)
-   ⚙️  MotionController::stop()
-   ⚙️  MotionController::vx()
-   ⚙️  MotionController::omega()
-   ⚙️  MotionController::setAccelLimits(float maxLinAccel, float maxAngAccel)
-   ⚙️  MotionController::setBaseEnabled(bool enabled)
-   ⚙️  MotionController::setServoTarget(uint8_t servoId,
-                                      float angleDeg,
-                                      uint32_t durationMs)
-   ⚙️  MotionController::setServoImmediate(uint8_t servoId, float angleDeg)
-   ⚙️  MotionController::moveStepperRelative(int motorId,
-                                           int steps,
-                                           float speedStepsPerSec)
-   ⚙️  MotionController::enableStepper(int motorId, bool enabled)
-   ⚙️  MotionController::update(float dt)
-
-🧩 📄 src/core/MqttTransport.cpp
-   ⚙️  password_(password ? password : "")
-   ⚙️  MqttTransport::begin()
-   ⚙️  MqttTransport::loop()
-   ⚙️  MqttTransport::reconnect()
-   ⚙️  MqttTransport::onMessage(char* topic, uint8_t* payload, unsigned int length)
-   ⚙️  MqttTransport::sendBytes(const uint8_t* data, size_t len)
-   ⚙️  MqttTransport::publishDiscoveryResponse()
-
-🧩 📄 src/core/Observer.cpp
+🧩 📄 src/control/Observer.cpp
    ⚙️  LuenbergerObserver::configure(uint8_t num_states, uint8_t num_inputs, uint8_t num_outputs)
    ⚙️  LuenbergerObserver::update(const float* u, const float* y, float dt, float* x_hat_out)
    ⚙️  LuenbergerObserver::reset()
@@ -759,29 +962,34 @@ Total Files: 94
    ⚙️  ObserverManager::resetAll()
    ⚙️  ObserverManager::disableAll()
 
-🧩 📄 src/core/SignalBus.cpp
+🧩 📄 src/control/SignalBus.cpp
    ⚙️  SignalBus::indexOf_(uint16_t id)
    ⚙️  SignalBus::define(uint16_t id, const char* name, Kind kind, float initial)
    ⚙️  SignalBus::exists(uint16_t id)
    ⚙️  SignalBus::set(uint16_t id, float v, uint32_t now_ms)
+   ⚙️  SignalBus::setWithRateLimit(uint16_t id, float v, uint32_t now_ms)
+   ⚙️  SignalBus::setGlobalRateLimit(uint32_t min_interval_ms, uint16_t max_updates_per_sec)
    ⚙️  SignalBus::get(uint16_t id, float& out)
    ⚙️  SignalBus::getTimestamp(uint16_t id, uint32_t& out)
    ⚙️  SignalBus::remove(uint16_t id)
    ⚙️  SignalBus::find(uint16_t id)
+   ⚙️  SignalBus::createAlias(uint16_t id, const char* alias)
+   ⚙️  SignalBus::removeAlias(const char* alias)
+   ⚙️  SignalBus::resolveId(const char* name)
+   ⚙️  SignalBus::getByName(const char* name, float& out)
+   ⚙️  SignalBus::setByName(const char* name, float v, uint32_t now_ms)
 
-🧩 📄 src/core/TelemetryModule.cpp
-   ⚙️  bus_(bus)
-   ⚙️  TelemetryModule::setup()
-   ⚙️  TelemetryModule::loop(uint32_t now_ms)
-   ⚙️  TelemetryModule::setInterval(uint32_t intervalMs)
-   ⚙️  TelemetryModule::registerProvider(const char* name, JsonProviderFn fn)
-   ⚙️  TelemetryModule::registerBinProvider(uint8_t section_id, BinProviderFn fn)
-   ⚙️  TelemetryModule::setBinaryEnabled(bool en)
-   ⚙️  TelemetryModule::setJsonEnabled(bool en)
-   ⚙️  TelemetryModule::put_u8(std::vector<uint8_t>& b, uint8_t v)
-   ⚙️  TelemetryModule::put_u16(std::vector<uint8_t>& b, uint16_t v)
-   ⚙️  TelemetryModule::put_u32(std::vector<uint8_t>& b, uint32_t v)
-   ⚙️  TelemetryModule::sendTelemetry(uint32_t now_ms)
+🧩 📄 src/core/LoopRates.cpp
+   ⚙️  getLoopRates()
+   ⚙️  clampHz(uint16_t& hz, uint16_t lo, uint16_t hi)
+
+🧩 📄 src/core/McuHost.cpp
+   ⚙️  MCUHost::addModule(IModule* module)
+   ⚙️  MCUHost::setup()
+   ⚙️  MCUHost::loop(uint32_t now_ms)
+   ⚙️  MCUHost::onEventStatic(const Event& evt)
+   ⚙️  MCUHost::onEvent(const Event& evt)
+   ⚙️  MCUHost::runSafety(uint32_t now_ms)
 
 🧩 📄 src/main.cpp
    ⚙️  setupWifiDualMode()
@@ -795,6 +1003,101 @@ Total Files: 94
    ⚙️  runSafetyLoop(uint32_t now_ms)
    ⚙️  setup()
    ⚙️  loop()
+
+🧩 📄 src/module/ControlModule.cpp
+   ⚙️  ControlModule::setup()
+   ⚙️  ControlModule::loop(uint32_t now_ms)
+   ⚙️  ControlModule::handleEvent(const Event& evt)
+
+🧩 📄 src/module/IdentityModule.cpp
+   ⚙️  IdentityModule::setup()
+   ⚙️  IdentityModule::loop(uint32_t)
+   ⚙️  IdentityModule::onEventStatic(const Event& evt)
+   ⚙️  publishIdentity(EventBus& bus)
+   ⚙️  IdentityModule::handleEvent(const Event& evt)
+
+🧩 📄 src/module/LoggingModule.cpp
+   ⚙️  LoggingModule::setup()
+   ⚙️  LoggingModule::loop(uint32_t)
+   ⚙️  LoggingModule::onEventStatic(const Event& evt)
+   ⚙️  LoggingModule::handleEvent(const Event& evt)
+   ⚙️  LoggingModule::setLogLevel(const char* levelStr)
+   ⚙️  LoggingModule::parseLevel(const char* s)
+   ⚙️  LoggingModule::sendLog(const char* level,
+                            const char* tag,
+                            const char* msg,
+                            uint32_t ts_ms)
+   ⚙️  LoggingModule::sendLogJson(const char* level,
+                                const char* tag,
+                                const std::string& json,
+                                uint32_t ts_ms)
+
+🧩 📄 src/module/TelemetryModule.cpp
+   ⚙️  bus_(bus)
+   ⚙️  TelemetryModule::setup()
+   ⚙️  TelemetryModule::loop(uint32_t now_ms)
+   ⚙️  TelemetryModule::setInterval(uint32_t intervalMs)
+   ⚙️  TelemetryModule::registerProvider(const char* name, JsonProviderFn fn)
+   ⚙️  TelemetryModule::registerBinProvider(uint8_t section_id, BinProviderFn fn)
+   ⚙️  TelemetryModule::setBinaryEnabled(bool en)
+   ⚙️  TelemetryModule::setJsonEnabled(bool en)
+   ⚙️  TelemetryModule::put_u8(std::vector<uint8_t>& b, uint8_t v)
+   ⚙️  TelemetryModule::put_u16(std::vector<uint8_t>& b, uint16_t v)
+   ⚙️  TelemetryModule::put_u32(std::vector<uint8_t>& b, uint32_t v)
+   ⚙️  TelemetryModule::sendTelemetry(uint32_t now_ms)
+
+🧩 📄 src/motor/MotionController.cpp
+   ⚙️  baseEnabled_(false)
+   ⚙️  MotionController::setVelocity(float vx, float omega)
+   ⚙️  MotionController::stop()
+   ⚙️  MotionController::vx()
+   ⚙️  MotionController::omega()
+   ⚙️  MotionController::setAccelLimits(float maxLinAccel, float maxAngAccel)
+   ⚙️  MotionController::setBaseEnabled(bool enabled)
+   ⚙️  MotionController::setServoTarget(uint8_t servoId,
+                                      float angleDeg,
+                                      uint32_t durationMs)
+   ⚙️  MotionController::setServoImmediate(uint8_t servoId, float angleDeg)
+   ⚙️  MotionController::moveStepperRelative(int motorId,
+                                           int steps,
+                                           float speedStepsPerSec)
+   ⚙️  MotionController::enableStepper(int motorId, bool enabled)
+   ⚙️  MotionController::update(float dt)
+
+🧩 📄 src/sensor/EncoderManager.cpp
+   ⚙️  getGlobalEncoderManager()
+   ⚙️  EncoderManager::attach(uint8_t id, uint8_t pinA, uint8_t pinB)
+   ⚙️  EncoderManager::getCount(uint8_t id)
+   ⚙️  EncoderManager::reset(uint8_t id)
+   ⚙️  EncoderManager::handleA(uint8_t id)
+   ⚙️  EncoderManager::handleB(uint8_t id)
+
+🧩 📄 src/sensor/ImuManager.cpp
+   ⚙️  ImuManager::begin(int sdaPin, int sclPin, uint8_t addr)
+   ⚙️  ImuManager::writeByte(uint8_t reg, uint8_t value)
+   ⚙️  ImuManager::readByte(uint8_t reg)
+   ⚙️  ImuManager::readBytes(uint8_t startReg, uint8_t* buffer, size_t length)
+   ⚙️  ImuManager::readSample(Sample& out)
+
+🧩 📄 src/sensor/LidarManager.cpp
+   ⚙️  LidarManager::begin(uint8_t sdaPin, uint8_t sclPin, uint8_t addr)
+   ⚙️  LidarManager::readSample(Sample& out)
+
+🧩 📄 src/sensor/MicManager.cpp
+   ⚙️  MicManager::begin(gpio_num_t wsPin,
+                       gpio_num_t sckPin,
+                       gpio_num_t sdPin,
+                       i2s_port_t port)
+   ⚙️  MicManager::readLevel(Level& outLevel, size_t sampleCount)
+
+🧩 📄 src/transport/MqttTransport.cpp
+   ⚙️  password_(password ? password : "")
+   ⚙️  MqttTransport::begin()
+   ⚙️  MqttTransport::loop()
+   ⚙️  MqttTransport::reconnect()
+   ⚙️  MqttTransport::onMessage(char* topic, uint8_t* payload, unsigned int length)
+   ⚙️  MqttTransport::sendBytes(const uint8_t* data, size_t len)
+   ⚙️  MqttTransport::publishDiscoveryResponse()
 
 🧩 📄 test/common/NativeStubs.cpp
    ⚙️  robotModeToString(RobotMode mode)
@@ -876,9 +1179,10 @@ Total Files: 94
    ⚙️  main(int argc, char** argv)
 
 🧩 📄 test/test_command_handler_ack/native_stubs.cpp
-   ⚙️  robotModeToString(RobotMode)
-   ⚙️  ModeManager::onHostHeartbeat(unsigned int)
-   ⚙️  ModeManager::onMotionCommand(unsigned int)
+   ⚙️  getLoopRates()
+   ⚙️  robotModeToString(RobotMode mode)
+   ⚙️  ModeManager::onHostHeartbeat(uint32_t)
+   ⚙️  ModeManager::onMotionCommand(uint32_t)
    ⚙️  ModeManager::validateVelocity(float vx, float omega, float& outVx, float& outOmega)
    ⚙️  ModeManager::arm()
    ⚙️  ModeManager::activate()
@@ -886,12 +1190,48 @@ Total Files: 94
    ⚙️  ModeManager::disarm()
    ⚙️  ModeManager::estop()
    ⚙️  ModeManager::clearEstop()
+   ⚙️  SignalBus::indexOf_(uint16_t id)
+   ⚙️  SignalBus::define(uint16_t id, const char* name, Kind kind, float initial)
+   ⚙️  SignalBus::exists(uint16_t id)
+   ⚙️  SignalBus::set(uint16_t id, float v, uint32_t now_ms)
+   ⚙️  SignalBus::get(uint16_t id, float& out)
+   ⚙️  SignalBus::getTimestamp(uint16_t id, uint32_t& out)
+   ⚙️  SignalBus::remove(uint16_t id)
+   ⚙️  SignalBus::find(uint16_t id)
+   ⚙️  ControlKernel::configureSlot(const SlotConfig& cfg, const char* type)
+   ⚙️  ControlKernel::enableSlot(uint8_t slot, bool enable)
+   ⚙️  ControlKernel::resetSlot(uint8_t slot)
+   ⚙️  ControlKernel::setParam(uint8_t slot, const char* key, float value)
+   ⚙️  ControlKernel::getParam(uint8_t slot, const char* key, float& value)
+   ⚙️  ControlKernel::setParamArray(uint8_t slot, const char* key, const float* values, size_t len)
+   ⚙️  ControlKernel::getConfig(uint8_t slot)
+   ⚙️  ControlKernel::getStatus(uint8_t slot)
+   ⚙️  ControlKernel::step(uint32_t now_ms, float dt_s, SignalBus& signals, bool is_armed, bool is_active)
+   ⚙️  ControlKernel::resetAll()
+   ⚙️  ControlKernel::disableAll()
+   ⚙️  LuenbergerObserver::configure(uint8_t num_states, uint8_t num_inputs, uint8_t num_outputs)
+   ⚙️  LuenbergerObserver::update(const float* u, const float* y, float dt, float* x_hat_out)
+   ⚙️  LuenbergerObserver::reset()
+   ⚙️  LuenbergerObserver::initState(const float* x0)
+   ⚙️  LuenbergerObserver::setState(uint8_t idx, float value)
+   ⚙️  LuenbergerObserver::getState(uint8_t idx)
+   ⚙️  LuenbergerObserver::setA(const float* A, size_t len)
+   ⚙️  LuenbergerObserver::setB(const float* B, size_t len)
+   ⚙️  LuenbergerObserver::setC(const float* C, size_t len)
+   ⚙️  LuenbergerObserver::setL(const float* L, size_t len)
+   ⚙️  LuenbergerObserver::setParam(const char* key, float value)
+   ⚙️  LuenbergerObserver::setParamArray(const char* key, const float* values, size_t len)
+   ⚙️  ObserverManager::configure(uint8_t slot, const ObserverConfig& config, uint16_t rate_hz)
+   ⚙️  ObserverManager::enable(uint8_t slot, bool en)
+   ⚙️  ObserverManager::reset(uint8_t slot)
+   ⚙️  ObserverManager::setParam(uint8_t slot, const char* key, float value)
+   ⚙️  ObserverManager::setParamArray(uint8_t slot, const char* key, const float* values, size_t len)
+   ⚙️  ObserverManager::step(uint32_t now_ms, float dt_s, SignalBus& signals)
+   ⚙️  ObserverManager::getObserver(uint8_t slot)
+   ⚙️  ObserverManager::getSlot(uint8_t slot)
+   ⚙️  ObserverManager::resetAll()
+   ⚙️  ObserverManager::disableAll()
    ⚙️  LoggingModule::setLogLevel(const char* level)
-   ⚙️  EncoderManager::EncoderManager()
-   ⚙️  EncoderManager::attach(uint8_t, uint8_t, uint8_t)
-   ⚙️  EncoderManager::reset(uint8_t)
-   ⚙️  EncoderManager::getCount(uint8_t)
-   ⚙️  bus_(bus)
    ⚙️  TelemetryModule::setup()
    ⚙️  TelemetryModule::loop(uint32_t now_ms)
    ⚙️  TelemetryModule::registerProvider(const char* name, JsonProviderFn fn)
@@ -905,11 +1245,11 @@ Total Files: 94
    ⚙️  MotionController::omega()
    ⚙️  MotionController::setAccelLimits(float maxLinAccel, float maxAngAccel)
    ⚙️  MotionController::setBaseEnabled(bool enabled)
-   ⚙️  MotionController::setServoTarget(uint8_t, float, uint32_t)
-   ⚙️  MotionController::setServoImmediate(uint8_t, float)
-   ⚙️  MotionController::moveStepperRelative(int, int, float)
-   ⚙️  MotionController::enableStepper(int, bool)
-   ⚙️  MotionController::update(float)
+   ⚙️  MotionController::setServoTarget(uint8_t servoId, float angleDeg, uint32_t durationMs)
+   ⚙️  MotionController::setServoImmediate(uint8_t servoId, float angleDeg)
+   ⚙️  MotionController::moveStepperRelative(int motorId, int steps, float speedStepsPerSec)
+   ⚙️  MotionController::enableStepper(int motorId, bool enabled)
+   ⚙️  MotionController::update(float dt)
 
 🧩 📄 test/test_command_handler_ack/test_command_handler_ack.cpp
    ⚙️  MotionController(motors, 0, 1,
@@ -1140,9 +1480,9 @@ Total Files: 94
 ================================================================================
 📊 STATISTICS
 ================================================================================
-Namespaces:       9
-Classes/Structs:  72
+Namespaces:       11
+Classes/Structs:  101
 Enums:            3
-Free Functions:   641
-In-class Methods: 127
+Free Functions:   822
+In-class Methods: 235
 ================================================================================
