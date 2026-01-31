@@ -23,7 +23,7 @@ public:
     }
 
 private:
-    static constexpr uint8_t MAX_HANDLERS = 8;  // adjust if you have more modules
+    static constexpr uint8_t MAX_HANDLERS = 16;  // increased for scalability
 
     Handler  handlers_[MAX_HANDLERS]{};
     uint8_t  handlerCount_ = 0;

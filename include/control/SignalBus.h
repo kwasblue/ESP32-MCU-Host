@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <vector>
 #include <cstring>
+#include <unordered_map>
 
 class SignalBus {
 public:
@@ -82,7 +83,7 @@ public:
     size_t count() const { return signals_.size(); }
     
     // Clear all signals
-    void clear() { signals_.clear(); aliases_.clear(); }
+    void clear() { signals_.clear(); idToIndex_.clear(); aliases_.clear(); }
 
     // -------------------------------------------------------------------------
     // Signal Aliasing - reference signals by name
@@ -105,6 +106,7 @@ public:
 
 private:
     std::vector<SignalDef> signals_;
+    std::unordered_map<uint16_t, size_t> idToIndex_;  // O(1) lookup cache
     int indexOf_(uint16_t id) const;
 
     // Global rate limits

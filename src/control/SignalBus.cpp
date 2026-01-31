@@ -9,46 +9,51 @@
 #include <cstring>
 
 int SignalBus::indexOf_(uint16_t id) const {
-    for (size_t i = 0; i < signals_.size(); i++) {
-        if (signals_[i].id == id) return static_cast<int>(i);
+    // O(1) lookup using cached map
+    auto it = idToIndex_.find(id);
+    if (it != idToIndex_.end()) {
+        return static_cast<int>(it->second);
     }
     return -1;
 }
 
 bool SignalBus::define(uint16_t id, const char* name, Kind kind, float initial) {
-    // Check if already exists - update instead of failing
-    for (auto& d : signals_) {
-        if (d.id == id) {
-            // Update existing signal (idempotent)
-            d.kind = kind;
-            d.value = initial;
-            d.ts_ms = 0;
-            if (name && name[0] != '\0') {
-                strncpy(d.name, name, NAME_MAX_LEN);
-                d.name[NAME_MAX_LEN] = '\0';
-            }
-            return true;
+    // Check if already exists using O(1) lookup
+    auto it = idToIndex_.find(id);
+    if (it != idToIndex_.end()) {
+        // Update existing signal (idempotent)
+        auto& d = signals_[it->second];
+        d.kind = kind;
+        d.value = initial;
+        d.ts_ms = 0;
+        if (name && name[0] != '\0') {
+            strncpy(d.name, name, NAME_MAX_LEN);
+            d.name[NAME_MAX_LEN] = '\0';
         }
+        return true;
     }
-    
+
     // Check capacity (optional safety limit)
     if (signals_.size() >= NAME_MAX_LEN) return false;
-    
+
     // Create new signal
     SignalDef d;
     d.id = id;
     d.kind = kind;
     d.value = initial;
     d.ts_ms = 0;
-    
+
     if (name && name[0] != '\0') {
         strncpy(d.name, name, NAME_MAX_LEN);
         d.name[NAME_MAX_LEN] = '\0';
     } else {
         d.name[0] = '\0';
     }
-    
+
+    // Add to vector and update lookup map
+    size_t newIndex = signals_.size();
     signals_.push_back(d);
+    idToIndex_[id] = newIndex;
     return true;
 }
 
@@ -119,11 +124,23 @@ bool SignalBus::getTimestamp(uint16_t id, uint32_t& out) const {
     return true;
 }
 bool SignalBus::remove(uint16_t id) {
-    int idx = indexOf_(id);
-    if (idx < 0) return false;
-    
+    auto it = idToIndex_.find(id);
+    if (it == idToIndex_.end()) return false;
+
+    size_t idx = it->second;
+
+    // Remove from lookup map
+    idToIndex_.erase(it);
+
     // Erase from vector
     signals_.erase(signals_.begin() + idx);
+
+    // Update indices for all signals after the removed one
+    for (auto& pair : idToIndex_) {
+        if (pair.second > idx) {
+            pair.second--;
+        }
+    }
     return true;
 }
 
