@@ -16,7 +16,8 @@
 #include "transport/BleTransport.h"
 #include "module/IdentityModule.h"
 #include "command/ModeManager.h"
-#include "command/CommandHandler.h"
+#include "command/CommandRegistry.h"
+#include "command/handlers/AllHandlers.h"
 #include "motor/MotionController.h"
 #include "config/PinConfig.h"
 #include "hw/GpioManager.h"
@@ -89,10 +90,8 @@ MotionController g_motionController(
 // Transports
 MultiTransport g_multiTransport;
 
-// Dedicated UART1 for protocol
-HardwareSerial SerialPort(1);          // UART1
-UartTransport  g_uart(Serial, 115200); // protocol over USB Serial
-WifiTransport  g_wifi(3333);           // TCP port
+UartTransport  g_uart(Serial, 115200); // Protocol over USB Serial
+WifiTransport  g_wifi(3333);           // TCP port 3333
 #if HAS_BLE
 BleTransport   g_ble("ESP32-SPP");
 #endif
@@ -104,20 +103,20 @@ MCUHost       g_host(g_bus, &g_router);
 // Telemetry
 TelemetryModule g_telemetry(g_bus);
 
-// Command handler
-CommandHandler g_commandHandler(
-    g_bus,
-    g_modeManager,
-    g_motionController,
-    g_gpioManager,
-    g_pwmManager,
-    g_servoManager,
-    g_stepperManager,
-    g_telemetry,
-    g_ultrasonicManager,
-    g_encoder,
-    g_dcMotorManager
-);
+// Command Registry (replaces monolithic CommandHandler)
+CommandRegistry g_commandRegistry(g_bus, g_modeManager, g_motionController);
+
+// Domain-specific command handlers
+SafetyHandler    g_safetyHandler(g_modeManager);
+MotionHandler    g_motionHandler(g_motionController);
+GpioHandler      g_gpioHandler(g_gpioManager, g_pwmManager);
+ServoHandler     g_servoHandler(g_servoManager, g_motionController);
+StepperHandler   g_stepperHandler(g_stepperManager, g_motionController);
+DcMotorHandler   g_dcMotorHandler(g_dcMotorManager);
+SensorHandler    g_sensorHandler(g_ultrasonicManager, g_encoder);
+TelemetryHandler g_telemetryHandler(g_telemetry);
+ControlHandler   g_controlHandler;
+ObserverHandler  g_observerHandler;
 
 // Modules
 HeartbeatModule g_heartbeat(g_bus);
@@ -273,7 +272,19 @@ void setupTransportsAndRouter() {
     g_multiTransport.addTransport(&g_ble);
 #endif
 
-    g_commandHandler.setup();
+    // Register all command handlers with the registry
+    g_commandRegistry.registerHandler(&g_safetyHandler);
+    g_commandRegistry.registerHandler(&g_motionHandler);
+    g_commandRegistry.registerHandler(&g_gpioHandler);
+    g_commandRegistry.registerHandler(&g_servoHandler);
+    g_commandRegistry.registerHandler(&g_stepperHandler);
+    g_commandRegistry.registerHandler(&g_dcMotorHandler);
+    g_commandRegistry.registerHandler(&g_sensorHandler);
+    g_commandRegistry.registerHandler(&g_telemetryHandler);
+    g_commandRegistry.registerHandler(&g_controlHandler);
+    g_commandRegistry.registerHandler(&g_observerHandler);
+
+    g_commandRegistry.setup();
     g_router.setup();
 
     g_host.setRouterLoop([&]() {
@@ -508,14 +519,7 @@ void runSafetyLoop(uint32_t now_ms) {
 void setup() {
     Serial.begin(115200);
     delay(500);
-    Serial.println("\n[MCU] Booting with UART1 + WiFi (AP+STA)...");
-
-    SerialPort.begin(
-        115200,
-        SERIAL_8N1,
-        Pins::UART1_RX,
-        Pins::UART1_TX
-    );
+    Serial.println("\n[MCU] Booting with USB Serial + WiFi (AP+STA)...");
 
     setupWifiDualMode();
     setupOta();
@@ -529,7 +533,12 @@ void setup() {
     setupTransportsAndRouter();
     setupGpioAndMotors();
     setupTelemetryProviders();
-    g_commandHandler.setControlModule(&g_controlModule);
+
+    // Wire control module to handlers that need it
+    g_controlHandler.setControlModule(&g_controlModule);
+    g_observerHandler.setControlModule(&g_controlModule);
+    g_commandRegistry.setControlModule(&g_controlModule);
+
     g_host.addModule(&g_controlModule);
 
 
