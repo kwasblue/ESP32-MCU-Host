@@ -1,15 +1,41 @@
-# ESP32 MCU Host Firmware
+# MARA Firmware
 
-A modular, configurable firmware for ESP32-based robot control systems. Supports differential drive robots, sensors (IMU, encoders, LIDAR, ultrasonic), and multiple communication transports (USB Serial, WiFi, Bluetooth, MQTT).
+```
+ ███╗   ███╗ █████╗ ██████╗  █████╗
+ ████╗ ████║██╔══██╗██╔══██╗██╔══██╗
+ ██╔████╔██║███████║██████╔╝███████║
+ ██║╚██╔╝██║██╔══██║██╔══██╗██╔══██║
+ ██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██║
+ ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
+ Modular Asynchronous Robotics Architecture
+```
 
-## Features
+**ESP32 Firmware Component**
+
+[![PlatformIO](https://img.shields.io/badge/PlatformIO-ESP32-orange)](https://platformio.org/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+---
+
+## Overview
+
+**MARA** (Modular Asynchronous Robotics Architecture) is a complete robotics control framework consisting of:
+
+| Component | Repository | Description |
+|-----------|------------|-------------|
+| **Firmware** | `ESP32 MCU Host` (this repo) | Real-time motor control, sensor fusion, communication |
+| **Host** | [`robot_host`](../../../Host) | Python async client, telemetry, research tools |
+
+This repository contains the **ESP32 firmware** - a modular, configurable firmware for ESP32-based robot control systems. Supports differential drive robots, sensors (IMU, encoders, LIDAR, ultrasonic), and multiple communication transports (USB Serial, WiFi, Bluetooth, MQTT).
+
+## Key Features
 
 - **Modular Architecture**: Enable/disable features via compile-time flags
 - **Multiple Transports**: USB Serial, WiFi TCP, Bluetooth Classic, MQTT
 - **Motor Control**: DC motors, servos, steppers with motion controller
 - **Sensors**: IMU (MPU6050), encoders, ultrasonic, LIDAR (VL53L0X)
 - **Control System**: Signal bus, PID controllers, state observers
-- **Telemetry**: Binary and JSON telemetry streaming
+- **Telemetry**: Binary and JSON telemetry streaming at 50+ Hz
 - **Safety**: E-STOP, watchdog, connection monitoring
 
 ## Quick Start
@@ -44,6 +70,27 @@ pio device monitor -b 115200
 | `esp32_full` | Everything enabled | ~870KB |
 | `esp32_usb` | Full + USB upload (default) | ~870KB |
 | `esp32_ota` | Full + OTA upload | ~870KB |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         main.cpp                                 │
+├─────────────┬─────────────┬─────────────┬─────────────┬─────────┤
+│  Transport  │   Command   │   Control   │   Module    │   HW    │
+│  Layer      │   Layer     │   Layer     │   Layer     │  Layer  │
+├─────────────┼─────────────┼─────────────┼─────────────┼─────────┤
+│ UartTrans   │ CmdHandler  │ SignalBus   │ Telemetry   │ GPIO    │
+│ WifiTrans   │ MsgRouter   │ CtrlKernel  │ Heartbeat   │ PWM     │
+│ BleTrans    │ ModeManager │ Observer    │ Identity    │ Safety  │
+│ MqttTrans   │             │ PID         │ Logging     │         │
+├─────────────┴─────────────┴─────────────┴─────────────┴─────────┤
+│                         EventBus                                 │
+├─────────────┬─────────────┬─────────────┬─────────────┬─────────┤
+│ DcMotor     │ Servo       │ IMU         │ Encoder     │ Lidar   │
+│ Manager     │ Manager     │ Manager     │ Manager     │ Manager │
+└─────────────┴─────────────┴─────────────┴─────────────┴─────────┘
+```
 
 ## Directory Structure
 
@@ -153,7 +200,7 @@ Define hardware pin assignments:
 
 ## Protocol
 
-The firmware uses a binary framing protocol:
+MARA uses a binary framing protocol for efficient communication:
 
 ```
 [HEADER][LEN_HI][LEN_LO][MSG_TYPE][PAYLOAD...][CHECKSUM]
@@ -196,9 +243,9 @@ pio test -e native -f test_protocol
 pio test -e native -v
 ```
 
-## Python Host Integration
+## MARA Host Integration
 
-This firmware is designed to work with the [robot_host](../../../Host) Python package:
+This firmware is designed to work with the [MARA Host](../../../Host) Python package:
 
 ```python
 from robot_host.transport.serial_transport import SerialTransport
@@ -211,27 +258,6 @@ await client.start()
 await client.arm()
 await client.activate()
 await client.set_vel(vx=0.2, omega=0.0)
-```
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         main.cpp                                 │
-├─────────────┬─────────────┬─────────────┬─────────────┬─────────┤
-│  Transport  │   Command   │   Control   │   Module    │   HW    │
-│  Layer      │   Layer     │   Layer     │   Layer     │  Layer  │
-├─────────────┼─────────────┼─────────────┼─────────────┼─────────┤
-│ UartTrans   │ CmdHandler  │ SignalBus   │ Telemetry   │ GPIO    │
-│ WifiTrans   │ MsgRouter   │ CtrlKernel  │ Heartbeat   │ PWM     │
-│ BleTrans    │ ModeManager │ Observer    │ Identity    │ Safety  │
-│ MqttTrans   │             │ PID         │ Logging     │         │
-├─────────────┴─────────────┴─────────────┴─────────────┴─────────┤
-│                         EventBus                                 │
-├─────────────┬─────────────┬─────────────┬─────────────┬─────────┤
-│ DcMotor     │ Servo       │ IMU         │ Encoder     │ Lidar   │
-│ Manager     │ Manager     │ Manager     │ Manager     │ Manager │
-└─────────────┴─────────────┴─────────────┴─────────────┴─────────┘
 ```
 
 ## Performance

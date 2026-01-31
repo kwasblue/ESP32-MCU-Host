@@ -1,8 +1,12 @@
-# ESP32 MCU Host Architecture
+# MARA Firmware Architecture
+
+**Modular Asynchronous Robotics Architecture - ESP32 Firmware Component**
+
+---
 
 ## Overview
 
-The firmware follows a layered, event-driven architecture with compile-time modularity via feature flags.
+The MARA Firmware follows a layered, event-driven architecture with compile-time modularity via feature flags. This is the ESP32 component of the MARA framework.
 
 ## Layer Diagram
 
