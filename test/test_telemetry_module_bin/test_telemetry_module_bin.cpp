@@ -4,7 +4,7 @@
 
 #include "core/EventBus.h"
 #include "core/Event.h"
-#include "modules/TelemetryModule.h"
+#include "module/TelemetryModule.h"
 
 // ---- capture helper ----
 static bool  g_has_evt = false;

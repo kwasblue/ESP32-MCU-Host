@@ -1,7 +1,7 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-01-29 19:38:00
-Total Files: 90
+Generated: 2026-01-30 18:37:21
+Total Files: 94
 ================================================================================
 
 🧩 📄 include/audio/Biquad.h
@@ -576,6 +576,8 @@ Total Files: 90
    ⚙️  CommandHandler::handleObserverSetParam(JsonVariantConst payload)
    ⚙️  CommandHandler::handleObserverSetParamArray(JsonVariantConst payload)
    ⚙️  CommandHandler::handleObserverStatus(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleCtrlSignalsClear(JsonVariantConst payload)
+   ⚙️  CommandHandler::handleCtrlSignalDelete(JsonVariantConst payload)
 
 🧩 📄 src/core/ControlKernel.cpp
    ⚙️  ControlKernel::getSlot_(uint8_t slot)
@@ -764,6 +766,7 @@ Total Files: 90
    ⚙️  SignalBus::set(uint16_t id, float v, uint32_t now_ms)
    ⚙️  SignalBus::get(uint16_t id, float& out)
    ⚙️  SignalBus::getTimestamp(uint16_t id, uint32_t& out)
+   ⚙️  SignalBus::remove(uint16_t id)
    ⚙️  SignalBus::find(uint16_t id)
 
 🧩 📄 src/core/TelemetryModule.cpp
@@ -982,6 +985,32 @@ Total Files: 90
    ⚙️  test_messages_json_smoke_parse()
    ⚙️  main(int argc, char** argv)
 
+🧩 📄 test/test_observer/test_observer.cpp
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  test_initial_state_is_zero()
+   ⚙️  test_init_state_sets_values()
+   ⚙️  test_reset_clears_state()
+   ⚙️  test_set_matrices()
+   ⚙️  test_set_param_individual()
+   ⚙️  test_dimensions()
+   ⚙️  test_update_runs()
+   ⚙️  test_observer_converges()
+   ⚙️  main(int argc, char** argv)
+
+🧩 📄 test/test_pid_controller/test_pid_controller.cpp
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  test_proportional_only()
+   ⚙️  test_proportional_negative_error()
+   ⚙️  test_integral_accumulates()
+   ⚙️  test_output_clamping()
+   ⚙️  test_output_clamping_negative()
+   ⚙️  test_reset_clears_integrator()
+   ⚙️  test_derivative_opposes_change()
+   ⚙️  test_zero_dt_safe()
+   ⚙️  main(int argc, char** argv)
+
 🧩 📄 test/test_protocol/test_protocol.cpp
    ⚙️  checksum_for(uint16_t length, uint8_t msgType, const uint8_t* payload, size_t payloadLen)
    🧱 struct CapturedFrame
@@ -1073,6 +1102,30 @@ Total Files: 90
    ⚙️  test_valid_velocity_passes()
    ⚙️  main()
 
+🧩 📄 test/test_signal_bus/test_signal_bus.cpp
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  test_define_and_get()
+   ⚙️  test_set_updates_value()
+   ⚙️  test_get_nonexistent_returns_false()
+   ⚙️  test_exists()
+   ⚙️  test_count()
+   ⚙️  test_clear()
+   ⚙️  main(int argc, char** argv)
+
+🧩 📄 test/test_state_space/test_state_space.cpp
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  test_configure_pid_slot()
+   ⚙️  test_enable_disable_slot()
+   ⚙️  test_set_pid_gains()
+   ⚙️  test_reset_slot()
+   ⚙️  test_configure_state_space_slot()
+   ⚙️  test_set_state_space_gains()
+   ⚙️  test_disable_all()
+   ⚙️  test_step_with_signals()
+   ⚙️  main(int argc, char** argv)
+
 🧩 📄 test/test_telemetry_module_bin/test_telemetry_module_bin.cpp
    ⚙️  capture_evt(const Event& evt)
    ⚙️  le_u16(const std::vector<uint8_t>& b, size_t off)
@@ -1090,6 +1143,6 @@ Total Files: 90
 Namespaces:       9
 Classes/Structs:  72
 Enums:            3
-Free Functions:   596
+Free Functions:   641
 In-class Methods: 127
 ================================================================================

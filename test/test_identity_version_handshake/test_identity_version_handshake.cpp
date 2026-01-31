@@ -7,11 +7,11 @@
 #include "core/Event.h"
 
 // Include the module header so we can construct it
-#include "modules/IdentityModule.h"
-#include "core/MultiTransport.h"
+#include "module/IdentityModule.h"
+#include "transport/MultiTransport.h"
 
 // Pull in the implementation directly for native tests (since test_build_src=false)
-#include "../../src/core/IdentityModule.cpp"
+#include "../../src/module/IdentityModule.cpp"
 
 static EventBus bus;
 

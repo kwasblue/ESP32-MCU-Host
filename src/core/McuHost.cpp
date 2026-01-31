@@ -1,7 +1,7 @@
 // src/core/MCUHost.cpp
 
 #include "core/MCUHost.h"
-#include "core/MessageRouter.h"
+#include "command/MessageRouter.h"
 #include "core/LoopScheduler.h"
 #include "core/LoopRates.h"
 #include <Arduino.h>

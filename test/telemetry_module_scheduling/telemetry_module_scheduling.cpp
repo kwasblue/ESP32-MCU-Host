@@ -4,7 +4,7 @@
 
 #include "core/EventBus.h"
 #include "core/Event.h"
-#include "modules/TelemetryModule.h"
+#include "module/TelemetryModule.h"
 
 static int g_bin_pub_count = 0;
 

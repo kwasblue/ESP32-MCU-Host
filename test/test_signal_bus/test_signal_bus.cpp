@@ -1,5 +1,5 @@
 #include <unity.h>
-#include "core/SignalBus.h"
+#include "control/SignalBus.h"
 
 // Include implementation for native build
 #include "../../src/core/SignalBus.cpp"

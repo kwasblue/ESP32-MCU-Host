@@ -4,7 +4,7 @@
 
 #include "core/EventBus.h"
 #include "core/Event.h"
-#include "core/MessageRouter.h"
+#include "command/MessageRouter.h"
 #include "core/Protocol.h"
 #include "test/fakes/FakeTransport.h"
 

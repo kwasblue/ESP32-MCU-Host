@@ -7,11 +7,11 @@
 #include <string>
 
 // Include project headers using include/ as the root (PlatformIO adds include/ to the include path)
-#include "core/ModeManager.h"
-#include "modules/LoggingModule.h"
-#include "modules/TelemetryModule.h"
-#include "managers/EncoderManager.h"
-#include "core/MotionController.h"
+#include "command/ModeManager.h"
+#include "module/LoggingModule.h"
+#include "module/TelemetryModule.h"
+#include "sensor/EncoderManager.h"
+#include "motor/MotionController.h"
 
 // -------------------- robotModeToString --------------------
 // Declared somewhere in your project (ModeManager/State), but implementation lives in MCU build.

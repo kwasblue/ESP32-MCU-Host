@@ -16,6 +16,7 @@ enum MsgType : uint8_t {
     MSG_WHOAMI           = 0x10,
     MSG_TELEMETRY_BIN    = 0x30,
     MSG_CMD_JSON         = 0x50,
+    MSG_CMD_BIN          = 0x51,  // Binary command for high-rate streaming
 };
 
 // -----------------------------------------------------------------------------

@@ -2,9 +2,9 @@
 #include <vector>
 #include <functional>
 
-#include "EventBus.h"
-#include "Event.h"
-#include "IModule.h"
+#include "core/EventBus.h"
+#include "core/Event.h"
+#include "core/IModule.h"
 
 class MessageRouter;  // forward-declare
 

@@ -1,7 +1,7 @@
 // test/test_pid_controller/test_pid_controller.cpp
 
 #include <unity.h>
-#include "core/PID.h"
+#include "motor/PID.h"
 
 static PID pid;
 

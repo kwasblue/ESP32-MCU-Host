@@ -1,6 +1,6 @@
 #pragma once
 #include <cstdint>
-#include "Event.h"
+#include "core/Event.h"
 
 class EventBus {
 public:

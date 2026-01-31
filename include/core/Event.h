@@ -10,13 +10,14 @@ enum class EventType : uint8_t {
     WHOMAI_REQUEST,
     JSON_MESSAGE_RX,
     JSON_MESSAGE_TX,
+    BIN_MESSAGE_RX,       // Binary command received
+    BIN_MESSAGE_TX,
     TELEMETRY_SYSTEM,
     TELEMETRY_MOTION,
-    BIN_MESSAGE_TX,
     TELEMETRY_SERVOS,
-    ESTOP_TRIGGERED,      
-    ESTOP_CLEARED,        
-    MODE_CHANGED,         
+    ESTOP_TRIGGERED,
+    ESTOP_CLEARED,
+    MODE_CHANGED,
 };
 
 struct TelemetrySystemPayload {

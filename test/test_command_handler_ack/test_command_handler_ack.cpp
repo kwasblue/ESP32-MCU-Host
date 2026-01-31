@@ -3,21 +3,21 @@
 
 //#include "fakes/DebugMacros.h"   // must come before Debug.h usage in includes
 #include "core/EventBus.h"
-#include "core/ModeManager.h"
-#include "managers/GpioManager.h"
-#include "managers/PwmManager.h"
-#include "managers/ServoManager.h"
-#include "managers/StepperManager.h"
-#include "managers/UltrasonicManager.h"
-#include "managers/EncoderManager.h"
-#include "managers/DcMotorManager.h"
-#include "modules/TelemetryModule.h"
-#include "core/MotionController.h"
-#include "core/CommandHandler.h"
+#include "command/ModeManager.h"
+#include "hw/GpioManager.h"
+#include "hw/PwmManager.h"
+#include "motor/ServoManager.h"
+#include "motor/StepperManager.h"
+#include "sensor/UltrasonicManager.h"
+#include "sensor/EncoderManager.h"
+#include "motor/DcMotorManager.h"
+#include "module/TelemetryModule.h"
+#include "motor/MotionController.h"
+#include "command/CommandHandler.h"
 
 
 // Include implementation directly so native env doesn't need to compile all src/
-#include "../../src/core/CommandHandler.cpp"
+#include "../../src/command/CommandHandler.cpp"
 
 // ---------------- MotionSpy ----------------
 struct MotionSpy : public MotionController {
@@ -86,7 +86,7 @@ void test_ack_is_cached_and_replayed_on_duplicate_seq() {
     // Must produce MsgKind::CMD and cmdType HEARTBEAT (or another safe cmd)
     std::string cmd = R"({
       "kind":"cmd",
-      "type":"HEARTBEAT",
+      "type":"CMD_HEARTBEAT",
       "seq":42,
       "payload":{}
     })";
@@ -105,7 +105,7 @@ void test_motion_set_vel_calls_motion_controller_once() {
     // Adjust to match your parser and CmdType mapping for SET_VEL
     std::string cmd = R"({
       "kind":"cmd",
-      "type":"SET_VEL",
+      "type":"CMD_SET_VEL",
       "seq":100,
       "payload":{"vx":0.1,"omega":0.2}
     })";

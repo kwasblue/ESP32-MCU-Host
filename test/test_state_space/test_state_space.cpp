@@ -1,6 +1,6 @@
 #include <unity.h>
-#include "core/ControlKernel.h"
-#include "core/SignalBus.h"
+#include "control/ControlKernel.h"
+#include "control/SignalBus.h"
 
 // Include implementations for native build
 #include "../../src/core/ControlKernel.cpp"

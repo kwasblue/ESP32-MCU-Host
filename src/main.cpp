@@ -4,39 +4,39 @@
 
 #include "core/EventBus.h"
 #include "core/MCUHost.h"
-#include "core/MultiTransport.h"
-#include "core/UartTransport.h"
-#include "core/WifiTransport.h"
-#include "core/MessageRouter.h"
+#include "transport/MultiTransport.h"
+#include "transport/UartTransport.h"
+#include "transport/WifiTransport.h"
+#include "command/MessageRouter.h"
 #include "core/LoopRates.h"
 #include "core/LoopScheduler.h"
-#include "modules/HearbeatModule.h"
-#include "modules/LoggingModule.h"
+#include "module/HearbeatModule.h"
+#include "module/LoggingModule.h"
 #include "config/WifiSecrets.h"
-#include "core/BleTransport.h"
-#include "modules/IdentityModule.h"
-#include "core/ModeManager.h"
-#include "core/CommandHandler.h"
-#include "core/MotionController.h"
+#include "transport/BleTransport.h"
+#include "module/IdentityModule.h"
+#include "command/ModeManager.h"
+#include "command/CommandHandler.h"
+#include "motor/MotionController.h"
 #include "config/PinConfig.h"
-#include "managers/GpioManager.h"
-#include "managers/PwmManager.h"
-#include "managers/ServoManager.h"
-#include "managers/StepperManager.h"
-#include "managers/DcMotorManager.h"
+#include "hw/GpioManager.h"
+#include "hw/PwmManager.h"
+#include "motor/ServoManager.h"
+#include "motor/StepperManager.h"
+#include "motor/DcMotorManager.h"
 #include "config/GpioChannelDefs.h"
-#include "modules/TelemetryModule.h"
-#include "managers/UltrasonicManager.h"
-#include "managers/ImuManager.h"
-#include "managers/LidarManager.h"
-#include "managers/EncoderManager.h"
-#include "modules/ControlModule.h"
-#include "core/Observer.h"
+#include "module/TelemetryModule.h"
+#include "sensor/UltrasonicManager.h"
+#include "sensor/ImuManager.h"
+#include "sensor/LidarManager.h"
+#include "sensor/EncoderManager.h"
+#include "module/ControlModule.h"
+#include "control/Observer.h"
 
 // Optional: Control kernel (comment out if not using yet)
-// #include "core/SignalBus.h"
-// #include "core/ControlKernel.h"
-// #include "modules/ControlModule.h"
+// #include "control/SignalBus.h"
+// #include "control/ControlKernel.h"
+// #include "module/ControlModule.h"
 
 // -----------------------------------------------------------------------------
 // WiFi defaults (if WifiSecrets.h not configured)
@@ -93,7 +93,9 @@ MultiTransport g_multiTransport;
 HardwareSerial SerialPort(1);          // UART1
 UartTransport  g_uart(Serial, 115200); // protocol over USB Serial
 WifiTransport  g_wifi(3333);           // TCP port
+#if HAS_BLE
 BleTransport   g_ble("ESP32-SPP");
+#endif
 
 // Router + host
 MessageRouter g_router(g_bus, g_multiTransport);
@@ -267,7 +269,9 @@ void setupSafety() {
 void setupTransportsAndRouter() {
     g_multiTransport.addTransport(&g_uart);
     g_multiTransport.addTransport(&g_wifi);
+#if HAS_BLE
     g_multiTransport.addTransport(&g_ble);
+#endif
 
     g_commandHandler.setup();
     g_router.setup();
@@ -574,7 +578,9 @@ void loop() {
     // Host + router + transports (always run)
     g_host.loop(now_ms);
     g_wifi.loop();
+#if HAS_BLE
     g_ble.loop();
+#endif
 
     // Minimal delay to prevent watchdog issues
     delay(1);

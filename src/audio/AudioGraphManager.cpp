@@ -1,6 +1,6 @@
 // src/audio/AudioGraphManager.cpp
 
-#include "managers/AudioGraphManager.h"
+#include "audio/AudioGraphManager.h"
 #include "audio/DspNodes.h"
 
 #include "core/Debug.h"

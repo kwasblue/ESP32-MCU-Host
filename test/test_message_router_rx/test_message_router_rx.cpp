@@ -5,7 +5,7 @@
 
 #include "core/EventBus.h"
 #include "core/Event.h"
-#include "core/MessageRouter.h"
+#include "command/MessageRouter.h"
 #include "core/Protocol.h"
 #include "fakes/fakeTransport.h"
 #include "support/arduino_stubs.h"

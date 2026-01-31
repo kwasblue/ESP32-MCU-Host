@@ -1,6 +1,6 @@
 #include <unity.h>
-#include "core/Observer.h"
-#include "core/SignalBus.h"
+#include "control/Observer.h"
+#include "control/SignalBus.h"
 
 // Include implementations for native build
 #include "../../src/core/Observer.cpp"
