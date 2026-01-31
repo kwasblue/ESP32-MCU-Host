@@ -20,9 +20,13 @@ static void test_messages_json_smoke_parse() {
     TEST_ASSERT_EQUAL_UINT32(123, msg.seq);
 }
 
-int main(int argc, char** argv) {
-    (void)argc; (void)argv;
-    UNITY_BEGIN();
+void setUp() {}
+void tearDown() {}
+
+#include "../test_runner.h"
+
+void run_tests() {
     RUN_TEST(test_messages_json_smoke_parse);
-    return UNITY_END();
 }
+
+TEST_RUNNER(run_tests)

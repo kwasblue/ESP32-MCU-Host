@@ -255,14 +255,14 @@ void test_extract_leaves_unconsumed_trailing_bytes() {
     TEST_ASSERT_EQUAL_UINT8(0x00, buffer[1]);
 }
 
-// ---------------- Unity runner ----------------
+// ---------------- Cross-platform test runner ----------------
 
-void setup() {}
-void teardown() {}
+void setUp() {}
+void tearDown() {}
 
-int main(int argc, char** argv) {
-    UNITY_BEGIN();
+#include "../test_runner.h"
 
+void run_tests() {
     RUN_TEST(test_encode_builds_expected_frame);
     RUN_TEST(test_extract_single_frame);
     RUN_TEST(test_extract_ignores_noise_before_header);
@@ -271,6 +271,6 @@ int main(int argc, char** argv) {
     RUN_TEST(test_extract_bad_checksum_resyncs_to_next_frame);
     RUN_TEST(test_extract_false_header_invalid_length_does_not_consume_valid_frame);
     RUN_TEST(test_extract_leaves_unconsumed_trailing_bytes);
-
-    return UNITY_END();
 }
+
+TEST_RUNNER(run_tests)

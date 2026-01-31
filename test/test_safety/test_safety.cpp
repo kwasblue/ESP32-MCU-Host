@@ -373,22 +373,22 @@ void test_valid_velocity_passes() {
 }
 
 // -----------------------------------------------------------------------------
-// Main
+// Cross-platform test runner
 // -----------------------------------------------------------------------------
 
-int main() {
-    UNITY_BEGIN();
-    
+#include "../test_runner.h"
+
+void run_tests() {
     // Host timeout
     RUN_TEST(test_host_timeout_triggers_stop);
     RUN_TEST(test_heartbeat_prevents_timeout);
     RUN_TEST(test_no_timeout_before_first_heartbeat);
-    
+
     // Motion timeout
     RUN_TEST(test_motion_timeout_triggers_stop);
     RUN_TEST(test_motion_commands_prevent_timeout);
     RUN_TEST(test_motion_timeout_only_in_active);
-    
+
     // State transitions
     RUN_TEST(test_arm_from_idle);
     RUN_TEST(test_arm_from_disconnected_fails);
@@ -396,18 +396,18 @@ int main() {
     RUN_TEST(test_activate_from_idle_fails);
     RUN_TEST(test_deactivate_triggers_stop);
     RUN_TEST(test_disarm_from_active_triggers_stop);
-    
+
     // E-stop
     RUN_TEST(test_estop_from_active);
     RUN_TEST(test_estop_blocks_arm);
     RUN_TEST(test_clear_estop_returns_to_idle);
     RUN_TEST(test_can_move_states);
-    
+
     // Velocity validation
     RUN_TEST(test_nan_velocity_rejected);
     RUN_TEST(test_inf_velocity_rejected);
     RUN_TEST(test_velocity_clamping);
     RUN_TEST(test_valid_velocity_passes);
-    
-    return UNITY_END();
 }
+
+TEST_RUNNER(run_tests)

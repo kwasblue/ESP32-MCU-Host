@@ -1,4 +1,6 @@
-// include/core/BinaryCommands.h
+// AUTO-GENERATED FILE — DO NOT EDIT BY HAND
+// Generated from BINARY_COMMANDS in platform_schema.py
+//
 // Binary command protocol for high-rate streaming (10x smaller than JSON)
 //
 // Binary commands are compact fixed-format messages for control loops.
@@ -17,7 +19,7 @@ enum class Opcode : uint8_t {
     SET_SIGNAL      = 0x11,  // Set signal: id(u16), value(f32)
     SET_SIGNALS     = 0x12,  // Set multiple signals: count(u8), [id(u16), value(f32)]*
     HEARTBEAT       = 0x20,  // Heartbeat (no payload)
-    STOP            = 0x21,  // Emergency stop (no payload)
+    STOP            = 0x21,  // Stop (no payload)
 };
 
 // -----------------------------------------------------------------------------
@@ -92,7 +94,7 @@ inline DecodeResult decode(const uint8_t* data, size_t len, uint8_t opcode) {
     case Opcode::SET_VEL:
         if (len >= 8) {
             result.opcode = Opcode::SET_VEL;
-            result.set_vel.vx = read_f32_le(data);
+            result.set_vel.vx = read_f32_le(data + 0);
             result.set_vel.omega = read_f32_le(data + 4);
             result.valid = true;
         }
@@ -101,7 +103,7 @@ inline DecodeResult decode(const uint8_t* data, size_t len, uint8_t opcode) {
     case Opcode::SET_SIGNAL:
         if (len >= 6) {
             result.opcode = Opcode::SET_SIGNAL;
-            result.set_signal.id = read_u16_le(data);
+            result.set_signal.id = read_u16_le(data + 0);
             result.set_signal.value = read_f32_le(data + 2);
             result.valid = true;
         }
@@ -153,50 +155,66 @@ inline void parseSignal(const uint8_t* data, uint8_t index, uint16_t& id_out, fl
 
 /**
  * Encode SET_VEL command
- * @param vx Linear velocity
- * @param omega Angular velocity
+ * @param vx Vx
+ * @param omega Omega
  * @param buf Output buffer (must be at least 9 bytes)
  * @return Number of bytes written
  */
 inline size_t encodeSetVel(float vx, float omega, uint8_t* buf) {
     buf[0] = static_cast<uint8_t>(Opcode::SET_VEL);
 
-    uint32_t v;
-    memcpy(&v, &vx, sizeof(v));
-    buf[1] = v & 0xFF;
-    buf[2] = (v >> 8) & 0xFF;
-    buf[3] = (v >> 16) & 0xFF;
-    buf[4] = (v >> 24) & 0xFF;
-
-    memcpy(&v, &omega, sizeof(v));
-    buf[5] = v & 0xFF;
-    buf[6] = (v >> 8) & 0xFF;
-    buf[7] = (v >> 16) & 0xFF;
-    buf[8] = (v >> 24) & 0xFF;
+    uint32_t v_vx;
+    memcpy(&v_vx, &vx, sizeof(v_vx));
+    buf[1] = v_vx & 0xFF;
+    buf[2] = (v_vx >> 8) & 0xFF;
+    buf[3] = (v_vx >> 16) & 0xFF;
+    buf[4] = (v_vx >> 24) & 0xFF;
+    uint32_t v_omega;
+    memcpy(&v_omega, &omega, sizeof(v_omega));
+    buf[5] = v_omega & 0xFF;
+    buf[6] = (v_omega >> 8) & 0xFF;
+    buf[7] = (v_omega >> 16) & 0xFF;
+    buf[8] = (v_omega >> 24) & 0xFF;
 
     return 9;
 }
 
 /**
  * Encode SET_SIGNAL command
- * @param id Signal ID
- * @param value Signal value
+ * @param id Id
+ * @param value Value
  * @param buf Output buffer (must be at least 7 bytes)
  * @return Number of bytes written
  */
 inline size_t encodeSetSignal(uint16_t id, float value, uint8_t* buf) {
     buf[0] = static_cast<uint8_t>(Opcode::SET_SIGNAL);
+
     buf[1] = id & 0xFF;
     buf[2] = (id >> 8) & 0xFF;
-
-    uint32_t v;
-    memcpy(&v, &value, sizeof(v));
-    buf[3] = v & 0xFF;
-    buf[4] = (v >> 8) & 0xFF;
-    buf[5] = (v >> 16) & 0xFF;
-    buf[6] = (v >> 24) & 0xFF;
+    uint32_t v_value;
+    memcpy(&v_value, &value, sizeof(v_value));
+    buf[3] = v_value & 0xFF;
+    buf[4] = (v_value >> 8) & 0xFF;
+    buf[5] = (v_value >> 16) & 0xFF;
+    buf[6] = (v_value >> 24) & 0xFF;
 
     return 7;
+}
+
+/**
+ * Encode HEARTBEAT command (1 byte)
+ */
+inline size_t encodeHeartbeat(uint8_t* buf) {
+    buf[0] = static_cast<uint8_t>(Opcode::HEARTBEAT);
+    return 1;
+}
+
+/**
+ * Encode STOP command (1 byte)
+ */
+inline size_t encodeStop(uint8_t* buf) {
+    buf[0] = static_cast<uint8_t>(Opcode::STOP);
+    return 1;
 }
 
 } // namespace BinaryCommands

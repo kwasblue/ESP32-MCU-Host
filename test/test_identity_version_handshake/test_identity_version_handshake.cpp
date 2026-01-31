@@ -71,8 +71,11 @@ void test_identity_emits_handshake_on_whoami_request() {
     //                          "Protocol version mismatch");
 }
 
-int main(int, char**) {
-    UNITY_BEGIN();
+// Cross-platform test runner
+#include "../test_runner.h"
+
+void run_tests() {
     RUN_TEST(test_identity_emits_handshake_on_whoami_request);
-    return UNITY_END();
 }
+
+TEST_RUNNER(run_tests)

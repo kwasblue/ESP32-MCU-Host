@@ -1,7 +1,7 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-01-30 20:46:55
-Total Files: 96
+Generated: 2026-01-31 08:56:03
+Total Files: 110
 ================================================================================
 
 🧩 📄 include/audio/AudioGraphManager.h
@@ -64,6 +64,27 @@ Total Files: 96
    ⚙️  encodeSetVel(float vx, float omega, uint8_t* buf)
    ⚙️  encodeSetSignal(uint16_t id, float value, uint8_t* buf)
 
+🧩 📄 include/command/CommandContext.h
+   🧱 struct CommandContext
+      ├── sendAck(const char* cmd, bool ok, JsonDocument& resp)
+      ├── sendError(const char* cmd, const char* error)
+      ├── requireIdle(const char* cmdName)
+      ├── requireArmed(const char* cmdName)
+      ├── tryReplayAck(CmdType cmd, uint32_t cmdSeq)
+      ├── storeAck(CmdType cmd, uint32_t cmdSeq, const std::string& ackJson)
+      ├── publishJson(std::string&& out)
+      └── publishJsonCopy(const std::string& out)
+   🧱 struct AckCacheEntry
+      (no in-class method bodies detected)
+   ⚙️  sendAck(const char* cmd, bool ok, JsonDocument& resp)
+   ⚙️  sendError(const char* cmd, const char* error)
+   ⚙️  requireIdle(const char* cmdName)
+   ⚙️  requireArmed(const char* cmdName)
+   ⚙️  tryReplayAck(CmdType cmd, uint32_t cmdSeq)
+   ⚙️  storeAck(CmdType cmd, uint32_t cmdSeq, const std::string& ackJson)
+   ⚙️  publishJson(std::string&& out)
+   ⚙️  publishJsonCopy(const std::string& out)
+
 🧩 📄 include/command/CommandHandler.h
    🧱 class CommandHandler
       └── setControlModule(ControlModule* cm)
@@ -71,6 +92,20 @@ Total Files: 96
    🧱 struct AckCacheEntry
       (no in-class method bodies detected)
    ⚙️  clampHz(uint16_t& hz, uint16_t min_hz, uint16_t max_hz)
+
+🧩 📄 include/command/CommandRegistry.h
+   🧱 class CommandRegistry
+      ├── setControlModule(ControlModule* cm)
+      ├── setMotionController(MotionController* mc)
+      └── context()
+   ⚙️  setControlModule(ControlModule* cm)
+   ⚙️  setMotionController(MotionController* mc)
+   ⚙️  context()
+
+🧩 📄 include/command/ICommandHandler.h
+   🧱 class ICommandHandler
+      └── name()
+   ⚙️  name()
 
 🧩 📄 include/command/MessageRouter.h
    🧱 class MessageRouter
@@ -98,6 +133,88 @@ Total Files: 96
    ⚙️  hostAgeMs(uint32_t now_ms)
    ⚙️  motionAgeMs(uint32_t now_ms)
    ⚙️  onStop(StopCallback cb)
+
+🧩 📄 include/command/handlers/ControlHandler.h
+   ⚙️  setControlModule(ControlModule* cm)
+   ⚙️  handleSignalDefine(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSignalSet(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSignalGet(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSignalsList(CommandContext& ctx)
+   ⚙️  handleSignalDelete(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSignalsClear(CommandContext& ctx)
+   ⚙️  handleSlotConfig(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSlotEnable(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSlotReset(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSlotSetParam(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSlotSetParamArray(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSlotGetParam(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSlotStatus(JsonVariantConst payload, CommandContext& ctx)
+
+🧩 📄 include/command/handlers/DcMotorHandler.h
+   ⚙️  handleSetSpeed(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleStop(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleVelPidEnable(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSetVelTarget(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSetVelGains(JsonVariantConst payload, CommandContext& ctx)
+
+🧩 📄 include/command/handlers/GpioHandler.h
+   ⚙️  handleGpioWrite(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleGpioRead(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleGpioToggle(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleGpioRegister(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handlePwmSet(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleLedOn(CommandContext& ctx)
+   ⚙️  handleLedOff(CommandContext& ctx)
+
+🧩 📄 include/command/handlers/MotionHandler.h
+   ⚙️  handleSetVel(JsonVariantConst payload, CommandContext& ctx)
+
+🧩 📄 include/command/handlers/ObserverHandler.h
+   ⚙️  setControlModule(ControlModule* cm)
+   ⚙️  handleConfig(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleEnable(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleReset(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSetParam(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSetParamArray(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleStatus(JsonVariantConst payload, CommandContext& ctx)
+
+🧩 📄 include/command/handlers/SafetyHandler.h
+   ⚙️  handleHeartbeat(CommandContext& ctx)
+   ⚙️  handleArm(CommandContext& ctx)
+   ⚙️  handleDisarm(CommandContext& ctx)
+   ⚙️  handleActivate(CommandContext& ctx)
+   ⚙️  handleDeactivate(CommandContext& ctx)
+   ⚙️  handleEstop(CommandContext& ctx)
+   ⚙️  handleClearEstop(CommandContext& ctx)
+   ⚙️  handleStop(CommandContext& ctx)
+   ⚙️  handleSetMode(JsonVariantConst payload, CommandContext& ctx)
+
+🧩 📄 include/command/handlers/SensorHandler.h
+   ⚙️  handleUltrasonicAttach(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleUltrasonicRead(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleEncoderAttach(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleEncoderRead(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleEncoderReset(JsonVariantConst payload, CommandContext& ctx)
+
+🧩 📄 include/command/handlers/ServoHandler.h
+   ⚙️  handleAttach(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleDetach(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSetAngle(JsonVariantConst payload, CommandContext& ctx)
+
+🧩 📄 include/command/handlers/StepperHandler.h
+   ⚙️  handleEnable(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleMoveRel(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleStop(JsonVariantConst payload, CommandContext& ctx)
+
+🧩 📄 include/command/handlers/TelemetryHandler.h
+   ⚙️  clampHz(uint16_t& hz, uint16_t min_hz, uint16_t max_hz)
+   ⚙️  telemetry_(telemetry)
+   ⚙️  handleSetInterval(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleGetRates(CommandContext& ctx)
+   ⚙️  handleCtrlSetRate(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSafetySetRate(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleTelemSetRate(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  handleSetLogLevel(JsonVariantConst payload, CommandContext& ctx)
 
 🧩 📄 include/config/CommandDefs.h
    🧾 enum CmdType
@@ -869,6 +986,15 @@ Total Files: 96
    ⚙️  CommandHandler::handleCtrlSignalDelete(JsonVariantConst payload)
    ⚙️  CommandHandler::handleCtrlSlotGetParam(JsonVariantConst payload)
 
+🧩 📄 src/command/CommandRegistry.cpp
+   ⚙️  CommandRegistry::registerHandler(ICommandHandler* handler)
+   ⚙️  CommandRegistry::setup()
+   ⚙️  CommandRegistry::handleEventStatic(const Event& evt)
+   ⚙️  CommandRegistry::handleEvent(const Event& evt)
+   ⚙️  CommandRegistry::findHandler(CmdType cmd)
+   ⚙️  CommandRegistry::onJsonCommand(const std::string& jsonStr)
+   ⚙️  CommandRegistry::onBinaryCommand(const std::vector<uint8_t>& binData)
+
 🧩 📄 src/command/MessageRouter.cpp
    ⚙️  MessageRouter::setup()
    ⚙️  MessageRouter::loop()
@@ -1261,6 +1387,9 @@ Total Files: 96
    ⚙️  injectJson(const std::string& json)
    ⚙️  test_ack_is_cached_and_replayed_on_duplicate_seq()
    ⚙️  test_motion_set_vel_calls_motion_controller_once()
+   ⚙️  test_safety_handler_processes_arm_command()
+   ⚙️  test_registry_finds_correct_handler()
+   ⚙️  test_unknown_command_returns_error()
    ⚙️  main(int argc, char** argv)
    ⚙️  loop()
 
@@ -1481,8 +1610,8 @@ Total Files: 96
 📊 STATISTICS
 ================================================================================
 Namespaces:       11
-Classes/Structs:  101
+Classes/Structs:  105
 Enums:            3
-Free Functions:   822
-In-class Methods: 235
+Free Functions:   906
+In-class Methods: 247
 ================================================================================
