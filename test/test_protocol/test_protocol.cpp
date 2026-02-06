@@ -12,12 +12,17 @@ using Protocol::HEADER;
 
 // ---------------- Helpers ----------------
 
-static uint8_t checksum_for(uint16_t length, uint8_t msgType, const uint8_t* payload, size_t payloadLen) {
-    uint8_t cs = static_cast<uint8_t>((length + msgType) & 0xFF);
-    for (size_t i = 0; i < payloadLen; ++i) {
-        cs = static_cast<uint8_t>(cs + payload[i]);
-    }
-    return cs;
+// CRC16 helper for tests - mirrors Protocol::crc16_ccitt
+static uint16_t crc16_for(uint16_t length, uint8_t msgType, const uint8_t* payload, size_t payloadLen) {
+    uint8_t len_hi = static_cast<uint8_t>((length >> 8) & 0xFF);
+    uint8_t len_lo = static_cast<uint8_t>(length & 0xFF);
+
+    uint16_t crc = 0xFFFF;
+    crc = Protocol::crc16_ccitt_byte(len_hi, crc);
+    crc = Protocol::crc16_ccitt_byte(len_lo, crc);
+    crc = Protocol::crc16_ccitt_byte(msgType, crc);
+    crc = Protocol::crc16_ccitt(payload, payloadLen, crc);
+    return crc;
 }
 
 struct CapturedFrame {
@@ -42,8 +47,8 @@ void test_encode_builds_expected_frame() {
     std::vector<uint8_t> frame;
     Protocol::encode(msgType, payload, payloadLen, frame);
 
-    // Frame size = HEADER(1) + len(2) + msgType(1) + payload + checksum(1)
-    TEST_ASSERT_EQUAL_UINT32((uint32_t)(1 + 2 + 1 + payloadLen + 1), (uint32_t)frame.size());
+    // Frame size = HEADER(1) + len(2) + msgType(1) + payload + crc(2)
+    TEST_ASSERT_EQUAL_UINT32((uint32_t)(1 + 2 + 1 + payloadLen + 2), (uint32_t)frame.size());
     TEST_ASSERT_EQUAL_UINT8(HEADER, frame[0]);
 
     const uint16_t length = static_cast<uint16_t>(1 + payloadLen);
@@ -53,8 +58,9 @@ void test_encode_builds_expected_frame() {
     TEST_ASSERT_EQUAL_UINT8(msgType, frame[3]);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(payload, &frame[4], payloadLen);
 
-    const uint8_t expectedCs = checksum_for(length, msgType, payload, payloadLen);
-    TEST_ASSERT_EQUAL_UINT8(expectedCs, frame[4 + payloadLen]);
+    const uint16_t expectedCrc = crc16_for(length, msgType, payload, payloadLen);
+    TEST_ASSERT_EQUAL_UINT8((expectedCrc >> 8) & 0xFF, frame[4 + payloadLen]);
+    TEST_ASSERT_EQUAL_UINT8(expectedCrc & 0xFF, frame[4 + payloadLen + 1]);
 }
 
 void test_extract_single_frame() {
@@ -255,6 +261,46 @@ void test_extract_leaves_unconsumed_trailing_bytes() {
     TEST_ASSERT_EQUAL_UINT8(0x00, buffer[1]);
 }
 
+void test_crc16_ccitt_known_test_vector() {
+    // Standard CRC16-CCITT test vector: "123456789" should produce 0x29B1
+    // This must match the Python implementation for interoperability
+    const uint8_t data[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
+    uint16_t crc = Protocol::crc16_ccitt(data, sizeof(data));
+    TEST_ASSERT_EQUAL_HEX16(0x29B1, crc);
+}
+
+void test_crc16_empty_input() {
+    // Empty data with initial 0xFFFF should return 0xFFFF
+    uint16_t crc = Protocol::crc16_ccitt(nullptr, 0);
+    TEST_ASSERT_EQUAL_HEX16(0xFFFF, crc);
+}
+
+void test_frame_interop_with_python() {
+    // Verify frame format matches Python implementation
+    // Python: encode(MSG_PING, b"hello") produces frame with specific CRC
+    const uint8_t msgType = Protocol::MSG_PING;  // 0x02
+    const uint8_t payload[] = {'h', 'e', 'l', 'l', 'o'};
+    const size_t payloadLen = sizeof(payload);
+
+    std::vector<uint8_t> frame;
+    Protocol::encode(msgType, payload, payloadLen, frame);
+
+    // Frame should be: AA 00 06 02 68 65 6c 6c 6f D8 39
+    // (Python verified: d839 is the CRC)
+    TEST_ASSERT_EQUAL_UINT32(11, (uint32_t)frame.size());
+    TEST_ASSERT_EQUAL_UINT8(0xAA, frame[0]);      // HEADER
+    TEST_ASSERT_EQUAL_UINT8(0x00, frame[1]);      // len_hi
+    TEST_ASSERT_EQUAL_UINT8(0x06, frame[2]);      // len_lo (1 + 5)
+    TEST_ASSERT_EQUAL_UINT8(0x02, frame[3]);      // MSG_PING
+    TEST_ASSERT_EQUAL_UINT8('h', frame[4]);
+    TEST_ASSERT_EQUAL_UINT8('e', frame[5]);
+    TEST_ASSERT_EQUAL_UINT8('l', frame[6]);
+    TEST_ASSERT_EQUAL_UINT8('l', frame[7]);
+    TEST_ASSERT_EQUAL_UINT8('o', frame[8]);
+    TEST_ASSERT_EQUAL_UINT8(0xD8, frame[9]);      // CRC hi
+    TEST_ASSERT_EQUAL_UINT8(0x39, frame[10]);     // CRC lo
+}
+
 // ---------------- Cross-platform test runner ----------------
 
 void setUp() {}
@@ -271,6 +317,10 @@ void run_tests() {
     RUN_TEST(test_extract_bad_checksum_resyncs_to_next_frame);
     RUN_TEST(test_extract_false_header_invalid_length_does_not_consume_valid_frame);
     RUN_TEST(test_extract_leaves_unconsumed_trailing_bytes);
+    // CRC16 verification tests
+    RUN_TEST(test_crc16_ccitt_known_test_vector);
+    RUN_TEST(test_crc16_empty_input);
+    RUN_TEST(test_frame_interop_with_python);
 }
 
 TEST_RUNNER(run_tests)

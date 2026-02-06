@@ -4,6 +4,12 @@
 #include <cstdint>
 #include <functional>
 
+// ESP32 critical section support
+#ifdef ESP32
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
+#endif
+
 enum class RobotMode : uint8_t {
     BOOT,
     DISCONNECTED,
@@ -28,8 +34,12 @@ struct SafetyConfig {
 class ModeManager {
 public:
     using StopCallback = std::function<void()>;
-    
-    ModeManager() = default;
+
+    ModeManager() {
+#ifdef ESP32
+        spinlock_initialize(&lock_);
+#endif
+    }
     
     void configure(const SafetyConfig& cfg) { cfg_ = cfg; }
     void begin();
@@ -61,21 +71,38 @@ public:
     
     // Callback
     void onStop(StopCallback cb) { stopCallback_ = cb; }
-    
+
+    // Emergency stop callback - called in addition to stopCallback for critical stops
+    // This should directly disable motor PWM, not go through motion controller
+    void onEmergencyStop(StopCallback cb) { emergencyStopCallback_ = cb; }
+
 private:
     SafetyConfig cfg_;
     RobotMode mode_ = RobotMode::BOOT;
     RobotMode lastLoggedMode_ = RobotMode::BOOT;
 
-    
+
     uint32_t lastHostHeartbeat_ = 0;
     uint32_t lastMotionCmd_ = 0;
     bool hostEverSeen_ = false;
     bool bypassed_ = false;
-    
+
     StopCallback stopCallback_;
-    
+    StopCallback emergencyStopCallback_;  // Direct motor disable for E-stop
+
+#ifdef ESP32
+    portMUX_TYPE lock_ = portMUX_INITIALIZER_UNLOCKED;
+
+    void enterCritical() { portENTER_CRITICAL(&lock_); }
+    void exitCritical() { portEXIT_CRITICAL(&lock_); }
+#else
+    // Non-ESP32 (native tests) - no-op
+    void enterCritical() {}
+    void exitCritical() {}
+#endif
+
     void triggerStop();
+    void triggerEmergencyStop();  // Direct motor disable
     void readHardwareInputs();
     bool canTransition(RobotMode from, RobotMode to);
 

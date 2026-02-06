@@ -18,6 +18,7 @@ partitions_ota_big.csv
 .pio/test/
 .clang_complete
 .gcc-flags.json
+.cache/
 
 # ---- MCU auto-generated ----
 PlatformIO/Projects/ESP32 MCU Host/include/config/PinConfig.h
