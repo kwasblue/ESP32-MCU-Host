@@ -220,6 +220,12 @@ void loop() {
         timing.telemetry_us = micros() - t0;
     }
 
+    // Sensor sampling (non-critical, handles own rate limiting)
+    // Ultrasonic samples one sensor per call, spreads blocking across iterations
+    if (g_ctx.ultrasonic) {
+        g_ctx.ultrasonic->loop(now_ms);
+    }
+
     // Host + router + transports (always run)
     {
         uint32_t t0 = micros();

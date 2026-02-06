@@ -10,7 +10,7 @@
 // (i.e., NOT wrapped in `namespace audio` in the header).
 // DSP types are in `namespace audio`.
 
-void AudioGraphManager::attach(EventBus* bus, CommandHandler* cmd) {
+void AudioGraphManager::attach(EventBus* bus, CommandRegistry* cmd) {
     bus_ = bus;
     cmd_ = cmd;
 }

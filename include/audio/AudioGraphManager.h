@@ -5,16 +5,18 @@
 #include <ArduinoJson.h>
 
 #include "core/EventBus.h"
-#include "command/CommandHandler.h"
 
 #include "audio/DspChain.h"
 #include "audio/DspFactory.h"
+
+// Forward declaration
+class CommandRegistry;
 
 class AudioGraphManager {
 public:
     AudioGraphManager() = default;
 
-    void attach(EventBus* bus, CommandHandler* cmd);
+    void attach(EventBus* bus, CommandRegistry* cmd);
     void begin();
 
     void handleChainSet(const JsonObjectConst& msg);
@@ -24,7 +26,7 @@ public:
 
 private:
     EventBus* bus_ = nullptr;
-    CommandHandler* cmd_ = nullptr;
+    CommandRegistry* cmd_ = nullptr;
 
     std::atomic<audio::DspChain*> active_chain_{nullptr};
 

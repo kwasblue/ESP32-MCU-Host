@@ -1,7 +1,7 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-01-31 08:56:03
-Total Files: 110
+Generated: 2026-02-06 17:10:19
+Total Files: 131
 ================================================================================
 
 🧩 📄 include/audio/AudioGraphManager.h
@@ -63,6 +63,8 @@ Total Files: 110
    ⚙️  parseSignal(const uint8_t* data, uint8_t index, uint16_t& id_out, float& value_out)
    ⚙️  encodeSetVel(float vx, float omega, uint8_t* buf)
    ⚙️  encodeSetSignal(uint16_t id, float value, uint8_t* buf)
+   ⚙️  encodeHeartbeat(uint8_t* buf)
+   ⚙️  encodeStop(uint8_t* buf)
 
 🧩 📄 include/command/CommandContext.h
    🧱 struct CommandContext
@@ -115,6 +117,7 @@ Total Files: 110
    🧱 struct SafetyConfig
       (no in-class method bodies detected)
    🧱 class ModeManager
+      ├── ModeManager()
       ├── configure(const SafetyConfig& cfg)
       ├── mode()
       ├── canMove()
@@ -123,7 +126,13 @@ Total Files: 110
       ├── isBypassed()
       ├── hostAgeMs(uint32_t now_ms)
       ├── motionAgeMs(uint32_t now_ms)
-      └── onStop(StopCallback cb)
+      ├── onStop(StopCallback cb)
+      ├── onEmergencyStop(StopCallback cb)
+      ├── enterCritical()
+      ├── exitCritical()
+      ├── enterCritical()
+      └── exitCritical()
+   ⚙️  ModeManager()
    ⚙️  configure(const SafetyConfig& cfg)
    ⚙️  mode()
    ⚙️  canMove()
@@ -133,6 +142,11 @@ Total Files: 110
    ⚙️  hostAgeMs(uint32_t now_ms)
    ⚙️  motionAgeMs(uint32_t now_ms)
    ⚙️  onStop(StopCallback cb)
+   ⚙️  onEmergencyStop(StopCallback cb)
+   ⚙️  enterCritical()
+   ⚙️  exitCritical()
+   ⚙️  enterCritical()
+   ⚙️  exitCritical()
 
 🧩 📄 include/command/handlers/ControlHandler.h
    ⚙️  setControlModule(ControlModule* cm)
@@ -483,9 +497,35 @@ Total Files: 110
 🧩 📄 include/core/EventBus.h
    🧱 class EventBus
       ├── subscribe(Handler h)
-      └── publish(const Event& evt)
+      ├── subscribe(Handler h, EventType type)
+      ├── subscribe(Handler h, EventMask mask)
+      ├── publish(const Event& evt)
+      ├── publishQueued(const Event& evt)
+      ├── drain()
+      ├── queueDepth()
+      ├── queueEmpty()
+      ├── stats()
+      ├── resetStats()
+      ├── handlerCount()
+      ├── eventMask(EventType type)
+      └── dispatchEvent(const Event& evt)
+   🧱 struct Subscription
+      (no in-class method bodies detected)
+   🧱 struct Stats
+      (no in-class method bodies detected)
    ⚙️  subscribe(Handler h)
+   ⚙️  subscribe(Handler h, EventType type)
+   ⚙️  subscribe(Handler h, EventMask mask)
    ⚙️  publish(const Event& evt)
+   ⚙️  publishQueued(const Event& evt)
+   ⚙️  drain()
+   ⚙️  queueDepth()
+   ⚙️  queueEmpty()
+   ⚙️  stats()
+   ⚙️  resetStats()
+   ⚙️  handlerCount()
+   ⚙️  eventMask(EventType type)
+   ⚙️  dispatchEvent(const Event& evt)
 
 🧩 📄 include/core/IModule.h
    🧱 class IModule
@@ -517,6 +557,14 @@ Total Files: 110
    ⚙️  setPeriodMs(uint32_t p)
    ⚙️  tick(uint32_t now_ms)
 
+🧩 📄 include/core/LoopTiming.h
+   📦 namespace mcu
+   🧱 struct LoopTiming
+      ├── updatePeaks()
+      └── reset()
+   ⚙️  updatePeaks()
+   ⚙️  reset()
+
 🧩 📄 include/core/MCUHost.h
    🧱 class MCUHost
       └── bus()
@@ -532,10 +580,70 @@ Total Files: 110
 
 🧩 📄 include/core/Protocol.h
    📦 namespace Protocol
+   ⚙️  crc16_ccitt(const uint8_t* data, size_t len, uint16_t crc = 0xFFFF)
+   ⚙️  crc16_ccitt_byte(uint8_t byte, uint16_t crc = 0xFFFF)
    ⚙️  encode(uint8_t msgType,
                    const uint8_t* payload,
                    size_t payloadLen,
                    std::vector<uint8_t>& outFrame)
+
+🧩 📄 include/core/Result.h
+   📦 namespace mcu
+   ⚙️  errorCodeToString(ErrorCode code)
+   🧱 class Result
+      ├── ok(const T& value)
+      ├── ok(T&& value)
+      ├── err(ErrorCode code)
+      ├── isOk()
+      ├── isError()
+      ├── bool()
+      ├── error()
+      ├── errorCode()
+      └── valueOr(const T& defaultValue)
+   ⚙️  ok(const T& value)
+   ⚙️  ok(T&& value)
+   ⚙️  err(ErrorCode code)
+   ⚙️  isOk()
+   ⚙️  isError()
+   ⚙️  bool()
+   ⚙️  error()
+   ⚙️  errorCode()
+   ⚙️  valueOr(const T& defaultValue)
+   ⚙️  ok()
+   ⚙️  err(ErrorCode code)
+   ⚙️  isOk()
+   ⚙️  isError()
+   ⚙️  bool()
+   ⚙️  error()
+   ⚙️  errorCode()
+
+🧩 📄 include/core/ServiceContext.h
+   📦 namespace mcu
+   🧱 struct ServiceContext
+      ├── hasMotorControl()
+      ├── hasSensors()
+      ├── hasTransport()
+      └── isValid()
+   ⚙️  hasMotorControl()
+   ⚙️  hasSensors()
+   ⚙️  hasTransport()
+   ⚙️  isValid()
+
+🧩 📄 include/core/ServiceStorage.h
+   📦 namespace mcu
+   🧱 struct ServiceStorage
+      ├── initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort)
+      ├── initRouter()
+      ├── initCommands()
+      ├── initControl()
+      ├── initHost(const char* deviceName)
+      └── buildContext()
+   ⚙️  initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort)
+   ⚙️  initRouter()
+   ⚙️  initCommands()
+   ⚙️  initControl()
+   ⚙️  initHost(const char* deviceName)
+   ⚙️  buildContext()
 
 🧩 📄 include/hw/GpioManager.h
    🧱 class GpioManager
@@ -571,6 +679,9 @@ Total Files: 110
    ⚙️  estop()
    ⚙️  clearEstop()
    ⚙️  isEstopActive()
+
+🧩 📄 include/loop/LoopFunctions.h
+   📦 namespace mcu
 
 🧩 📄 include/module/ControlModule.h
    ⚙️  signals()
@@ -871,6 +982,22 @@ Total Files: 110
    ⚙️  isAttached(uint8_t)
    ⚙️  readDistanceCm(uint8_t)
 
+🧩 📄 include/setup/ISetupModule.h
+   📦 namespace mcu
+   🧱 class ISetupModule
+      └── isCritical()
+   ⚙️  isCritical()
+
+🧩 📄 include/setup/SetupControlTask.h
+   📦 namespace mcu
+   🧱 struct ControlTaskConfig
+      (no in-class method bodies detected)
+   🧱 struct ControlTaskStats
+      (no in-class method bodies detected)
+
+🧩 📄 include/setup/SetupModules.h
+   📦 namespace mcu
+
 🧩 📄 include/transport/BleTransport.h
    ⚙️  name_(deviceName)
    ⚙️  Protocol::extractFrames(rxBuffer_,
@@ -1020,6 +1147,7 @@ Total Files: 110
    ⚙️  ModeManager::clearEstop()
    ⚙️  ModeManager::validateVelocity(float vx, float omega, float& out_vx, float& out_omega)
    ⚙️  ModeManager::triggerStop()
+   ⚙️  ModeManager::triggerEmergencyStop()
 
 🧩 📄 src/control/ControlKernel.cpp
    ⚙️  ControlKernel::getSlot_(uint8_t slot)
@@ -1109,6 +1237,10 @@ Total Files: 110
    ⚙️  getLoopRates()
    ⚙️  clampHz(uint16_t& hz, uint16_t lo, uint16_t hi)
 
+🧩 📄 src/core/LoopTiming.cpp
+   📦 namespace mcu
+   ⚙️  getLoopTiming()
+
 🧩 📄 src/core/McuHost.cpp
    ⚙️  MCUHost::addModule(IModule* module)
    ⚙️  MCUHost::setup()
@@ -1117,16 +1249,16 @@ Total Files: 110
    ⚙️  MCUHost::onEvent(const Event& evt)
    ⚙️  MCUHost::runSafety(uint32_t now_ms)
 
+🧩 📄 src/loop/LoopControl.cpp
+   📦 namespace mcu
+   ⚙️  runControlLoop(ServiceContext& ctx, uint32_t now_ms, float dt)
+
+🧩 📄 src/loop/LoopSafety.cpp
+   📦 namespace mcu
+   ⚙️  runSafetyLoop(ServiceContext& ctx, uint32_t now_ms)
+
 🧩 📄 src/main.cpp
-   ⚙️  setupWifiDualMode()
-   ⚙️  setupOta()
-   ⚙️  setupSafety()
-   ⚙️  setupTransportsAndRouter()
-   ⚙️  setupTelemetryProviders()
-   ⚙️  setupGpioAndMotors()
    ⚙️  updateLoopSchedulers()
-   ⚙️  runControlLoop(uint32_t now_ms, float dt)
-   ⚙️  runSafetyLoop(uint32_t now_ms)
    ⚙️  setup()
    ⚙️  loop()
 
@@ -1215,6 +1347,36 @@ Total Files: 110
                        gpio_num_t sdPin,
                        i2s_port_t port)
    ⚙️  MicManager::readLevel(Level& outLevel, size_t sampleCount)
+
+🧩 📄 src/setup/SetupControlTask.cpp
+   📦 namespace mcu
+   ⚙️  controlTaskFunc(void* param)
+   ⚙️  startControlTask(ServiceContext& ctx, const ControlTaskConfig& config)
+   ⚙️  stopControlTask()
+   ⚙️  isControlTaskRunning()
+   ⚙️  getControlTaskStats()
+   ⚙️  resetControlTaskStats()
+
+🧩 📄 src/setup/SetupMotors.cpp
+   ⚙️  getSetupMotorsModule()
+
+🧩 📄 src/setup/SetupOta.cpp
+   ⚙️  getSetupOtaModule()
+
+🧩 📄 src/setup/SetupSafety.cpp
+   ⚙️  getSetupSafetyModule()
+
+🧩 📄 src/setup/SetupSensors.cpp
+   ⚙️  getSetupSensorsModule()
+
+🧩 📄 src/setup/SetupTelemetry.cpp
+   ⚙️  getSetupTelemetryModule()
+
+🧩 📄 src/setup/SetupTransport.cpp
+   ⚙️  getSetupTransportModule()
+
+🧩 📄 src/setup/SetupWifi.cpp
+   ⚙️  getSetupWifiModule()
 
 🧩 📄 src/transport/MqttTransport.cpp
    ⚙️  password_(password ? password : "")
@@ -1393,16 +1555,27 @@ Total Files: 110
    ⚙️  main(int argc, char** argv)
    ⚙️  loop()
 
-🧩 📄 test/test_event_bus/test_event_bust.cpp
+🧩 📄 test/test_event_bus/test_event_bus.cpp
    ⚙️  handlerA(const Event&)
    ⚙️  handlerB(const Event&)
+   ⚙️  handlerCapture(const Event& evt)
    ⚙️  setUp()
    ⚙️  tearDown()
    ⚙️  test_eventbus_calls_handlers_in_order()
    ⚙️  test_eventbus_ignores_null_handler()
-   ⚙️  setup()
-   ⚙️  loop()
-   ⚙️  main(int, char**)
+   ⚙️  test_eventbus_type_filter_receives_matching_events()
+   ⚙️  test_eventbus_type_filter_ignores_non_matching_events()
+   ⚙️  test_eventbus_all_events_receives_everything()
+   ⚙️  test_eventbus_queued_events_not_delivered_until_drain()
+   ⚙️  test_eventbus_drain_processes_multiple_events()
+   ⚙️  test_eventbus_queue_full_returns_false()
+   ⚙️  test_eventbus_queue_depth_tracking()
+   ⚙️  test_eventbus_stats_published_count()
+   ⚙️  test_eventbus_stats_delivered_count()
+   ⚙️  test_eventbus_stats_dropped_count()
+   ⚙️  test_eventbus_stats_queue_peak()
+   ⚙️  test_eventbus_stats_reset()
+   ⚙️  run_tests()
 
 🧩 📄 test/test_event_payloads/test_event_payloads.cpp
    ⚙️  setUp()
@@ -1417,7 +1590,7 @@ Total Files: 110
    ⚙️  setUp()
    ⚙️  tearDown()
    ⚙️  test_identity_emits_handshake_on_whoami_request()
-   ⚙️  main(int, char**)
+   ⚙️  run_tests()
 
 🧩 📄 test/test_message_router_bin_tx/test_message_router_bin_tx.cpp
    ⚙️  checksum_for(uint16_t length, uint8_t msgType, const std::vector<uint8_t>& payload)
@@ -1452,7 +1625,9 @@ Total Files: 110
 
 🧩 📄 test/test_messages_json/test_messages_json.cpp
    ⚙️  test_messages_json_smoke_parse()
-   ⚙️  main(int argc, char** argv)
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  run_tests()
 
 🧩 📄 test/test_observer/test_observer.cpp
    ⚙️  setUp()
@@ -1481,7 +1656,7 @@ Total Files: 110
    ⚙️  main(int argc, char** argv)
 
 🧩 📄 test/test_protocol/test_protocol.cpp
-   ⚙️  checksum_for(uint16_t length, uint8_t msgType, const uint8_t* payload, size_t payloadLen)
+   ⚙️  crc16_for(uint16_t length, uint8_t msgType, const uint8_t* payload, size_t payloadLen)
    🧱 struct CapturedFrame
       (no in-class method bodies detected)
    ⚙️  push_bytes(std::vector<uint8_t>& buf, const std::vector<uint8_t>& more)
@@ -1502,8 +1677,37 @@ Total Files: 110
    ⚙️  Protocol::extractFrames(buffer, [&](const uint8_t* body, size_t len)
    ⚙️  test_extract_leaves_unconsumed_trailing_bytes()
    ⚙️  Protocol::extractFrames(buffer, [&](const uint8_t* body, size_t len)
+   ⚙️  test_crc16_ccitt_known_test_vector()
+   ⚙️  test_crc16_empty_input()
+   ⚙️  test_frame_interop_with_python()
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  run_tests()
+
+🧩 📄 test/test_result/test_result.cpp
+   ⚙️  test_result_ok_construction()
+   ⚙️  test_result_error_construction()
+   ⚙️  test_result_value_or()
+   ⚙️  test_result_move_value()
+   ⚙️  test_void_result_ok()
+   ⚙️  test_void_result_error()
+   ⚙️  test_error_code_to_string()
+   ⚙️  helper_ok()
+   ⚙️  helper_err()
+   ⚙️  test_try_propagates_ok()
+   ⚙️  test_try_propagates_error()
+   ⚙️  test_try_macro_ok_path()
+   ⚙️  test_try_macro_error_path()
+   ⚙️  test_result_with_float()
+   ⚙️  test_result_with_pointer()
+   ⚙️  test_result_with_struct()
+   🧱 struct Point
+      (no in-class method bodies detected)
+   ⚙️  run_tests()
+
+🧩 📄 test/test_runner.h
    ⚙️  setup()
-   ⚙️  teardown()
+   ⚙️  loop()
    ⚙️  main(int argc, char** argv)
 
 🧩 📄 test/test_safety/test_safety.cpp
@@ -1569,7 +1773,7 @@ Total Files: 110
    ⚙️  test_inf_velocity_rejected()
    ⚙️  test_velocity_clamping()
    ⚙️  test_valid_velocity_passes()
-   ⚙️  main()
+   ⚙️  run_tests()
 
 🧩 📄 test/test_signal_bus/test_signal_bus.cpp
    ⚙️  setUp()
@@ -1609,9 +1813,9 @@ Total Files: 110
 ================================================================================
 📊 STATISTICS
 ================================================================================
-Namespaces:       11
-Classes/Structs:  105
+Namespaces:       23
+Classes/Structs:  115
 Enums:            3
-Free Functions:   906
-In-class Methods: 247
+Free Functions:   1002
+In-class Methods: 286
 ================================================================================

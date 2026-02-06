@@ -2,6 +2,8 @@
 #include "core/ServiceContext.h"
 #include "module/ControlModule.h"
 #include "command/ModeManager.h"
+#include "motor/MotionController.h"
+#include "loop/LoopFunctions.h"
 
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
@@ -37,7 +39,10 @@ static void controlTaskFunc(void* param) {
         // Compute dt based on configured rate
         float dt_s = 1.0f / g_taskConfig.rate_hz;
 
-        // Run control module
+        // Run full control loop (encoder PID, motion controller)
+        runControlLoop(*ctx, now_ms, dt_s);
+
+        // Run control module (PID/LQR slots, observers)
         if (ctx->control) {
             ctx->control->loop(now_ms);
         }
