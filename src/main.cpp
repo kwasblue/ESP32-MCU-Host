@@ -11,12 +11,17 @@
 
 // Setup modules
 #include "setup/SetupModules.h"
+#include "setup/SetupControlTask.h"
 
 // Loop functions
 #include "loop/LoopFunctions.h"
 
 // Config
 #include "config/PinConfig.h"
+
+// Set to true to use FreeRTOS task for control loop (Core 1, high priority)
+// Set to false to use cooperative scheduling in main loop()
+static constexpr bool USE_FREERTOS_CONTROL = true;
 
 // -----------------------------------------------------------------------------
 // Global Storage and Context
@@ -123,7 +128,24 @@ void setup() {
     }
 
     // =========================================================================
-    // Phase 3: Final wiring
+    // Phase 3: Start FreeRTOS control task (if enabled)
+    // =========================================================================
+    if (USE_FREERTOS_CONTROL) {
+        mcu::ControlTaskConfig taskCfg;
+        taskCfg.rate_hz = 100;      // 100Hz control loop
+        taskCfg.stack_size = 4096;
+        taskCfg.priority = 5;       // High priority
+        taskCfg.core = 1;           // Core 1 (Core 0 handles WiFi)
+
+        if (mcu::startControlTask(g_ctx, taskCfg)) {
+            Serial.println("[MCU] FreeRTOS control task started");
+        } else {
+            Serial.println("[MCU] WARNING: FreeRTOS control task failed to start, using cooperative scheduling");
+        }
+    }
+
+    // =========================================================================
+    // Phase 4: Final wiring
     // =========================================================================
     // Note: Handler wiring (setControlModule) is done in ServiceStorage.initControl()
 
@@ -172,12 +194,21 @@ void loop() {
         timing.safety_us = micros() - t0;
     }
 
-    // Rate-limited control loop
-    if (g_ctx.controlScheduler && g_ctx.controlScheduler->tick(now_ms)) {
-        uint32_t t0 = micros();
-        float ctrl_dt = getLoopRates().ctrl_period_ms() / 1000.0f;
-        mcu::runControlLoop(g_ctx, now_ms, ctrl_dt);
-        timing.control_us = micros() - t0;
+    // Rate-limited control loop (skip if FreeRTOS task is handling it)
+    if (!mcu::isControlTaskRunning()) {
+        if (g_ctx.controlScheduler && g_ctx.controlScheduler->tick(now_ms)) {
+            uint32_t t0 = micros();
+            float ctrl_dt = getLoopRates().ctrl_period_ms() / 1000.0f;
+            mcu::runControlLoop(g_ctx, now_ms, ctrl_dt);
+            timing.control_us = micros() - t0;
+        }
+    } else {
+        // Get timing from FreeRTOS task
+        mcu::ControlTaskStats taskStats = mcu::getControlTaskStats();
+        timing.control_us = taskStats.last_exec_us;
+        if (taskStats.last_exec_us > timing.control_peak_us) {
+            timing.control_peak_us = taskStats.last_exec_us;
+        }
     }
 
     // Rate-limited telemetry

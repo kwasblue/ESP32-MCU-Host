@@ -7,6 +7,7 @@
 #include "command/ModeManager.h"
 #include "core/LoopRates.h"
 #include "core/LoopTiming.h"
+#include "setup/SetupControlTask.h"
 #include "sensor/UltrasonicManager.h"
 #include "sensor/ImuManager.h"
 #include "sensor/LidarManager.h"
@@ -73,6 +74,16 @@ public:
                 // Statistics
                 node["iterations"] = t.iterations;
                 node["overruns"]   = t.overruns;
+
+                // FreeRTOS control task stats (if running)
+                node["freertos_ctrl"] = mcu::isControlTaskRunning();
+                if (mcu::isControlTaskRunning()) {
+                    mcu::ControlTaskStats stats = mcu::getControlTaskStats();
+                    node["ctrl_task_exec_us"]  = stats.last_exec_us;
+                    node["ctrl_task_peak_us"]  = stats.max_exec_us;
+                    node["ctrl_task_iters"]    = stats.iterations;
+                    node["ctrl_task_overruns"] = stats.overruns;
+                }
             }
         );
 
