@@ -1,7 +1,7 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-02-06 23:20:43
-Total Files: 169
+Generated: 2026-02-07 12:45:30
+Total Files: 170
 ================================================================================
 
 🧩 📄 include/audio/AudioGraphManager.h
@@ -126,11 +126,13 @@ Total Files: 169
       ├── setMotionController(MotionController* mc)
       ├── setClock(mcu::IClock* clk)
       ├── setIntentBuffer(mcu::IntentBuffer* ib)
+      ├── setHandlerRegistry(HandlerRegistry* hr)
       └── context()
    ⚙️  setControlModule(ControlModule* cm)
    ⚙️  setMotionController(MotionController* mc)
    ⚙️  setClock(mcu::IClock* clk)
    ⚙️  setIntentBuffer(mcu::IntentBuffer* ib)
+   ⚙️  setHandlerRegistry(HandlerRegistry* hr)
    ⚙️  context()
 
 🧩 📄 include/command/HandlerRegistry.h
@@ -693,12 +695,14 @@ Total Files: 169
       ├── setup()
       ├── loop(uint32_t now_ms)
       ├── handleEvent(const Event& evt)
-      └── priority()
+      ├── priority()
+      └── domain()
    ⚙️  init(mcu::ServiceContext& ctx)
    ⚙️  setup()
    ⚙️  loop(uint32_t now_ms)
    ⚙️  handleEvent(const Event& evt)
    ⚙️  priority()
+   ⚙️  domain()
 
 🧩 📄 include/core/ITransport.h
    🧱 class ITransport
@@ -1302,6 +1306,10 @@ Total Files: 169
 🧩 📄 include/setup/SetupModules.h
    📦 namespace mcu
 
+🧩 📄 include/telemetry/TelemetrySections.h
+   📦 namespace TelemetrySections
+   ⚙️  id(SectionId s)
+
 🧩 📄 include/transport/BleTransport.h
    ⚙️  name_(deviceName)
    ⚙️  Protocol::extractFrames(rxBuffer_,
@@ -1561,12 +1569,14 @@ Total Files: 169
    ⚙️  MCUHost::runSafety(uint32_t now_ms)
 
 🧩 📄 src/core/ModuleManager.cpp
+   ⚙️  domainToString(LoopDomain d)
    ⚙️  ModuleManager::instance()
    ⚙️  ModuleManager::registerModule(IModule* module)
    ⚙️  ModuleManager::finalize()
    ⚙️  ModuleManager::initAll(mcu::ServiceContext& ctx)
    ⚙️  ModuleManager::setupAll()
    ⚙️  ModuleManager::loopAll(uint32_t now_ms)
+   ⚙️  ModuleManager::loopDomain(uint32_t now_ms, LoopDomain domain)
 
 🧩 📄 src/core/Runtime.cpp
    📦 namespace mcu
@@ -2272,9 +2282,9 @@ Total Files: 169
 ================================================================================
 📊 STATISTICS
 ================================================================================
-Namespaces:       78
+Namespaces:       79
 Classes/Structs:  162
 Enums:            3
-Free Functions:   1188
-In-class Methods: 359
+Free Functions:   1193
+In-class Methods: 361
 ================================================================================
