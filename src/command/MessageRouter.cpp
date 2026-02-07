@@ -53,6 +53,17 @@ void MessageRouter::onFrame(const uint8_t* frame, size_t len) {
         break;
     }
 
+    case Protocol::MSG_HEARTBEAT: {
+        // Host sent a heartbeat - publish as BIN_MESSAGE_RX so CommandRegistry
+        // calls onHostHeartbeat() to reset the host timeout
+        Event evt;
+        evt.type = EventType::BIN_MESSAGE_RX;
+        evt.timestamp_ms = now_ms;
+        evt.payload.bin = { 0x20 };  // BinaryCommands::Opcode::HEARTBEAT
+        bus_.publish(evt);
+        break;
+    }
+
     case Protocol::MSG_VERSION_REQUEST: {
         DBG_PRINTLN("[Router] VERSION_REQUEST received");
         sendVersionResponse();
