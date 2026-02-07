@@ -8,6 +8,31 @@ struct ServiceContext;
 }
 
 /**
+ * Loop domain specifies which execution context a module runs in.
+ * This determines scheduling, timing constraints, and allowed operations.
+ *
+ * MAIN:    Runs in main loop (Core 0). Can allocate, do I/O, parse JSON.
+ *          Examples: TelemetryModule, IdentityModule, command handlers
+ *
+ * CONTROL: Runs in control task (Core 1). NO allocation, NO blocking.
+ *          Must complete within timing budget (see RealTimeContract.h).
+ *          Examples: ControlKernel, Observer, MotionController
+ *
+ * SAFETY:  Runs in safety loop (high priority). NO allocation, bounded.
+ *          Safety-critical operations only.
+ *          Examples: ModeManager watchdog, E-STOP handling
+ *
+ * ANY:     Module handles its own scheduling or is domain-agnostic.
+ *          Examples: HeartbeatModule (timer-driven)
+ */
+enum class LoopDomain : uint8_t {
+    MAIN = 0,     // Main loop - I/O, telemetry, commands
+    CONTROL = 1,  // Control task - real-time, no allocation
+    SAFETY = 2,   // Safety loop - highest priority
+    ANY = 255     // Domain-agnostic or self-scheduled
+};
+
+/**
  * Base interface for all modules.
  *
  * Modules follow a lifecycle:
@@ -62,4 +87,11 @@ public:
      * Default is 100. Critical modules should use < 50.
      */
     virtual int priority() const { return 100; }
+
+    /**
+     * Get the loop domain this module should run in.
+     * Default is MAIN (main loop). Override for control or safety modules.
+     * See LoopDomain enum for constraints.
+     */
+    virtual LoopDomain domain() const { return LoopDomain::MAIN; }
 };

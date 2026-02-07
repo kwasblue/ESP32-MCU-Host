@@ -61,6 +61,7 @@ void ServiceStorage::initRouter() {
 void ServiceStorage::initCommands() {
     commands = new CommandRegistry(bus, mode, motion);
     commands->setIntentBuffer(&intents);
+    commands->setHandlerRegistry(&HandlerRegistry::instance());  // Explicit wiring
 
     // Create handlers
     safetyHandler    = new SafetyHandler(mode);

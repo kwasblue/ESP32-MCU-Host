@@ -19,7 +19,9 @@ CommandRegistry::CommandRegistry(EventBus& bus, ModeManager& mode, MotionControl
 
 void CommandRegistry::registerStringHandler(IStringHandler* handler) {
     if (handler) {
-        HandlerRegistry::instance().registerHandler(handler);
+        // Use explicit registry if wired, otherwise fall back to singleton
+        HandlerRegistry& hr = handlerRegistry_ ? *handlerRegistry_ : HandlerRegistry::instance();
+        hr.registerHandler(handler);
         DBG_PRINTF("[REG] Registered string handler: %s\n", handler->name());
     }
 }
@@ -34,8 +36,9 @@ void CommandRegistry::registerHandler(ICommandHandler* handler) {
 void CommandRegistry::setup() {
     DBG_PRINTLN("[REG] CommandRegistry::setup() subscribing");
     ctx_.bus.subscribe(&CommandRegistry::handleEventStatic);
+    HandlerRegistry& hr = handlerRegistry_ ? *handlerRegistry_ : HandlerRegistry::instance();
     DBG_PRINTF("[REG] Registered %d string handlers, %d legacy handlers\n",
-               (int)HandlerRegistry::instance().handlerCount(),
+               (int)hr.handlerCount(),
                (int)handlers_.size());
 }
 
@@ -108,7 +111,8 @@ void CommandRegistry::onJsonCommand(const std::string& jsonStr) {
     JsonVariantConst payload = msg.payload.as<JsonVariantConst>();
 
     // Try new string-based registry first (for self-registered handlers)
-    if (HandlerRegistry::instance().dispatch(msg.typeStr.c_str(), payload, ctx_)) {
+    HandlerRegistry& hr = handlerRegistry_ ? *handlerRegistry_ : HandlerRegistry::instance();
+    if (hr.dispatch(msg.typeStr.c_str(), payload, ctx_)) {
         return;  // Handled by new registry
     }
 

@@ -25,16 +25,18 @@ void MCUHost::addModule(IModule* module) {
 }
 
 void MCUHost::setup(mcu::ServiceContext* ctx) {
-    // 1. Finalize and initialize self-registered modules
-    ModuleManager& mm = ModuleManager::instance();
-    mm.finalize();
+    ctx_ = ctx;  // Store for use in loop()
 
-    if (ctx) {
-        mm.initAll(*ctx);
+    // 1. Finalize and initialize self-registered modules
+    ModuleManager* mm = ctx_ ? ctx_->moduleManager : &ModuleManager::instance();
+    mm->finalize();
+
+    if (ctx_) {
+        mm->initAll(*ctx_);
     }
 
     // 2. Setup self-registered modules
-    mm.setupAll();
+    mm->setupAll();
 
     // 3. Setup manually-added modules (legacy pattern)
     for (auto* m : modules_) {
@@ -45,7 +47,7 @@ void MCUHost::setup(mcu::ServiceContext* ctx) {
     bus_.subscribe(&MCUHost::onEventStatic);
 
     DBG_PRINTF("[HOST] Setup complete: %d self-registered, %d manual modules\n",
-               (int)mm.moduleCount(), (int)modules_.size());
+               (int)mm->moduleCount(), (int)modules_.size());
 }
 
 void MCUHost::loop(uint32_t now_ms) {
@@ -73,8 +75,14 @@ void MCUHost::loop(uint32_t now_ms) {
         // but this provides a global rate limit
     }
 
-    // Run self-registered modules
-    ModuleManager::instance().loopAll(now_ms);
+    // Run self-registered modules (prefer explicit wiring via ctx_)
+    if (ctx_ && ctx_->moduleManager) {
+        ctx_->moduleManager->loopAll(now_ms);
+    } else {
+        // Fallback to singleton - should not happen in normal operation
+        DBG_PRINTLN("[HOST] Warning: using ModuleManager::instance() fallback");
+        ModuleManager::instance().loopAll(now_ms);
+    }
 
     // Run manually-added modules (legacy pattern)
     for (auto* m : modules_) {

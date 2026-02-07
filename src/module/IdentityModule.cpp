@@ -3,7 +3,8 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
-#include "config/Version.h"   // auto-generated Version::*
+#include "config/Version.h"         // auto-generated Version::*
+#include "config/DeviceManifest.h"  // unified capabilities
 
 IdentityModule* IdentityModule::s_instance = nullptr;
 
@@ -24,6 +25,11 @@ void IdentityModule::onEventStatic(const Event& evt) {
 }
 
 static void publishIdentity(EventBus& bus) {
+    using namespace mcu;
+
+    // Build unified capability mask
+    uint32_t caps = buildDeviceCaps();
+
     JsonDocument doc;
     doc["kind"]           = "identity";
     doc["protocol"]       = Version::PROTOCOL;
@@ -31,29 +37,41 @@ static void publishIdentity(EventBus& bus) {
     doc["firmware"]       = Version::FIRMWARE;
     doc["board"]          = Version::BOARD;
     doc["name"]           = Version::NAME;
-    doc["capabilities"]   = Version::CAPABILITIES;
+    doc["capabilities"]   = caps;
 
     // Feature array for human-readable capability list
     JsonArray features = doc["features"].to<JsonArray>();
-    if (Version::CAPABILITIES & Version::Caps::BINARY_PROTOCOL) {
-        features.add("binary_protocol");
+
+    // Iterate through all capability bits and add enabled ones
+    static constexpr uint32_t CAP_BITS[] = {
+        DeviceCap::BINARY_PROTOCOL, DeviceCap::INTENT_BUFFERING,
+        DeviceCap::STATE_SPACE_CTRL, DeviceCap::OBSERVERS,
+        DeviceCap::UART, DeviceCap::WIFI, DeviceCap::BLE, DeviceCap::MQTT,
+        DeviceCap::DC_MOTOR, DeviceCap::SERVO, DeviceCap::STEPPER, DeviceCap::MOTION_CTRL,
+        DeviceCap::ENCODER, DeviceCap::IMU, DeviceCap::LIDAR, DeviceCap::ULTRASONIC,
+        DeviceCap::SIGNAL_BUS, DeviceCap::CONTROL_KERNEL, DeviceCap::OBSERVER,
+        DeviceCap::TELEMETRY, DeviceCap::SAFETY, DeviceCap::AUDIO
+    };
+
+    for (uint32_t bit : CAP_BITS) {
+        if (caps & bit) {
+            features.add(capBitToName(bit));
+        }
     }
-    if (Version::CAPABILITIES & Version::Caps::INTENT_BUFFERING) {
-        features.add("intent_buffering");
-    }
-    if (Version::CAPABILITIES & Version::Caps::STATE_SPACE_CTRL) {
-        features.add("state_space_ctrl");
-    }
-    if (Version::CAPABILITIES & Version::Caps::OBSERVERS) {
-        features.add("observers");
-    }
+
+    // Add loop rates
+    const auto& rates = getLoopRates();
+    JsonObject timing = doc["timing"].to<JsonObject>();
+    timing["control_hz"] = rates.ctrl_hz;
+    timing["telemetry_hz"] = rates.telem_hz;
+    timing["safety_hz"] = rates.safety_hz;
 
     std::string out;
     serializeJson(doc, out);
 
     Event tx{};
     tx.type = EventType::JSON_MESSAGE_TX;
-    tx.timestamp_ms = 0;          // optional; set millis() if you want
+    tx.timestamp_ms = 0;
     tx.payload.json = out;
     bus.publish(tx);
 }

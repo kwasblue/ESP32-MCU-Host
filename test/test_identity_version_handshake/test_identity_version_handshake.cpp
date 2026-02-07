@@ -11,6 +11,8 @@
 #include "transport/MultiTransport.h"
 
 // Pull in the implementation directly for native tests (since test_build_src=false)
+#include "../../src/core/LoopRates.cpp"
+#include "../../src/config/DeviceManifest.cpp"
 #include "../../src/module/IdentityModule.cpp"
 
 static EventBus bus;

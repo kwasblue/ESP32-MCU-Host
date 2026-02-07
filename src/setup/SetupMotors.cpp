@@ -51,11 +51,13 @@ public:
 #endif
 
         // Initialize self-registered actuators
-        mcu::ActuatorRegistry::instance().setAvailableCaps(actuatorCaps);
-        mcu::ActuatorRegistry::instance().initAll(ctx);
-        mcu::ActuatorRegistry::instance().setupAll();
-        Serial.printf("[MOTORS] Initialized %zu self-registered actuators\n",
-                      mcu::ActuatorRegistry::instance().count());
+        if (ctx.actuatorRegistry) {
+            ctx.actuatorRegistry->setAvailableCaps(actuatorCaps);
+            ctx.actuatorRegistry->initAll(ctx);
+            ctx.actuatorRegistry->setupAll();
+            Serial.printf("[MOTORS] Initialized %zu self-registered actuators\n",
+                          ctx.actuatorRegistry->count());
+        }
 
         // Legacy actuators (until fully migrated)
         // Auto-configure steppers from Pins::

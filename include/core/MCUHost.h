@@ -51,6 +51,7 @@ public:
 private:
     EventBus&             bus_;
     MessageRouter*        router_ = nullptr;
+    mcu::ServiceContext*  ctx_ = nullptr;  // Stored for explicit registry access
     std::vector<IModule*> modules_;  // Manually added modules
     uint32_t              lastHeartbeatMs_ = 0;
     std::function<void()> routerLoop_;

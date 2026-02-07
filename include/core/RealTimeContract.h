@@ -13,9 +13,72 @@
  * REAL-TIME SAFE CONTRACT
  * =============================================================================
  *
- * Control-path code (listed below) must NEVER perform these operations:
+ * This firmware runs on ESP32 with multiple execution contexts:
+ * - ISR context: Interrupt handlers (encoder, timer)
+ * - Control task: FreeRTOS task on Core 1 at 100-500 Hz
+ * - Main loop: Cooperative scheduling on Core 0 for I/O and telemetry
  *
- * FORBIDDEN OPERATIONS:
+ * =============================================================================
+ * ALLOCATION POLICY
+ * =============================================================================
+ *
+ * SETUP PHASE (allowed allocation):
+ *   Location: setup(), ServiceStorage::init*(), REGISTER_* macros
+ *   Operations: new, malloc, vector::reserve, string construction
+ *   Why: Runs once at boot, before real-time loops start
+ *
+ * CONTROL LOOP (forbidden allocation):
+ *   Location: runControlLoop(), ControlKernel::step(), Observer::update()
+ *   Operations: NO new, NO malloc, NO push_back, NO string ops
+ *   Why: Must complete in < 1ms with < 100us jitter
+ *
+ * SAFETY LOOP (forbidden allocation):
+ *   Location: runSafetyLoop(), ModeManager::update()
+ *   Operations: NO heap allocation
+ *   Why: Safety-critical, must always run
+ *
+ * TELEMETRY LOOP (allowed allocation, bounded):
+ *   Location: runTelemetryLoop(), TelemetryModule::loop()
+ *   Operations: JsonDocument OK (stack allocated), bounded strings
+ *   Why: Lower priority, can tolerate jitter
+ *
+ * COMMAND HANDLERS (allowed allocation, bounded):
+ *   Location: IStringHandler::handle(), CommandRegistry::onJsonCommand()
+ *   Operations: JsonDocument OK, bounded strings
+ *   Why: Runs in main loop, not time-critical
+ *
+ * =============================================================================
+ * QUEUE DEPTH CONTRACTS
+ * =============================================================================
+ *
+ *   Queue/Buffer              Max Depth    Overflow Policy
+ *   ----------------------    ---------    ---------------
+ *   IntentBuffer::signals     16           Drop oldest
+ *   IntentBuffer::velocity    1            Replace (latest wins)
+ *   IntentBuffer::servo       8            Replace per-ID
+ *   IntentBuffer::dcMotor     4            Replace per-ID
+ *   IntentBuffer::stepper     4            Replace per-ID
+ *   EventBus subscribers      16           Static (compile-time)
+ *   SignalBus signals         64           Bounded define()
+ *   ControlKernel slots       8            Bounded configureSlot()
+ *   Observer slots            4            Bounded configure()
+ *
+ * =============================================================================
+ * TIMING BUDGETS
+ * =============================================================================
+ *
+ *   Function                  Max Duration   Called At
+ *   ----------------------    ------------   ---------
+ *   ControlKernel::step()     500 us         100 Hz (10ms period)
+ *   Observer::update()        200 us         200 Hz (5ms period)
+ *   SignalBus::set/get()      10 us          Per signal
+ *   IntentBuffer::consume*()  5 us           Per intent
+ *   runSafetyLoop()           100 us         100 Hz
+ *
+ * =============================================================================
+ * FORBIDDEN OPERATIONS (in hot path)
+ * =============================================================================
+ *
  * - Heap allocation: new, delete, malloc, free, realloc
  * - Dynamic containers: std::vector::push_back(), resize(), std::string ops
  * - JSON operations: JsonDocument construction, serializeJson
@@ -23,7 +86,10 @@
  * - Unbounded loops: while(true) without timeout, recursive calls
  * - Mutex/semaphore waits: xSemaphoreTake with portMAX_DELAY
  *
- * CONTROL-PATH CODE (must be real-time safe):
+ * =============================================================================
+ * CONTROL-PATH CODE (must be real-time safe)
+ * =============================================================================
+ *
  * - controlTaskFunc() in SetupControlTask.cpp
  * - ControlKernel::step()
  * - Observer::update()
@@ -32,7 +98,10 @@
  * - IntentBuffer consume methods
  * - Any code called from the above
  *
- * ALLOWED ALTERNATIVES:
+ * =============================================================================
+ * ALLOWED ALTERNATIVES
+ * =============================================================================
+ *
  * - Pre-allocated buffers (static arrays, fixed-size containers)
  * - Spinlocks (portENTER_CRITICAL/portEXIT_CRITICAL) for short critical sections
  * - Bounded iteration with known maximum
@@ -90,6 +159,29 @@ struct RtTimingStats {
 // Function annotations for documentation
 // =============================================================================
 
+// =============================================================================
+// Allocation zone markers
+// =============================================================================
+
+/**
+ * ALLOC_SETUP - Code runs in setup phase, allocation is allowed.
+ */
+#define ALLOC_SETUP /* setup phase - allocation allowed */
+
+/**
+ * ALLOC_FORBIDDEN - Code runs in hot path, allocation is forbidden.
+ */
+#define ALLOC_FORBIDDEN /* hot path - no allocation */
+
+/**
+ * ALLOC_BOUNDED - Code may allocate with bounded size (e.g., JsonDocument).
+ */
+#define ALLOC_BOUNDED /* bounded allocation - telemetry/handlers */
+
+// =============================================================================
+// Function annotations for documentation
+// =============================================================================
+
 /**
  * RT_SAFE - Mark a function as real-time safe.
  * Function guarantees no heap allocation, no blocking, bounded execution.
@@ -103,6 +195,19 @@ struct RtTimingStats {
  * Must NOT be called from control loop or safety loop.
  */
 #define RT_UNSAFE /* not real-time safe - may allocate or block */
+
+/**
+ * RT_ISR - Mark a function as ISR-safe.
+ * Even stricter than RT_SAFE: no FreeRTOS calls, minimal code.
+ */
+#define RT_ISR /* ISR context - minimal operations only */
+
+/**
+ * RT_MAX_US(x) - Document maximum execution time in microseconds.
+ * Use with RT_SAFE functions to document timing contract.
+ * Example: RT_SAFE RT_MAX_US(500) void step();
+ */
+#define RT_MAX_US(x) /* max execution time: x microseconds */
 
 // =============================================================================
 // Heap check macros for development debugging

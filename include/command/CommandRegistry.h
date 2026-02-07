@@ -21,6 +21,7 @@
 class ModeManager;
 class MotionController;
 class ControlModule;
+class HandlerRegistry;
 
 /**
  * Command Registry - Central dispatcher for all commands.
@@ -74,6 +75,12 @@ public:
     void setIntentBuffer(mcu::IntentBuffer* ib) { ctx_.intents = ib; }
 
     /**
+     * Set handler registry for explicit wiring (composition root pattern).
+     * If not set, falls back to HandlerRegistry::instance().
+     */
+    void setHandlerRegistry(HandlerRegistry* hr) { handlerRegistry_ = hr; }
+
+    /**
      * Process incoming JSON command.
      */
     void onJsonCommand(const std::string& jsonStr);
@@ -102,4 +109,5 @@ private:
     CommandContext ctx_;
     MotionController* motion_ = nullptr;
     ControlModule* controlModule_ = nullptr;
+    HandlerRegistry* handlerRegistry_ = nullptr;  // Explicit wiring (composition root)
 };

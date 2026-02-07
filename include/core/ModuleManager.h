@@ -71,6 +71,14 @@ public:
     void loopAll(uint32_t now_ms);
 
     /**
+     * Call loop() only on modules in the specified domain.
+     * Use this for domain-specific scheduling (e.g., control task).
+     * @param now_ms Current time in milliseconds
+     * @param domain The loop domain to run
+     */
+    void loopDomain(uint32_t now_ms, LoopDomain domain);
+
+    /**
      * Get number of registered modules.
      */
     size_t moduleCount() const { return modules_.size(); }

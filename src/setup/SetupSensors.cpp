@@ -35,13 +35,17 @@ public:
     const char* name() const override { return "Sensors"; }
 
     mcu::Result<void> setup(mcu::ServiceContext& ctx) override {
+        if (!ctx.sensorRegistry) {
+            return mcu::Result<void>::err(mcu::ErrorCode::NotInitialized);
+        }
+
         // Set available sensor capabilities
-        mcu::SensorRegistry::instance().setAvailableCaps(buildSensorCaps());
+        ctx.sensorRegistry->setAvailableCaps(buildSensorCaps());
 
         // Initialize all self-registered sensors
-        mcu::SensorRegistry::instance().initAll();
+        ctx.sensorRegistry->initAll();
         Serial.printf("[SENSORS] Initialized %zu self-registered sensors\n",
-                      mcu::SensorRegistry::instance().count());
+                      ctx.sensorRegistry->count());
 
         // Legacy sensors (still using old pattern)
         // TODO: Migrate these to self-registration

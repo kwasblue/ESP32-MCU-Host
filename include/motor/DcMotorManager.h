@@ -5,8 +5,7 @@
 #if HAS_DC_MOTOR
 
 #include <Arduino.h>
-#include <math.h>          // for fabsf
-#include "core/Debug.h"
+#include <cstdint>
 #include "hw/GpioManager.h"
 #include "hw/PwmManager.h"
 #include "motor/PID.h"
@@ -15,21 +14,9 @@ class DcMotorManager {
 public:
     static constexpr uint8_t MAX_MOTORS = 4;
 
-    // Match auto-generated GPIO_CHANNEL_DEFS:
-    // 0: LED_STATUS
-    // 1: ULTRASONIC_TRIG
-    // 2: ULTRASONIC_ECHO
-    // 3: MOTOR_LEFT_IN1
-    // 4: MOTOR_LEFT_IN2
-    // 5: STEPPER0_EN
-    // 6: ENC0_A
-    // 7: ENC0_B
-    //
-    // So DC motors will start at channel 3:
-    //   motor 0: in1 -> 3, in2 -> 4
-    //   motor 1: in1 -> 5, in2 -> 6 (if you ever want it)
-    static constexpr int GPIO_BASE_CH = 3;   // base for IN1/IN2 channels
-    static constexpr int PWM_BASE_CH  = 0;   // logical PWM channels 0,1,2,...
+    // GPIO channel base for direction pins (matches auto-generated GPIO_CHANNEL_DEFS)
+    static constexpr int GPIO_BASE_CH = 3;
+    static constexpr int PWM_BASE_CH  = 0;
 
     struct Motor {
         int in1Pin      = -1;
@@ -47,10 +34,10 @@ public:
         float freqHz     = 0.0f;
         int   resolution = 0;
 
-        // === PID / velocity control additions ===
-        bool  pidEnabled      = false;   // closed-loop velocity control enabled
-        float targetOmegaRadS = 0.0f;    // desired velocity [rad/s]
-        PID   pid;                       // PID controller (output -> duty -1..1)
+        // PID / velocity control
+        bool  pidEnabled      = false;
+        float targetOmegaRadS = 0.0f;
+        PID   pid;
     };
 
     struct MotorDebugInfo {
@@ -70,7 +57,6 @@ public:
         float freqHz     = 0.0f;
         int   resolution = 0;
 
-        // PID debug
         bool  pidEnabled      = false;
         float targetOmegaRadS = 0.0f;
     };
@@ -78,262 +64,61 @@ public:
     DcMotorManager(GpioManager& gpio, PwmManager& pwm)
         : gpio_(gpio), pwm_(pwm)
     {
-        // Initialize PID defaults for all motors
         for (uint8_t i = 0; i < MAX_MOTORS; ++i) {
-            motors_[i].pid.setOutputLimits(-1.0f, 1.0f);  // duty range
+            motors_[i].pid.setOutputLimits(-1.0f, 1.0f);
             motors_[i].pid.reset();
             motors_[i].pidEnabled      = false;
             motors_[i].targetOmegaRadS = 0.0f;
         }
     }
 
+    // Attach a motor to physical pins
     bool attach(uint8_t id,
                 int in1Pin,
                 int in2Pin,
                 int pwmPin,
                 int ledcChannel,
-                int freq = 15000,          // 🔹 lowered from 20000
-                int resolutionBits = 12)
-    {
-        if (id >= MAX_MOTORS) {
-            DBG_PRINTF("[DcMotorManager] attach failed, id=%u out of range\n", id);
-            return false;
-        }
+                int freq = 15000,
+                int resolutionBits = 12);
 
-        // Use a base that matches the auto-generated channels.
-        const int gpioChIn1 = GPIO_BASE_CH + id * 2;
-        const int gpioChIn2 = GPIO_BASE_CH + id * 2 + 1;
-        const int pwmCh     = PWM_BASE_CH  + id;
-
-        // Configure direction pins via GpioManager
-        gpio_.registerChannel(gpioChIn1, in1Pin, OUTPUT);
-        gpio_.registerChannel(gpioChIn2, in2Pin, OUTPUT);
-        gpio_.write(gpioChIn1, LOW);
-        gpio_.write(gpioChIn2, LOW);
-
-        // Configure PWM via PwmManager
-        pwm_.registerChannel(pwmCh, pwmPin, ledcChannel, static_cast<float>(freq));
-        pwm_.set(pwmCh, 0.0f);
-
-        Motor& m      = motors_[id];
-        m.in1Pin      = in1Pin;
-        m.in2Pin      = in2Pin;
-        m.pwmPin      = pwmPin;
-        m.ledcChannel = ledcChannel;
-        m.gpioChIn1   = gpioChIn1;
-        m.gpioChIn2   = gpioChIn2;
-        m.pwmCh       = pwmCh;
-        m.attached    = true;
-        m.lastSpeed   = 0.0f;
-        m.freqHz      = static_cast<float>(freq);
-        m.resolution  = resolutionBits;
-
-        // PID defaults for this motor
-        m.pid.setOutputLimits(-1.0f, 1.0f);
-        m.pid.reset();
-        m.pidEnabled      = false;
-        m.targetOmegaRadS = 0.0f;
-
-        DBG_PRINTF(
-            "[DcMotorManager] attach id=%u in1=%d in2=%d pwmPin=%d ledcCH=%d "
-            "gpioChIn1=%d gpioChIn2=%d pwmCh=%d freq=%d res=%d\n",
-            id, in1Pin, in2Pin, pwmPin, ledcChannel,
-            gpioChIn1, gpioChIn2, pwmCh, freq, resolutionBits
-        );
-        return true;
-    }
-
+    // Check if motor is attached
     bool isAttached(uint8_t id) const {
         return (id < MAX_MOTORS) && motors_[id].attached;
     }
 
-    // speed: -1.0 .. +1.0
-    // NOTE: This is still your low-level "open-loop" command.
-    // When PID is enabled, we call this from updateVelocityPid()
-    // with the controller output.
-    bool setSpeed(uint8_t id, float speed) {
-        if (id >= MAX_MOTORS || !motors_[id].attached) {
-            DBG_PRINTF("[DcMotorManager] setSpeed ignored, id=%u not attached\n", id);
-            return false;
-        }
+    // Set motor speed (-1.0 to +1.0)
+    bool setSpeed(uint8_t id, float speed);
 
-        if (speed >  1.0f) speed =  1.0f;
-        if (speed < -1.0f) speed = -1.0f;
+    // Stop motor and reset PID
+    bool stop(uint8_t id);
 
-        Motor& m     = motors_[id];
-        m.lastSpeed  = speed;
-        const float mag = fabsf(speed);  // 0..1
+    // Stop all attached motors
+    void stopAll();
 
-        // Direction via GpioManager
-        if (mag == 0.0f) {
-            gpio_.write(m.gpioChIn1, LOW);
-            gpio_.write(m.gpioChIn2, LOW);
-        } else if (speed > 0.0f) {
-            gpio_.write(m.gpioChIn1, HIGH);
-            gpio_.write(m.gpioChIn2, LOW);
-        } else {
-            gpio_.write(m.gpioChIn1, LOW);
-            gpio_.write(m.gpioChIn2, HIGH);
-        }
+    // Get debug info for a motor
+    bool getMotorDebugInfo(uint8_t id, MotorDebugInfo& out) const;
 
-        // PWM duty via PwmManager
-        pwm_.set(m.pwmCh, mag);
+    // Dump all motor mappings to debug output
+    void dumpAllMotorMappings() const;
 
-        DBG_PRINTF("[DcMotorManager] id=%u speed=%.3f mag=%.3f\n",
-                   id, speed, mag);
-        return true;
-    }
+    // === PID / velocity control API ===
 
-    // Stop motor: also reset PID target -> 0 if enabled
-bool stop(uint8_t id) {
-    if (id >= MAX_MOTORS || !motors_[id].attached) {
-        return false;
-    }
-    Motor& m = motors_[id];
-    
-    // Reset PID before disabling (order matters!)
-    if (m.pidEnabled) {
-        m.pid.reset();
-    }
-    
-    m.pidEnabled = false;
-    m.targetOmegaRadS = 0.0f;
-    
-    return setSpeed(id, 0.0f);
-}
-    void stopAll() {
-        for (uint8_t i = 0; i < MAX_MOTORS; ++i) {
-            if (motors_[i].attached) {
-                stop(i);
-            }
-        }
-    }
+    // Enable/disable closed-loop velocity control
+    bool enableVelocityPid(uint8_t id, bool enable);
 
-    bool getMotorDebugInfo(uint8_t id, MotorDebugInfo& out) const {
-        if (id >= MAX_MOTORS) {
-            return false;
-        }
-        const Motor& m = motors_[id];
-
-        out.id          = id;
-        out.attached    = m.attached;
-        out.in1Pin      = m.in1Pin;
-        out.in2Pin      = m.in2Pin;
-        out.pwmPin      = m.pwmPin;
-        out.ledcChannel = m.ledcChannel;
-        out.gpioChIn1   = m.gpioChIn1;
-        out.gpioChIn2   = m.gpioChIn2;
-        out.pwmCh       = m.pwmCh;
-        out.lastSpeed   = m.lastSpeed;
-        out.freqHz      = m.freqHz;
-        out.resolution  = m.resolution;
-
-        out.pidEnabled      = m.pidEnabled;
-        out.targetOmegaRadS = m.targetOmegaRadS;
-
-        return m.attached;
-    }
-
-    void dumpAllMotorMappings() const {
-        DBG_PRINTF("=== DcMotorManager mappings ===\n");
-        for (uint8_t id = 0; id < MAX_MOTORS; ++id) {
-            const Motor& m = motors_[id];
-            if (!m.attached) {
-                DBG_PRINTF("  id=%u: [NOT ATTACHED]\n", id);
-                continue;
-            }
-
-            DBG_PRINTF(
-                "  id=%u: in1Pin=%d in2Pin=%d pwmPin=%d ledcCH=%d "
-                "gpioChIn1=%d gpioChIn2=%d pwmCh=%d freq=%.1fHz "
-                "res=%d lastSpeed=%.3f pidEnabled=%d targetOmega=%.3f rad/s\n",
-                id,
-                m.in1Pin,
-                m.in2Pin,
-                m.pwmPin,
-                m.ledcChannel,
-                m.gpioChIn1,
-                m.gpioChIn2,
-                m.pwmCh,
-                m.freqHz,
-                m.resolution,
-                m.lastSpeed,
-                m.pidEnabled ? 1 : 0,
-                m.targetOmegaRadS
-            );
-        }
-        DBG_PRINTF("=== end DcMotorManager mappings ===\n");
-    }
-
-    // =========================
-    // PID / velocity control API
-    // =========================
-
-    // Enable or disable closed-loop velocity control for this motor.
-    // When enabled, you should call updateVelocityPid() periodically
-    // with measuredOmega and dt.
-    bool enableVelocityPid(uint8_t id, bool enable) {
-        if (id >= MAX_MOTORS || !motors_[id].attached) {
-            DBG_PRINTF("[DcMotorManager] enableVelocityPid ignored, id=%u not attached\n", id);
-            return false;
-        }
-        Motor& m = motors_[id];
-        m.pidEnabled = enable;
-        m.pid.reset();
-        DBG_PRINTF("[DcMotorManager] id=%u PID %s\n", id, enable ? "ENABLED" : "DISABLED");
-        return true;
-    }
-
+    // Check if velocity PID is enabled
     bool isVelocityPidEnabled(uint8_t id) const {
-        if (id >= MAX_MOTORS || !motors_[id].attached) {
-            return false;
-        }
-        return motors_[id].pidEnabled;
+        return (id < MAX_MOTORS) && motors_[id].attached && motors_[id].pidEnabled;
     }
 
-    // Set desired velocity in rad/s for the motor.
-    bool setVelocityTarget(uint8_t id, float omegaRadPerSec) {
-        if (id >= MAX_MOTORS || !motors_[id].attached) {
-            DBG_PRINTF("[DcMotorManager] setVelocityTarget ignored, id=%u not attached\n", id);
-            return false;
-        }
-        motors_[id].targetOmegaRadS = omegaRadPerSec;
-        DBG_PRINTF("[DcMotorManager] id=%u targetOmega=%.3f rad/s\n", id, omegaRadPerSec);
-        return true;
-    }
+    // Set target velocity in rad/s
+    bool setVelocityTarget(uint8_t id, float omegaRadPerSec);
 
-    // Configure PID gains for this motor.
-    bool setVelocityGains(uint8_t id, float kp, float ki, float kd) {
-        if (id >= MAX_MOTORS || !motors_[id].attached) {
-            DBG_PRINTF("[DcMotorManager] setVelocityGains ignored, id=%u not attached\n", id);
-            return false;
-        }
-        Motor& m = motors_[id];
-        m.pid.setGains(kp, ki, kd);
-        DBG_PRINTF("[DcMotorManager] id=%u PID gains kp=%.4f ki=%.4f kd=%.4f\n",
-                   id, kp, ki, kd);
-        return true;
-    }
+    // Set PID gains
+    bool setVelocityGains(uint8_t id, float kp, float ki, float kd);
 
-    // Call this at a fixed frequency (e.g., 500–1000 Hz) with the
-    // measured angular velocity [rad/s] from your encoder and dt in seconds.
-    // This computes a new duty command and applies it via setSpeed().
-    bool updateVelocityPid(uint8_t id, float measuredOmegaRadS, float dt) {
-        if (id >= MAX_MOTORS || !motors_[id].attached) {
-            return false;
-        }
-        Motor& m = motors_[id];
-        if (!m.pidEnabled) {
-            return false;
-        }
-        if (dt <= 0.0f) {
-            return false;
-        }
-
-        float cmd = m.pid.compute(m.targetOmegaRadS, measuredOmegaRadS, dt);
-        // cmd should be within -1..1 due to PID output limits
-        return setSpeed(id, cmd);
-    }
+    // Update PID with measured velocity (call at fixed rate)
+    bool updateVelocityPid(uint8_t id, float measuredOmegaRadS, float dt);
 
 private:
     GpioManager& gpio_;

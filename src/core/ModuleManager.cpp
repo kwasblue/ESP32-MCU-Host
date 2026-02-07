@@ -6,6 +6,18 @@
 #include "core/Debug.h"
 #include <algorithm>
 
+namespace {
+const char* domainToString(LoopDomain d) {
+    switch (d) {
+        case LoopDomain::MAIN:    return "MAIN";
+        case LoopDomain::CONTROL: return "CTRL";
+        case LoopDomain::SAFETY:  return "SAFE";
+        case LoopDomain::ANY:     return "ANY";
+        default:                  return "?";
+    }
+}
+} // namespace
+
 ModuleManager& ModuleManager::instance() {
     static ModuleManager manager;
     return manager;
@@ -42,9 +54,10 @@ void ModuleManager::finalize() {
     finalized_ = true;
     DBG_PRINTF("[MMAN] Finalized with %d modules\n", (int)modules_.size());
 
-    // Debug: list all modules
+    // Debug: list all modules with domain
     for (auto* module : modules_) {
-        DBG_PRINTF("[MMAN]   %s (pri=%d)\n", module->name(), module->priority());
+        DBG_PRINTF("[MMAN]   %s (pri=%d, domain=%s)\n",
+                   module->name(), module->priority(), domainToString(module->domain()));
     }
 }
 
@@ -80,5 +93,15 @@ void ModuleManager::setupAll() {
 void ModuleManager::loopAll(uint32_t now_ms) {
     for (auto* module : modules_) {
         module->loop(now_ms);
+    }
+}
+
+void ModuleManager::loopDomain(uint32_t now_ms, LoopDomain domain) {
+    for (auto* module : modules_) {
+        LoopDomain modDomain = module->domain();
+        // Run if exact match or module is domain-agnostic (ANY)
+        if (modDomain == domain || modDomain == LoopDomain::ANY) {
+            module->loop(now_ms);
+        }
     }
 }

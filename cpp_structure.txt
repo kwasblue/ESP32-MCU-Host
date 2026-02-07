@@ -1,7 +1,7 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-02-06 21:46:47
-Total Files: 154
+Generated: 2026-02-06 23:20:43
+Total Files: 169
 ================================================================================
 
 🧩 📄 include/audio/AudioGraphManager.h
@@ -338,6 +338,13 @@ Total Files: 154
    🧾 enum CmdType
    ⚙️  cmdTypeFromString(const std::string& s)
    ⚙️  cmdTypeToString(CmdType c)
+
+🧩 📄 include/config/DeviceManifest.h
+   📦 namespace mcu
+   📦 namespace DeviceCap
+   🧱 struct DeviceManifest
+      (no in-class method bodies detected)
+   ⚙️  buildDeviceCaps()
 
 🧩 📄 include/config/FeatureFlags.h
    ⚙️  buildCapabilityMask()
@@ -830,6 +837,7 @@ Total Files: 154
 🧩 📄 include/core/ServiceContext.h
    📦 namespace mcu
    📦 namespace mcu
+   📦 namespace mcu
    🧱 struct ServiceContext
       ├── hasMotorControl()
       ├── hasSensors()
@@ -904,48 +912,71 @@ Total Files: 154
    🧱 struct BinProvider
       (no in-class method bodies detected)
 
+🧩 📄 include/motor/ActuatorConfig.h
+   📦 namespace mcu
+   ⚙️  autoConfigureDcMotors(DcMotorManagerT& dcMotor)
+   ⚙️  autoConfigureServos(ServoManagerT& servo)
+   ⚙️  autoConfigureSteppers(StepperManagerT& stepper)
+   ⚙️  autoConfigureEncoders(EncoderManagerT& encoder)
+   🧱 struct ActuatorAutoConfig
+      └── configureAll(DcT& dc, ServoT& servo, StepperT& stepper, EncT& encoder)
+   ⚙️  configureAll(DcT& dc, ServoT& servo, StepperT& stepper, EncT& encoder)
+
+🧩 📄 include/motor/ActuatorRegistry.h
+   📦 namespace mcu
+   🧱 class ActuatorRegistry
+      ├── setAvailableCaps(uint32_t caps)
+      ├── availableCaps()
+      ├── get()
+      ├── get()
+      ├── count()
+      ├── begin()
+      └── end()
+   ⚙️  setAvailableCaps(uint32_t caps)
+   ⚙️  availableCaps()
+   ⚙️  get()
+   ⚙️  get()
+   ⚙️  count()
+   ⚙️  begin()
+   ⚙️  end()
+
+🧩 📄 include/motor/DcMotorActuator.h
+   📦 namespace mcu
+   🧱 struct Motor
+      (no in-class method bodies detected)
+   ⚙️  attach(uint8_t id, int in1Pin, int in2Pin, int pwmPin,
+                int ledcChannel, int freq = 15000, int resolutionBits = 12)
+   ⚙️  isAttached(uint8_t id)
+   ⚙️  setSpeed(uint8_t id, float speed)
+   ⚙️  stop(uint8_t id)
+   ⚙️  enableVelocityPid(uint8_t id, bool enable)
+   ⚙️  setVelocityTarget(uint8_t id, float omegaRadPerSec)
+   ⚙️  setVelocityGains(uint8_t id, float kp, float ki, float kd)
+   ⚙️  updateVelocityPid(uint8_t id, float measuredOmegaRadS, float dt)
+   ⚙️  getLastSpeed(uint8_t id)
+   📦 namespace mcu
+   🧱 class DcMotorActuator
+      ├── attach(uint8_t, int, int, int, int, int = 15000, int = 12)
+      ├── isAttached(uint8_t)
+      ├── setSpeed(uint8_t, float)
+      ├── stop(uint8_t)
+      └── stopAll()
+   ⚙️  attach(uint8_t, int, int, int, int, int = 15000, int = 12)
+   ⚙️  isAttached(uint8_t)
+   ⚙️  setSpeed(uint8_t, float)
+   ⚙️  stop(uint8_t)
+   ⚙️  stopAll()
+
 🧩 📄 include/motor/DcMotorManager.h
    🧱 class DcMotorManager
-      ├── attach(uint8_t id,
-                int in1Pin,
-                int in2Pin,
-                int pwmPin,
-                int ledcChannel,
-                int freq = 15000,          
-                int resolutionBits = 12)
       ├── isAttached(uint8_t id)
-      ├── setSpeed(uint8_t id, float speed)
-      ├── stop(uint8_t id)
-      ├── stopAll()
-      ├── getMotorDebugInfo(uint8_t id, MotorDebugInfo& out)
-      ├── dumpAllMotorMappings()
-      ├── enableVelocityPid(uint8_t id, bool enable)
-      ├── isVelocityPidEnabled(uint8_t id)
-      ├── setVelocityTarget(uint8_t id, float omegaRadPerSec)
-      ├── setVelocityGains(uint8_t id, float kp, float ki, float kd)
-      └── updateVelocityPid(uint8_t id, float measuredOmegaRadS, float dt)
+      └── isVelocityPidEnabled(uint8_t id)
    🧱 struct Motor
       (no in-class method bodies detected)
    🧱 struct MotorDebugInfo
       (no in-class method bodies detected)
-   ⚙️  attach(uint8_t id,
-                int in1Pin,
-                int in2Pin,
-                int pwmPin,
-                int ledcChannel,
-                int freq = 15000,          
-                int resolutionBits = 12)
    ⚙️  isAttached(uint8_t id)
-   ⚙️  setSpeed(uint8_t id, float speed)
-   ⚙️  stop(uint8_t id)
-   ⚙️  stopAll()
-   ⚙️  getMotorDebugInfo(uint8_t id, MotorDebugInfo& out)
-   ⚙️  dumpAllMotorMappings()
-   ⚙️  enableVelocityPid(uint8_t id, bool enable)
    ⚙️  isVelocityPidEnabled(uint8_t id)
-   ⚙️  setVelocityTarget(uint8_t id, float omegaRadPerSec)
-   ⚙️  setVelocityGains(uint8_t id, float kp, float ki, float kd)
-   ⚙️  updateVelocityPid(uint8_t id, float measuredOmegaRadS, float dt)
    🧱 class DcMotorManager
       ├── DcMotorManager(GpioManager&, PwmManager&)
       ├── attach(uint8_t, int, int, int, int, int = 15000, int = 12)
@@ -977,6 +1008,17 @@ Total Files: 154
    ⚙️  setVelocityTarget(uint8_t, float)
    ⚙️  setVelocityGains(uint8_t, float, float, float)
    ⚙️  updateVelocityPid(uint8_t, float, float)
+
+🧩 📄 include/motor/IActuator.h
+   📦 namespace mcu
+   📦 namespace ActuatorCap
+   🧱 class IActuator
+      ├── requiredCaps()
+      ├── priority()
+      └── isOnline()
+   ⚙️  requiredCaps()
+   ⚙️  priority()
+   ⚙️  isOnline()
 
 🧩 📄 include/motor/MotionController.h
    🧱 class MotionController
@@ -1036,34 +1078,10 @@ Total Files: 154
    🧱 struct StepperState
       (no in-class method bodies detected)
    🧱 class StepperManager
-      ├── gpio_(gpio)
-      ├── registerStepper(int motorId,
-                         int pinStep,
-                         int pinDir,
-                         int pinEnable = -1,
-                         bool invertDir = false)
-      ├── setEnabled(int motorId, bool enabled)
-      ├── moveRelative(int motorId, int steps, float speedStepsPerSec = 1000.0f)
-      ├── stop(int motorId)
-      ├── getStepperDebugInfo(int motorId, StepperDebugInfo& out)
-      ├── dumpAllStepperMappings()
-      ├── getState(int motorId)
-      └── getState(int motorId)
+      └── gpio_(gpio)
    🧱 struct StepperDebugInfo
       (no in-class method bodies detected)
    ⚙️  gpio_(gpio)
-   ⚙️  registerStepper(int motorId,
-                         int pinStep,
-                         int pinDir,
-                         int pinEnable = -1,
-                         bool invertDir = false)
-   ⚙️  setEnabled(int motorId, bool enabled)
-   ⚙️  moveRelative(int motorId, int steps, float speedStepsPerSec = 1000.0f)
-   ⚙️  stop(int motorId)
-   ⚙️  getStepperDebugInfo(int motorId, StepperDebugInfo& out)
-   ⚙️  dumpAllStepperMappings()
-   ⚙️  getState(int motorId)
-   ⚙️  getState(int motorId)
    🧱 class StepperManager
       ├── StepperManager(GpioManager&)
       ├── registerStepper(int, int, int, int = -1, bool = false)
@@ -1116,6 +1134,17 @@ Total Files: 154
    ⚙️  addr(const std::string& name)
    ⚙️  bus()
 
+🧩 📄 include/sensor/ISensor.h
+   📦 namespace mcu
+   🧱 class ISensor
+      ├── requiredCaps()
+      ├── priority()
+      └── isOnline()
+   ⚙️  requiredCaps()
+   ⚙️  priority()
+   ⚙️  isOnline()
+   📦 namespace SensorCap
+
 🧩 📄 include/sensor/ImuManager.h
    🧱 class ImuManager
       └── isOnline()
@@ -1166,6 +1195,30 @@ Total Files: 154
       (no in-class method bodies detected)
    ⚙️  isOnline()
 
+🧩 📄 include/sensor/SensorRegistry.h
+   📦 namespace mcu
+   🧱 class SensorRegistry
+      ├── setAvailableCaps(uint32_t caps)
+      ├── availableCaps()
+      ├── get()
+      ├── get()
+      ├── count()
+      ├── hasCaps(uint32_t caps)
+      ├── begin()
+      ├── end()
+      ├── begin()
+      └── end()
+   ⚙️  setAvailableCaps(uint32_t caps)
+   ⚙️  availableCaps()
+   ⚙️  get()
+   ⚙️  get()
+   ⚙️  count()
+   ⚙️  hasCaps(uint32_t caps)
+   ⚙️  begin()
+   ⚙️  end()
+   ⚙️  begin()
+   ⚙️  end()
+
 🧩 📄 include/sensor/UltrasonicManager.h
    🧱 class UltrasonicManager
       ├── setSampleInterval(uint32_t ms)
@@ -1206,6 +1259,33 @@ Total Files: 154
    ⚙️  sampleNow(uint8_t)
    ⚙️  getReadingAgeMs(uint8_t, uint32_t)
 
+🧩 📄 include/sensor/UltrasonicSensor.h
+   📦 namespace mcu
+   🧱 struct Reading
+      (no in-class method bodies detected)
+   ⚙️  attach(uint8_t id, int trigPin, int echoPin)
+   ⚙️  isAttached(uint8_t id)
+   ⚙️  readDistanceCm(uint8_t id)
+   ⚙️  sampleNow(uint8_t id)
+   ⚙️  setSampleInterval(uint32_t ms)
+   ⚙️  getSampleInterval()
+   ⚙️  hasAnyAttached()
+   ⚙️  sampleSensor(uint8_t id, uint32_t now_ms)
+   📦 namespace mcu
+   🧱 class UltrasonicSensor
+      ├── attach(uint8_t, int, int)
+      ├── isAttached(uint8_t)
+      ├── readDistanceCm(uint8_t)
+      ├── sampleNow(uint8_t)
+      ├── setSampleInterval(uint32_t)
+      └── getSampleInterval()
+   ⚙️  attach(uint8_t, int, int)
+   ⚙️  isAttached(uint8_t)
+   ⚙️  readDistanceCm(uint8_t)
+   ⚙️  sampleNow(uint8_t)
+   ⚙️  setSampleInterval(uint32_t)
+   ⚙️  getSampleInterval()
+
 🧩 📄 include/setup/ISetupModule.h
    📦 namespace mcu
    🧱 class ISetupModule
@@ -1240,6 +1320,26 @@ Total Files: 154
    ⚙️  transportCount()
    ⚙️  getTransport(size_t idx)
    ⚙️  lastReceiveTransportIndex()
+
+🧩 📄 include/transport/TransportRegistry.h
+   📦 namespace mcu
+   📦 namespace TransportCap
+   ⚙️  requiredCaps()
+   ⚙️  priority()
+   ⚙️  configure()
+   ⚙️  isEnabled()
+   ⚙️  setEnabled(bool e)
+   🧱 class TransportRegistry
+      ├── setAvailableCaps(uint32_t caps)
+      ├── availableCaps()
+      ├── count()
+      ├── begin()
+      └── end()
+   ⚙️  setAvailableCaps(uint32_t caps)
+   ⚙️  availableCaps()
+   ⚙️  count()
+   ⚙️  begin()
+   ⚙️  end()
 
 🧩 📄 include/transport/UartTransport.h
    ⚙️  Protocol::extractFrames(rxBuffer_, [this](const uint8_t* frame, size_t len)
@@ -1325,6 +1425,11 @@ Total Files: 154
    📦 namespace mcu
    📦 namespace cmd
    ⚙️  decodeObserverConfig(JsonVariantConst payload)
+
+🧩 📄 src/config/DeviceManifest.cpp
+   📦 namespace mcu
+   ⚙️  buildManifest(const ServiceContext& ctx)
+   ⚙️  capBitToName(uint32_t bit)
 
 🧩 📄 src/config/RobotConfig.cpp
    📦 namespace config
@@ -1537,6 +1642,36 @@ Total Files: 154
    ⚙️  TelemetryModule::put_u32(std::vector<uint8_t>& b, uint32_t v)
    ⚙️  TelemetryModule::sendTelemetry(uint32_t now_ms)
 
+🧩 📄 src/motor/ActuatorRegistry.cpp
+   📦 namespace mcu
+   ⚙️  ActuatorRegistry::instance()
+   ⚙️  ActuatorRegistry::registerActuator(IActuator* actuator)
+   ⚙️  ActuatorRegistry::initAll(ServiceContext& ctx)
+   ⚙️  std::sort(actuators_, actuators_ + count_,
+        [](IActuator* a, IActuator* b)
+   ⚙️  ActuatorRegistry::setupAll()
+   ⚙️  ActuatorRegistry::stopAll()
+   ⚙️  ActuatorRegistry::find(const char* name)
+   ⚙️  ActuatorRegistry::find(const char* name)
+
+🧩 📄 src/motor/DcMotorManager.cpp
+   ⚙️  DcMotorManager::attach(uint8_t id,
+                            int in1Pin,
+                            int in2Pin,
+                            int pwmPin,
+                            int ledcChannel,
+                            int freq,
+                            int resolutionBits)
+   ⚙️  DcMotorManager::setSpeed(uint8_t id, float speed)
+   ⚙️  DcMotorManager::stop(uint8_t id)
+   ⚙️  DcMotorManager::stopAll()
+   ⚙️  DcMotorManager::getMotorDebugInfo(uint8_t id, MotorDebugInfo& out)
+   ⚙️  DcMotorManager::dumpAllMotorMappings()
+   ⚙️  DcMotorManager::enableVelocityPid(uint8_t id, bool enable)
+   ⚙️  DcMotorManager::setVelocityTarget(uint8_t id, float omegaRadPerSec)
+   ⚙️  DcMotorManager::setVelocityGains(uint8_t id, float kp, float ki, float kd)
+   ⚙️  DcMotorManager::updateVelocityPid(uint8_t id, float measuredOmegaRadS, float dt)
+
 🧩 📄 src/motor/MotionController.cpp
    ⚙️  baseEnabled_(false)
    ⚙️  MotionController::setVelocity(float vx, float omega)
@@ -1554,6 +1689,20 @@ Total Files: 154
                                            float speedStepsPerSec)
    ⚙️  MotionController::enableStepper(int motorId, bool enabled)
    ⚙️  MotionController::update(float dt)
+
+🧩 📄 src/motor/StepperManager.cpp
+   ⚙️  StepperManager::registerStepper(int motorId,
+                                      int pinStep,
+                                      int pinDir,
+                                      int pinEnable,
+                                      bool invertDir)
+   ⚙️  StepperManager::setEnabled(int motorId, bool enabled)
+   ⚙️  StepperManager::moveRelative(int motorId, int steps, float speedStepsPerSec)
+   ⚙️  StepperManager::stop(int motorId)
+   ⚙️  StepperManager::getStepperDebugInfo(int motorId, StepperDebugInfo& out)
+   ⚙️  StepperManager::dumpAllStepperMappings()
+   ⚙️  StepperManager::getState(int motorId)
+   ⚙️  StepperManager::getState(int motorId)
 
 🧩 📄 src/sensor/EncoderManager.cpp
    ⚙️  getGlobalEncoderManager()
@@ -1581,6 +1730,18 @@ Total Files: 154
                        i2s_port_t port)
    ⚙️  MicManager::readLevel(Level& outLevel, size_t sampleCount)
 
+🧩 📄 src/sensor/SensorRegistry.cpp
+   📦 namespace mcu
+   ⚙️  SensorRegistry::instance()
+   ⚙️  SensorRegistry::registerSensor(ISensor* sensor)
+   ⚙️  SensorRegistry::initAll()
+   ⚙️  std::sort(sensors_, sensors_ + count_,
+        [](ISensor* a, ISensor* b)
+   ⚙️  SensorRegistry::loopAll(uint32_t now_ms)
+   ⚙️  SensorRegistry::toJsonAll(JsonObject& out)
+   ⚙️  SensorRegistry::find(const char* name)
+   ⚙️  SensorRegistry::find(const char* name)
+
 🧩 📄 src/setup/SetupControlTask.cpp
    📦 namespace mcu
    ⚙️  controlTaskFunc(void* param)
@@ -1605,6 +1766,7 @@ Total Files: 154
    ⚙️  getSetupSafetyModule()
 
 🧩 📄 src/setup/SetupSensors.cpp
+   ⚙️  buildSensorCaps()
    ⚙️  getSetupSensorsModule()
 
 🧩 📄 src/setup/SetupTelemetry.cpp
@@ -1624,6 +1786,17 @@ Total Files: 154
    ⚙️  MqttTransport::onMessage(char* topic, uint8_t* payload, unsigned int length)
    ⚙️  MqttTransport::sendBytes(const uint8_t* data, size_t len)
    ⚙️  MqttTransport::publishDiscoveryResponse()
+
+🧩 📄 src/transport/TransportRegistry.cpp
+   📦 namespace mcu
+   ⚙️  TransportRegistry::instance()
+   ⚙️  TransportRegistry::registerTransport(IRegisteredTransport* transport)
+   ⚙️  TransportRegistry::beginAll()
+   ⚙️  std::sort(transports_, transports_ + count_,
+        [](IRegisteredTransport* a, IRegisteredTransport* b)
+   ⚙️  TransportRegistry::loopAll()
+   ⚙️  TransportRegistry::wireToMultiTransport(MultiTransport* multi)
+   ⚙️  TransportRegistry::find(const char* name)
 
 🧩 📄 test/common/NativeStubs.cpp
    📦 namespace mcu
@@ -2099,9 +2272,9 @@ Total Files: 154
 ================================================================================
 📊 STATISTICS
 ================================================================================
-Namespaces:       58
-Classes/Structs:  151
+Namespaces:       78
+Classes/Structs:  162
 Enums:            3
-Free Functions:   1095
-In-class Methods: 337
+Free Functions:   1188
+In-class Methods: 359
 ================================================================================
