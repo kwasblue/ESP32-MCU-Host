@@ -7,8 +7,11 @@
 #include <string>
 #include <ArduinoJson.h>
 #include "command/ICommandHandler.h"
+#include "command/IStringHandler.h"
 #include "command/CommandContext.h"
 #include "command/BinaryCommands.h"
+#include "core/Clock.h"
+#include "core/IntentBuffer.h"
 #include "core/EventBus.h"
 #include "core/Event.h"
 #include "core/Messages.h"
@@ -22,16 +25,26 @@ class ControlModule;
 /**
  * Command Registry - Central dispatcher for all commands.
  *
- * Replaces the monolithic CommandHandler with a plugin-based architecture.
- * Each domain (motors, sensors, control, etc.) registers its own handler.
+ * Supports two handler types:
+ * 1. IStringHandler (preferred) - String-based dispatch, self-registration via REGISTER_HANDLER
+ * 2. ICommandHandler (legacy) - Enum-based dispatch, manual registration
+ *
+ * For new modules, use registerStringHandler() or REGISTER_HANDLER macro.
  */
 class CommandRegistry {
 public:
     CommandRegistry(EventBus& bus, ModeManager& mode, MotionController& motion);
 
     /**
-     * Register a command handler.
-     * Handlers are checked in registration order.
+     * Register a string-based command handler (preferred for new modules).
+     * Handlers are dispatched via HandlerRegistry with priority ordering.
+     * Use this in module init() for self-registration.
+     */
+    void registerStringHandler(IStringHandler* handler);
+
+    /**
+     * Register a legacy command handler (enum-based).
+     * Handlers are checked in registration order after string handlers.
      */
     void registerHandler(ICommandHandler* handler);
 
@@ -49,6 +62,16 @@ public:
      * Set motion controller reference (for binary commands).
      */
     void setMotionController(MotionController* mc) { motion_ = mc; }
+
+    /**
+     * Set clock for time injection.
+     */
+    void setClock(mcu::IClock* clk) { ctx_.clock = clk; }
+
+    /**
+     * Set intent buffer for command-to-actuator separation.
+     */
+    void setIntentBuffer(mcu::IntentBuffer* ib) { ctx_.intents = ib; }
 
     /**
      * Process incoming JSON command.

@@ -5,10 +5,10 @@
 
 #include "command/ICommandHandler.h"
 #include "command/CommandContext.h"
+#include "command/decoders/ControlDecoders.h"
 #include "module/ControlModule.h"
 #include "control/SignalBus.h"
 #include "core/Debug.h"
-#include <algorithm>
 
 class ControlHandler : public ICommandHandler {
 public:
@@ -73,36 +73,23 @@ private:
         static constexpr const char* ACK = "CMD_CTRL_SIGNAL_DEFINE";
 
         if (!ctx.requireIdle(ACK)) return;
+        if (!controlModule_) { ctx.sendError(ACK, "no_control_module"); return; }
 
-        if (!controlModule_) {
-            ctx.sendError(ACK, "no_control_module");
-            return;
-        }
+        auto result = mcu::cmd::decodeSignalDef(payload);
+        if (!result.valid) { ctx.sendError(ACK, result.error); return; }
 
-        if (payload["id"].isNull() || payload["name"].isNull() || payload["kind"].isNull()) {
-            ctx.sendError(ACK, "missing_fields");
-            return;
-        }
-
-        uint16_t id = payload["id"].as<uint16_t>();
-        const char* name = payload["name"].as<const char*>();
-        const char* kindS = payload["signal_kind"] | payload["kind"] | "STATE";
-        float initial = payload["initial"] | 0.0f;
-
+        const char* kindS = signalKindToString(result.kind);
         DBG_PRINTF("[CTRL] SIGNAL_DEFINE: id=%u name=%s kind=%s initial=%.2f\n",
-                   id, name ? name : "null", kindS ? kindS : "null", initial);
+                   result.id, result.name, kindS, result.initial);
 
-        SignalBus::Kind kind = signalKindFromString(kindS);
-        bool ok = controlModule_->signals().define(id, name, kind, initial);
+        bool ok = controlModule_->signals().define(result.id, result.name, result.kind, result.initial);
 
         JsonDocument resp;
-        resp["id"] = id;
-        resp["name"] = name ? name : "";
-        resp["kind"] = kindS ? kindS : "";
-        resp["initial"] = initial;
-        if (!ok) {
-            resp["error"] = "define_failed";
-        }
+        resp["id"] = result.id;
+        resp["name"] = result.name;
+        resp["kind"] = kindS;
+        resp["initial"] = result.initial;
+        if (!ok) resp["error"] = "define_failed";
         ctx.sendAck(ACK, ok, resp);
     }
 
@@ -116,8 +103,15 @@ private:
 
         uint16_t id = payload["id"] | 0;
         float value = payload["value"] | 0.0f;
+        const uint32_t now_ms = ctx.now_ms();
 
-        bool ok = controlModule_->signals().set(id, value, millis());
+        bool ok = true;
+        // Queue signal intent (control task will consume and apply)
+        if (ctx.intents) {
+            ctx.intents->queueSignalIntent(id, value, now_ms);
+        } else {
+            ok = controlModule_->signals().set(id, value, now_ms);  // Fallback
+        }
 
         JsonDocument resp;
         resp["id"] = id;
@@ -217,60 +211,19 @@ private:
     void handleSlotConfig(JsonVariantConst payload, CommandContext& ctx) {
         static constexpr const char* ACK = "CMD_CTRL_SLOT_CONFIG";
 
-        if (!controlModule_) {
-            ctx.sendError(ACK, "no_control_module");
-            return;
-        }
+        if (!ctx.requireIdle(ACK)) return;
+        if (!controlModule_) { ctx.sendError(ACK, "no_control_module"); return; }
 
-        SlotConfig cfg;
-        cfg.slot = payload["slot"] | 0;
-        cfg.rate_hz = payload["rate_hz"] | 100;
-        cfg.require_armed = payload["require_armed"] | true;
-        cfg.require_active = payload["require_active"] | true;
+        auto result = mcu::cmd::decodeSlotConfig(payload);
+        if (!result.valid) { ctx.sendError(ACK, result.error); return; }
 
-        const char* type = payload["controller_type"] | "PID";
-
-        if (strcmp(type, "STATE_SPACE") == 0 || strcmp(type, "SS") == 0) {
-            // State-space configuration
-            cfg.ss_io.num_states = payload["num_states"] | 2;
-            cfg.ss_io.num_inputs = payload["num_inputs"] | 1;
-
-            JsonArrayConst state_ids = payload["state_ids"].as<JsonArrayConst>();
-            if (state_ids) {
-                for (size_t i = 0; i < state_ids.size() && i < StateSpaceIO::MAX_STATES; i++) {
-                    cfg.ss_io.state_ids[i] = state_ids[i].as<uint16_t>();
-                }
-            }
-
-            JsonArrayConst ref_ids = payload["ref_ids"].as<JsonArrayConst>();
-            if (ref_ids) {
-                for (size_t i = 0; i < ref_ids.size() && i < StateSpaceIO::MAX_STATES; i++) {
-                    cfg.ss_io.ref_ids[i] = ref_ids[i].as<uint16_t>();
-                }
-            }
-
-            JsonArrayConst out_ids = payload["output_ids"].as<JsonArrayConst>();
-            if (out_ids) {
-                for (size_t i = 0; i < out_ids.size() && i < StateSpaceIO::MAX_INPUTS; i++) {
-                    cfg.ss_io.output_ids[i] = out_ids[i].as<uint16_t>();
-                }
-            }
-        } else {
-            // PID configuration
-            cfg.io.ref_id = payload["ref_id"] | 0;
-            cfg.io.meas_id = payload["meas_id"] | 0;
-            cfg.io.out_id = payload["out_id"] | 0;
-        }
-
-        bool ok = controlModule_->kernel().configureSlot(cfg, type);
+        bool ok = controlModule_->kernel().configureSlot(result.config, result.controllerType);
 
         JsonDocument resp;
-        resp["slot"] = cfg.slot;
-        resp["controller_type"] = type;
-        resp["rate_hz"] = cfg.rate_hz;
-        if (!ok) {
-            resp["error"] = "config_failed";
-        }
+        resp["slot"] = result.config.slot;
+        resp["controller_type"] = result.controllerType;
+        resp["rate_hz"] = result.config.rate_hz;
+        if (!ok) resp["error"] = "config_failed";
         ctx.sendAck(ACK, ok, resp);
     }
 
@@ -347,10 +300,7 @@ private:
     void handleSlotSetParamArray(JsonVariantConst payload, CommandContext& ctx) {
         static constexpr const char* ACK = "CMD_CTRL_SLOT_SET_PARAM_ARRAY";
 
-        if (!controlModule_) {
-            ctx.sendError(ACK, "no_control_module");
-            return;
-        }
+        if (!controlModule_) { ctx.sendError(ACK, "no_control_module"); return; }
 
         uint8_t slot = payload["slot"] | 0;
         const char* key = payload["key"] | "";
@@ -366,20 +316,15 @@ private:
         }
 
         float values[12];  // Max size for K matrix (2x6)
-        size_t len = std::min(arr.size(), sizeof(values) / sizeof(values[0]));
-        for (size_t i = 0; i < len; i++) {
-            values[i] = arr[i].as<float>();
-        }
+        size_t len = mcu::cmd::extractFloatArray(arr, values, sizeof(values) / sizeof(values[0]));
 
         bool ok = controlModule_->kernel().setParamArray(slot, key, values, len);
 
         JsonDocument resp;
         resp["slot"] = slot;
         resp["key"] = key;
-        resp["count"] = (int)len;
-        if (!ok) {
-            resp["error"] = "set_param_array_failed";
-        }
+        resp["count"] = static_cast<int>(len);
+        if (!ok) resp["error"] = "set_param_array_failed";
         ctx.sendAck(ACK, ok, resp);
     }
 

@@ -6,6 +6,7 @@
 #if HAS_SIGNAL_BUS
 
 #include "control/SignalBus.h"
+#include "core/CriticalSection.h"
 #include <cstring>
 
 int SignalBus::indexOf_(uint16_t id) const {
@@ -62,8 +63,11 @@ bool SignalBus::exists(uint16_t id) const {
 }
 
 bool SignalBus::set(uint16_t id, float v, uint32_t now_ms) {
+    mcu::CriticalSection lock(lock_);
     int idx = indexOf_(id);
-    if (idx < 0) return false;
+    if (idx < 0) {
+        return false;
+    }
     auto& sig = signals_[static_cast<size_t>(idx)];
     sig.value = v;
     sig.ts_ms = now_ms;
@@ -72,8 +76,11 @@ bool SignalBus::set(uint16_t id, float v, uint32_t now_ms) {
 }
 
 SignalBus::SetResult SignalBus::setWithRateLimit(uint16_t id, float v, uint32_t now_ms) {
+    mcu::CriticalSection lock(lock_);
     int idx = indexOf_(id);
-    if (idx < 0) return SetResult::SIGNAL_NOT_FOUND;
+    if (idx < 0) {
+        return SetResult::SIGNAL_NOT_FOUND;
+    }
 
     auto& sig = signals_[static_cast<size_t>(idx)];
 
@@ -111,18 +118,25 @@ void SignalBus::setGlobalRateLimit(uint32_t min_interval_ms, uint16_t max_update
 }
 
 bool SignalBus::get(uint16_t id, float& out) const {
+    mcu::CriticalSection lock(lock_);
     int idx = indexOf_(id);
-    if (idx < 0) return false;
+    if (idx < 0) {
+        return false;
+    }
     out = signals_[static_cast<size_t>(idx)].value;
     return true;
 }
 
 bool SignalBus::getTimestamp(uint16_t id, uint32_t& out) const {
+    mcu::CriticalSection lock(lock_);
     int idx = indexOf_(id);
-    if (idx < 0) return false;
+    if (idx < 0) {
+        return false;
+    }
     out = signals_[static_cast<size_t>(idx)].ts_ms;
     return true;
 }
+
 bool SignalBus::remove(uint16_t id) {
     auto it = idToIndex_.find(id);
     if (it == idToIndex_.end()) return false;
@@ -209,6 +223,28 @@ bool SignalBus::setByName(const char* name, float v, uint32_t now_ms) {
     uint16_t id = resolveId(name);
     if (id == 0) return false;
     return set(id, v, now_ms);
+}
+
+// -----------------------------------------------------------------------------
+// Thread-safe Snapshot
+// -----------------------------------------------------------------------------
+
+size_t SignalBus::snapshot(SignalSnapshot* out, size_t max_count) const {
+    if (!out || max_count == 0) return 0;
+
+    mcu::CriticalSection lock(lock_);
+    size_t count = signals_.size();
+    if (count > max_count) count = max_count;
+
+    for (size_t i = 0; i < count; ++i) {
+        const auto& s = signals_[i];
+        out[i].id = s.id;
+        out[i].value = s.value;
+        out[i].ts_ms = s.ts_ms;
+        out[i].kind = s.kind;
+    }
+
+    return count;
 }
 
 #endif // HAS_SIGNAL_BUS

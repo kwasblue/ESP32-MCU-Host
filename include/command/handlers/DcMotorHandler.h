@@ -52,8 +52,16 @@ private:
 
         DBG_PRINTF("[DC] SET_SPEED motor=%d speed=%.3f\n", motorId, speed);
 
-        ctx.mode.onMotionCommand(millis());
-        bool ok = dc_.setSpeed(static_cast<uint8_t>(motorId), speed);
+        const uint32_t now_ms = ctx.now_ms();
+        ctx.mode.onMotionCommand(now_ms);
+
+        bool ok = true;
+        // Store DC motor intent (control task will consume and apply)
+        if (ctx.intents) {
+            ctx.intents->setDcMotorIntent(static_cast<uint8_t>(motorId), speed, now_ms);
+        } else {
+            ok = dc_.setSpeed(static_cast<uint8_t>(motorId), speed);  // Fallback
+        }
 
         JsonDocument resp;
         resp["motor_id"] = motorId;
@@ -102,7 +110,7 @@ private:
 
         DBG_PRINTF("[DC] SET_VEL_TARGET motor=%d omega=%.3f\n", motorId, omega);
 
-        ctx.mode.onMotionCommand(millis());
+        ctx.mode.onMotionCommand(ctx.now_ms());
         bool ok = dc_.setVelocityTarget(static_cast<uint8_t>(motorId), omega);
 
         JsonDocument resp;

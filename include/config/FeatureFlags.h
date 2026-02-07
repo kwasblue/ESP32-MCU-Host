@@ -215,6 +215,84 @@
 #define HAS_ANY_CONTROL (HAS_CONTROL_KERNEL || HAS_OBSERVER || HAS_SIGNAL_BUS)
 
 // =============================================================================
+// CAPABILITY MASK BUILDER (for handler gating)
+// =============================================================================
+#include "command/IStringHandler.h"
+
+/**
+ * Build capability bitmask from feature flags.
+ * Returns a uint32_t with bits set for each available capability.
+ */
+inline uint32_t buildCapabilityMask() {
+    uint32_t caps = 0;
+
+    // Transport
+    #if HAS_WIFI
+    caps |= HandlerCap::WIFI;
+    #endif
+    #if HAS_BLE
+    caps |= HandlerCap::BLE;
+    #endif
+    #if HAS_MQTT_TRANSPORT
+    caps |= HandlerCap::MQTT;
+    #endif
+
+    // Motor
+    #if HAS_DC_MOTOR
+    caps |= HandlerCap::DC_MOTOR;
+    #endif
+    #if HAS_SERVO
+    caps |= HandlerCap::SERVO;
+    #endif
+    #if HAS_STEPPER
+    caps |= HandlerCap::STEPPER;
+    #endif
+    #if HAS_MOTION_CONTROLLER
+    caps |= HandlerCap::MOTION_CTRL;
+    #endif
+
+    // Sensor
+    #if HAS_ENCODER
+    caps |= HandlerCap::ENCODER;
+    #endif
+    #if HAS_IMU
+    caps |= HandlerCap::IMU;
+    #endif
+    #if HAS_LIDAR
+    caps |= HandlerCap::LIDAR;
+    #endif
+    #if HAS_ULTRASONIC
+    caps |= HandlerCap::ULTRASONIC;
+    #endif
+
+    // Control
+    #if HAS_SIGNAL_BUS
+    caps |= HandlerCap::SIGNAL_BUS;
+    #endif
+    #if HAS_CONTROL_KERNEL
+    caps |= HandlerCap::CONTROL_KERNEL;
+    #endif
+    #if HAS_OBSERVER
+    caps |= HandlerCap::OBSERVER;
+    #endif
+
+    // System
+    #if HAS_TELEMETRY
+    caps |= HandlerCap::TELEMETRY;
+    #endif
+    #if HAS_SAFETY_MANAGER
+    caps |= HandlerCap::SAFETY;
+    #endif
+
+    // Audio
+    #if HAS_AUDIO
+    caps |= HandlerCap::AUDIO;
+    #endif
+
+    return caps;
+}
+
+// =============================================================================
 // FEATURE SUMMARY (for debug output)
 // =============================================================================
 #if ENABLE_DEBUG_LOGS

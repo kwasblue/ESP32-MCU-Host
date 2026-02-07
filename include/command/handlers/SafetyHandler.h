@@ -51,7 +51,7 @@ private:
 
     void handleHeartbeat(CommandContext& ctx) {
         DBG_PRINTLN("[SAFETY] HEARTBEAT");
-        mode_.onHostHeartbeat(millis());
+        mode_.onHostHeartbeat(ctx.now_ms());
 
         JsonDocument resp;
         resp["state"] = robotModeToString(mode_.mode());

@@ -3,12 +3,8 @@
 #pragma once
 #include <cstdint>
 #include <functional>
-
-// ESP32 critical section support
-#ifdef ESP32
-#include <freertos/FreeRTOS.h>
-#include <freertos/portmacro.h>
-#endif
+#include "core/Clock.h"
+#include "core/CriticalSection.h"
 
 enum class RobotMode : uint8_t {
     BOOT,
@@ -76,11 +72,13 @@ public:
     // This should directly disable motor PWM, not go through motion controller
     void onEmergencyStop(StopCallback cb) { emergencyStopCallback_ = cb; }
 
+    // Clock injection for testability
+    void setClock(mcu::IClock* clk) { clock_ = clk; }
+
 private:
     SafetyConfig cfg_;
     RobotMode mode_ = RobotMode::BOOT;
     RobotMode lastLoggedMode_ = RobotMode::BOOT;
-
 
     uint32_t lastHostHeartbeat_ = 0;
     uint32_t lastMotionCmd_ = 0;
@@ -89,17 +87,15 @@ private:
 
     StopCallback stopCallback_;
     StopCallback emergencyStopCallback_;  // Direct motor disable for E-stop
+    mcu::IClock* clock_ = nullptr;
 
-#ifdef ESP32
-    portMUX_TYPE lock_ = portMUX_INITIALIZER_UNLOCKED;
+    /// Get current time from clock or fallback to system clock
+    uint32_t now_ms() const {
+        if (clock_) return clock_->millis();
+        return mcu::getSystemClock().millis();
+    }
 
-    void enterCritical() { portENTER_CRITICAL(&lock_); }
-    void exitCritical() { portEXIT_CRITICAL(&lock_); }
-#else
-    // Non-ESP32 (native tests) - no-op
-    void enterCritical() {}
-    void exitCritical() {}
-#endif
+    mcu::SpinlockType lock_ = MCU_SPINLOCK_INIT;
 
     void triggerStop();
     void triggerEmergencyStop();  // Direct motor disable

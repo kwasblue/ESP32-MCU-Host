@@ -156,12 +156,13 @@ void TelemetryModule::sendTelemetry(uint32_t now_ms) {
     if (jsonEnabled_ && !jsonProviders_.empty()) {
         using namespace ArduinoJson;
 
-        JsonDocument doc;
-        doc["src"]   = "mcu";
-        doc["type"]  = "TELEMETRY";
-        doc["ts_ms"] = now_ms;
+        // Reuse member document to avoid heap allocation per emit
+        jsonDoc_.clear();
+        jsonDoc_["src"]   = "mcu";
+        jsonDoc_["type"]  = "TELEMETRY";
+        jsonDoc_["ts_ms"] = now_ms;
 
-        JsonObject data = doc["data"].to<JsonObject>();
+        JsonObject data = jsonDoc_["data"].to<JsonObject>();
 
         for (auto& p : jsonProviders_) {
             JsonObject node = data[p.name.c_str()].to<JsonObject>();
@@ -169,7 +170,7 @@ void TelemetryModule::sendTelemetry(uint32_t now_ms) {
         }
 
         std::string out;
-        serializeJson(doc, out);
+        serializeJson(jsonDoc_, out);
 
         Event evt;
         evt.type         = EventType::JSON_MESSAGE_TX;

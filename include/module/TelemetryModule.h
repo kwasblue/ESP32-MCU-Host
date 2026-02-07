@@ -65,6 +65,9 @@ private:
     std::vector<uint8_t> txBuf_;
     std::vector<uint8_t> sectionBuf_;
 
+    // Pre-allocated JSON document to avoid heap allocation per emit
+    ArduinoJson::JsonDocument jsonDoc_;
+
     void sendTelemetry(uint32_t now_ms);
 
     // Packing helpers (LE)

@@ -1,3 +1,50 @@
+// include/core/ServiceContext.h
+// Service dependency injection container
+//
+// =============================================================================
+// CROSS-MODULE COUPLING RULES
+// =============================================================================
+//
+// These rules prevent spaghetti dependencies and maintain clear data flow:
+//
+// 1. HANDLERS → INTENTS (write-only)
+//    - Command handlers set intents via IntentBuffer
+//    - Handlers do NOT directly control actuators
+//    - Handlers do NOT read sensor values
+//    Example: MotionHandler calls intents->setVelocityIntent()
+//
+// 2. CONTROL LOOP → ACTUATORS (consume intents, write signals)
+//    - Control loop consumes intents at deterministic rate
+//    - Applies control algorithms (PID, state-space)
+//    - Writes outputs to SignalBus and actuators
+//    - Runs on dedicated FreeRTOS task (Core 1) or cooperative scheduler
+//    Example: ControlKernel::step() reads signals, computes control, writes output
+//
+// 3. TELEMETRY → SIGNALS (read-only snapshots)
+//    - Telemetry reads SignalBus snapshots (thread-safe)
+//    - Telemetry does NOT compute control logic
+//    - Telemetry does NOT modify signals
+//    Example: TelemetryModule calls signals.snapshot() for bulk read
+//
+// 4. SENSORS → SIGNALS (write measurements)
+//    - Sensor managers write measurement signals
+//    - Use consistent signal naming conventions
+//    - Do NOT apply control logic in sensor code
+//    Example: EncoderManager writes wheel velocity to SignalBus
+//
+// 5. SAFETY → MODE (gate all operations)
+//    - ModeManager is the single source of truth for robot state
+//    - All safety checks go through ModeManager
+//    - IntentBuffer cleared on ESTOP/disarm
+//    Example: mode.canMove() gates all motion commands
+//
+// DATA FLOW SUMMARY:
+//   Command → Handler → IntentBuffer → ControlLoop → SignalBus → Actuator
+//                                                  ↓
+//                                            Telemetry (read-only)
+//
+// =============================================================================
+
 #pragma once
 
 // Forward declarations for all service types
@@ -22,6 +69,11 @@ class MCUHost;
 class LoopScheduler;
 class ObserverManager;
 
+namespace mcu {
+class IClock;
+class IntentBuffer;
+}
+
 // Transport types
 class UartTransport;
 class WifiTransport;
@@ -30,6 +82,17 @@ class BleTransport;
 // Base class types (using base classes avoids needing inheritance info)
 class ICommandHandler;
 class IModule;
+
+// Registry singletons (exposed via context for DI access)
+class HandlerRegistry;
+class ModuleManager;
+
+// Forward declaration in mcu namespace
+namespace mcu {
+    class SensorRegistry;
+    class TransportRegistry;
+    class ActuatorRegistry;
+}
 
 namespace mcu {
 
@@ -47,6 +110,8 @@ struct ServiceContext {
     // =========================================================================
     // Tier 1: Core infrastructure (no dependencies)
     // =========================================================================
+    IClock*         clock = nullptr;    // Time abstraction (use for all timing)
+    IntentBuffer*   intents = nullptr;  // Command intent buffer (for control task)
     EventBus*       bus  = nullptr;
     ModeManager*    mode = nullptr;
     GpioManager*    gpio = nullptr;
@@ -115,6 +180,17 @@ struct ServiceContext {
     LoopScheduler* safetyScheduler   = nullptr;
     LoopScheduler* controlScheduler  = nullptr;
     LoopScheduler* telemetryScheduler = nullptr;
+
+    // =========================================================================
+    // Registries (singletons, but exposed for DI access)
+    // Note: These are singletons because registration happens in static
+    // constructors. Access via context preferred over ::instance().
+    // =========================================================================
+    HandlerRegistry*   handlerRegistry   = nullptr;
+    ModuleManager*     moduleManager     = nullptr;
+    SensorRegistry*    sensorRegistry    = nullptr;
+    TransportRegistry* transportRegistry = nullptr;
+    ActuatorRegistry*  actuatorRegistry  = nullptr;
 
     // =========================================================================
     // Convenience methods for null-safety

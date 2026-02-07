@@ -8,6 +8,7 @@
 #include "core/ServiceStorage.h"
 #include "core/LoopRates.h"
 #include "core/LoopTiming.h"
+#include "sensor/SensorRegistry.h"
 
 // Setup modules
 #include "setup/SetupModules.h"
@@ -35,19 +36,8 @@ static bool g_criticalFailure = false;
 // For periodic debug printing
 static uint32_t g_lastIpPrintMs = 0;
 
-// -----------------------------------------------------------------------------
-// Setup modules array
-// -----------------------------------------------------------------------------
-static mcu::ISetupModule* g_setupModules[] = {
-    nullptr, // WiFi - populated in setup()
-    nullptr, // OTA
-    nullptr, // Safety
-    nullptr, // Motors
-    nullptr, // Sensors
-    nullptr, // Transport
-    nullptr, // Telemetry
-};
-static constexpr size_t NUM_SETUP_MODULES = sizeof(g_setupModules) / sizeof(g_setupModules[0]);
+// Setup modules are defined in SetupManifest.cpp
+// Use getSetupManifest() and getSetupManifestSize() to access
 
 // -----------------------------------------------------------------------------
 // Helper: Update loop schedulers from LoopRates
@@ -86,18 +76,13 @@ void setup() {
     g_ctx = g_storage.buildContext();
 
     // =========================================================================
-    // Phase 2: Populate and run setup modules
+    // Phase 2: Run setup modules from manifest
     // =========================================================================
-    g_setupModules[0] = getSetupWifiModule();
-    g_setupModules[1] = getSetupOtaModule();
-    g_setupModules[2] = getSetupSafetyModule();
-    g_setupModules[3] = getSetupMotorsModule();
-    g_setupModules[4] = getSetupSensorsModule();
-    g_setupModules[5] = getSetupTransportModule();
-    g_setupModules[6] = getSetupTelemetryModule();
+    mcu::ISetupModule** manifest = getSetupManifest();
+    size_t manifestSize = getSetupManifestSize();
 
-    for (size_t i = 0; i < NUM_SETUP_MODULES; ++i) {
-        mcu::ISetupModule* mod = g_setupModules[i];
+    for (size_t i = 0; i < manifestSize; ++i) {
+        mcu::ISetupModule* mod = manifest[i];
         if (!mod) continue;
 
         auto result = mod->setup(g_ctx);
@@ -221,7 +206,11 @@ void loop() {
     }
 
     // Sensor sampling (non-critical, handles own rate limiting)
-    // Ultrasonic samples one sensor per call, spreads blocking across iterations
+    // Self-registered sensors loop via registry
+    if (g_ctx.sensorRegistry) {
+        g_ctx.sensorRegistry->loopAll(now_ms);
+    }
+    // Legacy ultrasonic (until fully migrated)
     if (g_ctx.ultrasonic) {
         g_ctx.ultrasonic->loop(now_ms);
     }

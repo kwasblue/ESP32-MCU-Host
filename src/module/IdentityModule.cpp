@@ -25,11 +25,28 @@ void IdentityModule::onEventStatic(const Event& evt) {
 
 static void publishIdentity(EventBus& bus) {
     JsonDocument doc;
-    doc["kind"]     = "identity";
-    doc["protocol"] = Version::PROTOCOL;
-    doc["firmware"] = Version::FIRMWARE;
-    doc["board"]    = Version::BOARD;
-    doc["name"]     = Version::NAME;
+    doc["kind"]           = "identity";
+    doc["protocol"]       = Version::PROTOCOL;
+    doc["schema_version"] = Version::SCHEMA_VERSION;
+    doc["firmware"]       = Version::FIRMWARE;
+    doc["board"]          = Version::BOARD;
+    doc["name"]           = Version::NAME;
+    doc["capabilities"]   = Version::CAPABILITIES;
+
+    // Feature array for human-readable capability list
+    JsonArray features = doc["features"].to<JsonArray>();
+    if (Version::CAPABILITIES & Version::Caps::BINARY_PROTOCOL) {
+        features.add("binary_protocol");
+    }
+    if (Version::CAPABILITIES & Version::Caps::INTENT_BUFFERING) {
+        features.add("intent_buffering");
+    }
+    if (Version::CAPABILITIES & Version::Caps::STATE_SPACE_CTRL) {
+        features.add("state_space_ctrl");
+    }
+    if (Version::CAPABILITIES & Version::Caps::OBSERVERS) {
+        features.add("observers");
+    }
 
     std::string out;
     serializeJson(doc, out);

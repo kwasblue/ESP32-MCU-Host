@@ -16,6 +16,7 @@
 #include "command/handlers/AllHandlers.h"
 
 // Include implementation directly so native env doesn't need to compile all src/
+#include "../../src/command/HandlerRegistry.cpp"
 #include "../../src/command/CommandRegistry.cpp"
 
 // ---------------- MotionSpy ----------------

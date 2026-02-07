@@ -4,6 +4,53 @@
 
 namespace mcu {
 
+// =============================================================================
+// ERROR MODEL DESIGN
+// =============================================================================
+//
+// This codebase uses TWO complementary error models for different contexts:
+//
+// 1. ErrorCode (this file) - For INTERNAL service APIs
+//    - Typed enum with domain-organized codes
+//    - Used by: Result<T>, service methods, internal APIs
+//    - Benefits: Compile-time safety, switch exhaustiveness, binary efficiency
+//    - Example: MotorManager::attach() returns Result<void> with ErrorCode
+//
+// 2. const char* error - For COMMAND HANDLER responses
+//    - Human-readable strings embedded in JSON responses
+//    - Used by: Decoder result types (SlotConfigResult, etc.), JSON ACKs
+//    - Benefits: Client-friendly, self-documenting, no error code table needed
+//    - Example: {"type":"ACK","error":"missing_slot"} in JSON response
+//
+// WHY TWO MODELS?
+//
+// The boundary between internal code and external protocol requires translation:
+//   - Internal: Type safety, performance, compile-time checks
+//   - External: Human readability, protocol simplicity, client convenience
+//
+// Decoders sit at this boundary - they parse JSON (external) and produce
+// results consumed by handlers (internal). Using string errors in decoders:
+//   - Avoids adding JSON→ErrorCode mapping tables
+//   - Lets handlers pass errors directly to JSON responses
+//   - Keeps decoder logic simple and self-documenting
+//
+// WHEN TO USE WHICH:
+//
+//   | Context                    | Use                        |
+//   |----------------------------|----------------------------|
+//   | Service method return      | Result<T> with ErrorCode   |
+//   | Internal error propagation | Result<T> with ErrorCode   |
+//   | Decoder validation error   | const char* in result type |
+//   | JSON ACK/NACK response     | const char* in JSON        |
+//   | Logging/debugging          | errorCodeToString()        |
+//
+// CONVERSION:
+//
+//   ErrorCode → string: Use errorCodeToString(code)
+//   string → ErrorCode: Not needed (each boundary handles its own model)
+//
+// =============================================================================
+
 // Error codes organized by domain
 // Generic:   0x0001 - 0x00FF
 // Hardware:  0x0100 - 0x01FF

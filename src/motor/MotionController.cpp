@@ -104,7 +104,7 @@ void MotionController::setServoTarget(uint8_t servoId,
     servoActive_[servoId]     = true;
     servoStart_[servoId]      = servoCurrent_[servoId];
     servoTarget_[servoId]     = angleDeg;
-    servoStartMs_[servoId]    = millis();
+    servoStartMs_[servoId]    = now_ms();
     servoDurationMs_[servoId] = durationMs;
 
     DBG_PRINTF("[MotionController] servo id=%u target=%.1f dur=%lu ms (start=%.1f)\n",
@@ -184,7 +184,7 @@ void MotionController::update(float dt) {
     // --- 2) Servo interpolation (independent of base control) ---
     if (!servoMgr_) return;
 
-    uint32_t now = millis();
+    uint32_t now = now_ms();
     for (uint8_t id = 0; id < ESP_MAX_SERVOS; ++id) {
         if (!servoActive_[id]) continue;
 

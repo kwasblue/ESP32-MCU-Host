@@ -3,11 +3,16 @@
 
 #include <Arduino.h>
 #include "config/PinConfig.h"
+#include "config/FeatureFlags.h"
 #include "config/GpioChannelDefs.h"
 #include "hw/GpioManager.h"
 #include "hw/PwmManager.h"
 #include "motor/DcMotorManager.h"
 #include "motor/StepperManager.h"
+#include "motor/ActuatorConfig.h"
+
+// Include all self-registering actuators (triggers static registration)
+#include "motor/AllActuators.h"
 
 namespace {
 
@@ -30,35 +35,48 @@ public:
             ctx.gpio->registerChannel(def.channel, def.pin, def.mode);
         }
 
-        // Register stepper motor
+        // Build actuator capability mask from feature flags
+        uint32_t actuatorCaps = 0;
+#if HAS_DC_MOTOR
+        actuatorCaps |= mcu::ActuatorCap::DC_MOTOR;
+#endif
+#if HAS_SERVO
+        actuatorCaps |= mcu::ActuatorCap::SERVO;
+#endif
+#if HAS_STEPPER
+        actuatorCaps |= mcu::ActuatorCap::STEPPER;
+#endif
+#if HAS_ENCODER
+        actuatorCaps |= mcu::ActuatorCap::ENCODER;
+#endif
+
+        // Initialize self-registered actuators
+        mcu::ActuatorRegistry::instance().setAvailableCaps(actuatorCaps);
+        mcu::ActuatorRegistry::instance().initAll(ctx);
+        mcu::ActuatorRegistry::instance().setupAll();
+        Serial.printf("[MOTORS] Initialized %zu self-registered actuators\n",
+                      mcu::ActuatorRegistry::instance().count());
+
+        // Legacy actuators (until fully migrated)
+        // Auto-configure steppers from Pins::
         if (ctx.stepper) {
-            ctx.stepper->registerStepper(
-                0,
-                Pins::STEPPER0_STEP,
-                Pins::STEPPER0_DIR,
-                Pins::STEPPER0_EN,
-                false
-            );
+            mcu::autoConfigureSteppers(*ctx.stepper);
             ctx.stepper->dumpAllStepperMappings();
         }
 
-        // Attach DC motor
+        // Legacy DC motors (can be removed once DcMotorActuator is fully tested)
         if (ctx.dcMotor) {
-            bool dcOk = ctx.dcMotor->attach(
-                0,
-                Pins::MOTOR_LEFT_IN1,
-                Pins::MOTOR_LEFT_IN2,
-                Pins::MOTOR_LEFT_PWM,
-                0,      // LEDC channel
-                15000,  // PWM frequency
-                12      // Resolution bits
-            );
-            (void)dcOk;
-
+            int dcCount = mcu::autoConfigureDcMotors(*ctx.dcMotor);
+            Serial.printf("[MOTORS] Legacy: Auto-configured %d DC motors\n", dcCount);
             ctx.dcMotor->dumpAllMotorMappings();
         }
 
-        Serial.println("[MOTORS] GPIO and motors configured");
+        // Auto-configure encoders from Pins::
+        if (ctx.encoder) {
+            mcu::autoConfigureEncoders(*ctx.encoder);
+        }
+
+        Serial.println("[MOTORS] GPIO and actuators configured");
 
         return mcu::Result<void>::ok();
     }

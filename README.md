@@ -104,6 +104,9 @@ ESP32 MCU Host/
 │   ├── core/            # Core interfaces
 │   │   ├── Event.h          # Event system
 │   │   ├── EventBus.h       # Pub/sub messaging
+│   │   ├── IModule.h        # Module interface
+│   │   ├── ModuleManager.h  # Module registry (extensible)
+│   │   ├── ModuleMacros.h   # REGISTER_MODULE macro
 │   │   └── Protocol.h       # Frame protocol
 │   ├── transport/       # Communication transports
 │   │   ├── UartTransport.h
@@ -125,7 +128,10 @@ ESP32 MCU Host/
 │   │   ├── ControlKernel.h  # Control loop
 │   │   └── Observer.h       # State estimation
 │   ├── command/         # Command handling
-│   │   ├── CommandHandler.h
+│   │   ├── CommandRegistry.h   # Legacy dispatcher
+│   │   ├── HandlerRegistry.h   # New extensible registry
+│   │   ├── IStringHandler.h    # New handler interface
+│   │   ├── HandlerMacros.h     # REGISTER_HANDLER macro
 │   │   ├── MessageRouter.h
 │   │   └── ModeManager.h
 │   ├── module/          # System modules

@@ -31,12 +31,13 @@ public:
             }
         });
 
-        // Add modules to host
+        // Add modules to host (legacy pattern - these modules take constructor deps)
         if (ctx.heartbeat) ctx.host->addModule(ctx.heartbeat);
         if (ctx.logger)    ctx.host->addModule(ctx.logger);
         if (ctx.identity)  ctx.host->addModule(ctx.identity);
 
-        ctx.host->setup();
+        // Setup host with ServiceContext for self-registered modules
+        ctx.host->setup(&ctx);
 
         Serial.println("[TRANSPORT] Router and host configured");
 

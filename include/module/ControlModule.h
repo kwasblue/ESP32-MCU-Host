@@ -4,6 +4,7 @@
 #pragma once
 
 #include "core/IModule.h"
+#include "core/RealTimeContract.h"
 #include "control/SignalBus.h"
 #include "control/ControlKernel.h"
 #include "control/Observer.h"
@@ -27,9 +28,9 @@ public:
     );
 
     // IModule interface
-    void setup() override;
-    void loop(uint32_t now_ms) override;
-    const char* name() const override { return "ControlModule"; }
+    RT_UNSAFE void setup() override;
+    RT_SAFE void loop(uint32_t now_ms) override;
+    RT_SAFE const char* name() const override { return "ControlModule"; }
 
     // Event handling
     void handleEvent(const Event& evt);

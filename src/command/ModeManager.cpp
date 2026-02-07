@@ -1,6 +1,7 @@
 // src/core/ModeManager.cpp
 
 #include "command/ModeManager.h"
+#include "core/CriticalSection.h"
 #include <Arduino.h>
 #include <esp_task_wdt.h>
 #include <cmath>
@@ -22,26 +23,26 @@ void ModeManager::begin() {
     // If the main loop hangs for >2s, ESP32 will reset
     esp_task_wdt_init(2, true);
     esp_task_wdt_add(NULL);
-    
+
     if (cfg_.estop_pin >= 0) pinMode(cfg_.estop_pin, INPUT_PULLUP);
     if (cfg_.bypass_pin >= 0) pinMode(cfg_.bypass_pin, INPUT_PULLUP);
     if (cfg_.relay_pin >= 0) {
         pinMode(cfg_.relay_pin, OUTPUT);
         digitalWrite(cfg_.relay_pin, LOW);
     }
-    
+
     mode_ = RobotMode::DISCONNECTED;
 }
 
 void ModeManager::update(uint32_t now_ms) {
     esp_task_wdt_reset();
     readHardwareInputs();
-    
+
     // Host timeout
     if (hostEverSeen_ && isConnected() && !isEstopped()) {
         uint32_t dt = now_ms - lastHostHeartbeat_;
         if (dt > cfg_.host_timeout_ms) {
-            enterCritical();
+            mcu::CriticalSection lock(lock_);
             triggerStop();
 
             if (mode_ == RobotMode::ACTIVE) {
@@ -53,7 +54,6 @@ void ModeManager::update(uint32_t now_ms) {
             }
 
             lastHostHeartbeat_ = now_ms;      // prevent retrigger spam
-            exitCritical();
         }
     }
 
@@ -61,13 +61,12 @@ void ModeManager::update(uint32_t now_ms) {
     if (mode_ == RobotMode::ACTIVE && lastMotionCmd_ > 0) {
         uint32_t dtm = now_ms - lastMotionCmd_;
         if (dtm > cfg_.motion_timeout_ms) {
-            enterCritical();
+            mcu::CriticalSection lock(lock_);
             triggerStop();
             mode_ = RobotMode::ARMED;
 
             // Prevent re-triggering every loop iteration
             lastMotionCmd_ = now_ms;
-            exitCritical();
         }
     }
     if (mode_ != lastLoggedMode_) {
@@ -100,11 +99,11 @@ void ModeManager::readHardwareInputs() {
 
 void ModeManager::onHostHeartbeat(uint32_t now_ms) {
     lastHostHeartbeat_ = now_ms;
-    
+
     if (!hostEverSeen_) {
         hostEverSeen_ = true;
     }
-    
+
     if (mode_ == RobotMode::DISCONNECTED) {
         mode_ = RobotMode::IDLE;
     }
@@ -134,65 +133,57 @@ bool ModeManager::canTransition(RobotMode from, RobotMode to) {
 }
 
 void ModeManager::arm() {
-    enterCritical();
+    mcu::CriticalSection lock(lock_);
     if (mode_ == RobotMode::IDLE) {
         mode_ = RobotMode::ARMED;
     }
-    exitCritical();
 }
 
 void ModeManager::activate() {
-    enterCritical();
+    mcu::CriticalSection lock(lock_);
     if (mode_ == RobotMode::ARMED) {
-        lastMotionCmd_ = millis();
+        lastMotionCmd_ = now_ms();
         mode_ = RobotMode::ACTIVE;
     }
-    exitCritical();
 }
 
 void ModeManager::deactivate() {
-    enterCritical();
+    mcu::CriticalSection lock(lock_);
     if (mode_ == RobotMode::ACTIVE) {
         triggerStop();
         mode_ = RobotMode::ARMED;
-        lastMotionCmd_ = millis();
+        lastMotionCmd_ = now_ms();
     }
-    exitCritical();
 }
 
 void ModeManager::disarm() {
-    enterCritical();
+    mcu::CriticalSection lock(lock_);
     if (mode_ == RobotMode::ARMED || mode_ == RobotMode::ACTIVE) {
         triggerStop();
         mode_ = RobotMode::IDLE;
     }
-    exitCritical();
 }
 
 void ModeManager::estop() {
-    enterCritical();
+    mcu::CriticalSection lock(lock_);
     // Emergency stop: trigger both normal and emergency callbacks
     triggerStop();
     triggerEmergencyStop();  // Direct motor disable - doesn't rely on motion controller
     mode_ = RobotMode::ESTOPPED;
-    exitCritical();
 }
 
 bool ModeManager::clearEstop() {
-    enterCritical();
+    mcu::CriticalSection lock(lock_);
     if (!isEstopped()) {
-        exitCritical();
         return true;
     }
 
     // Hardware E-stop must be released
     if (cfg_.estop_pin >= 0 && digitalRead(cfg_.estop_pin) == LOW) {
-        exitCritical();
         return false;
     }
 
     mode_ = RobotMode::IDLE;
-    exitCritical();
     return true;
 }
 
@@ -202,7 +193,7 @@ bool ModeManager::validateVelocity(float vx, float omega, float& out_vx, float& 
         out_omega = 0;
         return false;
     }
-    
+
     out_vx = constrain(vx, -cfg_.max_linear_vel, cfg_.max_linear_vel);
     out_omega = constrain(omega, -cfg_.max_angular_vel, cfg_.max_angular_vel);
     return true;
@@ -217,4 +208,3 @@ void ModeManager::triggerEmergencyStop() {
     // Emergency stop bypasses the bypass flag - always stops motors
     if (emergencyStopCallback_) emergencyStopCallback_();
 }
-

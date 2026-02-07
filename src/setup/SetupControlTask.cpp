@@ -1,8 +1,13 @@
 #include "setup/SetupControlTask.h"
 #include "core/ServiceContext.h"
+#include "core/IntentBuffer.h"
+#include "core/RealTimeContract.h"
 #include "module/ControlModule.h"
 #include "command/ModeManager.h"
 #include "motor/MotionController.h"
+#include "motor/ServoManager.h"
+#include "motor/DcMotorManager.h"
+#include "motor/StepperManager.h"
 #include "loop/LoopFunctions.h"
 
 #include <Arduino.h>
@@ -20,6 +25,9 @@ static volatile bool g_taskRunning = false;
 // Statistics (volatile for cross-task access)
 static volatile ControlTaskStats g_stats;
 
+// Jitter tracking
+static RtTimingStats g_rtStats;
+
 // The FreeRTOS control task
 static void controlTaskFunc(void* param) {
     ServiceContext* ctx = static_cast<ServiceContext*>(param);
@@ -28,16 +36,93 @@ static void controlTaskFunc(void* param) {
     const TickType_t period = pdMS_TO_TICKS(1000 / g_taskConfig.rate_hz);
 
     g_taskRunning = true;
+    g_rtStats.target_period_us = 1000000 / g_taskConfig.rate_hz;
 
     Serial.printf("[CTRL_TASK] Started on Core %d at %d Hz (period=%d ticks)\n",
                   xPortGetCoreID(), g_taskConfig.rate_hz, (int)period);
+
+    uint32_t last_iteration_us = micros();
 
     for (;;) {
         uint32_t start_us = micros();
         uint32_t now_ms = millis();
 
+        // Track period jitter (time since last iteration)
+        if (g_stats.iterations > 0) {
+            uint32_t period_us = start_us - last_iteration_us;
+            g_rtStats.recordPeriod(period_us);
+        }
+        last_iteration_us = start_us;
+
         // Compute dt based on configured rate
         float dt_s = 1.0f / g_taskConfig.rate_hz;
+
+        // =====================================================================
+        // REAL-TIME CRITICAL ZONE
+        // All code in this zone must be RT_SAFE - no heap allocation, no blocking
+        // =====================================================================
+        RT_ZONE_BEGIN("ControlLoop");
+
+        // =====================================================================
+        // Consume intents at deterministic boundary
+        // This ensures command bursts don't jitter actuators - only the latest
+        // value is used at each control cycle.
+        // =====================================================================
+        if (ctx->intents) {
+            // Velocity intent (latest wins)
+            mcu::VelocityIntent vel;
+            if (ctx->intents->consumeVelocityIntent(vel)) {
+                if (ctx->motion) {
+                    ctx->motion->setVelocity(vel.vx, vel.omega);
+                }
+            }
+
+            // Servo intents (per-servo)
+            for (uint8_t i = 0; i < mcu::IntentBuffer::MAX_SERVO_INTENTS; ++i) {
+                mcu::ServoIntent servo;
+                if (ctx->intents->consumeServoIntent(i, servo)) {
+                    if (ctx->motion) {
+                        if (servo.duration_ms == 0) {
+                            // Immediate move
+                            if (ctx->servo) {
+                                ctx->servo->setAngle(servo.id, servo.angle_deg);
+                            }
+                        } else {
+                            // Interpolated move
+                            ctx->motion->setServoTarget(servo.id, servo.angle_deg, servo.duration_ms);
+                        }
+                    }
+                }
+            }
+
+            // DC motor intents (per-motor)
+            for (uint8_t i = 0; i < mcu::IntentBuffer::MAX_DC_MOTOR_INTENTS; ++i) {
+                mcu::DcMotorIntent dc;
+                if (ctx->intents->consumeDcMotorIntent(i, dc)) {
+                    if (ctx->dcMotor) {
+                        ctx->dcMotor->setSpeed(dc.id, dc.speed);
+                    }
+                }
+            }
+
+            // Stepper intents (per-motor)
+            for (int i = 0; i < mcu::IntentBuffer::MAX_STEPPER_INTENTS; ++i) {
+                mcu::StepperIntent step;
+                if (ctx->intents->consumeStepperIntent(i, step)) {
+                    if (ctx->motion) {
+                        ctx->motion->moveStepperRelative(step.motor_id, step.steps, step.speed_steps_s);
+                    }
+                }
+            }
+
+            // Signal intents (consume all queued)
+            mcu::SignalIntent sig;
+            while (ctx->intents->consumeSignalIntent(sig)) {
+                if (ctx->control) {
+                    ctx->control->signals().set(sig.id, sig.value, sig.timestamp_ms);
+                }
+            }
+        }
 
         // Run full control loop (encoder PID, motion controller)
         runControlLoop(*ctx, now_ms, dt_s);
@@ -46,6 +131,11 @@ static void controlTaskFunc(void* param) {
         if (ctx->control) {
             ctx->control->loop(now_ms);
         }
+
+        RT_ZONE_END();
+        // =====================================================================
+        // END REAL-TIME CRITICAL ZONE
+        // =====================================================================
 
         // Compute execution time
         uint32_t exec_us = micros() - start_us;
@@ -87,6 +177,10 @@ bool startControlTask(ServiceContext& ctx, const ControlTaskConfig& config) {
     g_stats.max_exec_us = 0;
     g_stats.overruns = 0;
     g_stats.last_exec_us = 0;
+    g_stats.min_period_us = 0;
+    g_stats.max_period_us = 0;
+    g_stats.jitter_violations = 0;
+    g_rtStats.reset();
 
     // Create the task pinned to specified core
     BaseType_t result = xTaskCreatePinnedToCore(
@@ -135,6 +229,10 @@ ControlTaskStats getControlTaskStats() {
     stats.max_exec_us = g_stats.max_exec_us;
     stats.overruns = g_stats.overruns;
     stats.last_exec_us = g_stats.last_exec_us;
+    // Jitter stats
+    stats.min_period_us = (g_rtStats.min_period_us == UINT32_MAX) ? 0 : g_rtStats.min_period_us;
+    stats.max_period_us = g_rtStats.max_period_us;
+    stats.jitter_violations = g_rtStats.jitter_violations;
     return stats;
 }
 
@@ -143,6 +241,10 @@ void resetControlTaskStats() {
     g_stats.max_exec_us = 0;
     g_stats.overruns = 0;
     g_stats.last_exec_us = 0;
+    g_stats.min_period_us = 0;
+    g_stats.max_period_us = 0;
+    g_stats.jitter_violations = 0;
+    g_rtStats.reset();
 }
 
 } // namespace mcu

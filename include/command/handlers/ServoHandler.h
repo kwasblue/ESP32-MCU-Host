@@ -99,12 +99,20 @@ private:
         DBG_PRINTF("[SERVO] SET_ANGLE id=%d angle=%.1f dur=%d\n",
                    servoId, angle, durMs);
 
-        ctx.mode.onMotionCommand(millis());
+        const uint32_t now_ms = ctx.now_ms();
+        ctx.mode.onMotionCommand(now_ms);
 
-        if (durMs <= 0) {
-            servo_.setAngle(servoId, angle);
+        // Store servo intent (control task will consume and apply)
+        if (ctx.intents) {
+            ctx.intents->setServoIntent(static_cast<uint8_t>(servoId), angle,
+                                         static_cast<uint32_t>(durMs > 0 ? durMs : 0), now_ms);
         } else {
-            motion_.setServoTarget(servoId, angle, durMs);
+            // Fallback for non-intent path
+            if (durMs <= 0) {
+                servo_.setAngle(servoId, angle);
+            } else {
+                motion_.setServoTarget(servoId, angle, durMs);
+            }
         }
 
         JsonDocument resp;

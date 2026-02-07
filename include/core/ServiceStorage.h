@@ -4,6 +4,8 @@
 #include "core/ITransport.h"
 
 // Include all necessary headers for service types
+#include "core/Clock.h"
+#include "core/IntentBuffer.h"
 #include "core/EventBus.h"
 #include "core/MCUHost.h"
 #include "core/LoopScheduler.h"
@@ -12,7 +14,9 @@
 #include "command/ModeManager.h"
 #include "command/MessageRouter.h"
 #include "command/CommandRegistry.h"
+#include "command/HandlerRegistry.h"
 #include "command/handlers/AllHandlers.h"
+#include "config/FeatureFlags.h"
 
 #include "hw/GpioManager.h"
 #include "hw/PwmManager.h"
@@ -32,7 +36,7 @@
 #include "transport/WifiTransport.h"
 #include "transport/BleTransport.h"
 
-#include "module/HearbeatModule.h"
+#include "module/HeartbeatModule.h"
 #include "module/LoggingModule.h"
 #include "module/IdentityModule.h"
 #include "module/TelemetryModule.h"
@@ -40,22 +44,73 @@
 
 namespace mcu {
 
+// =============================================================================
+// SERVICE OWNERSHIP MODEL
+// =============================================================================
+//
+// ServiceStorage is the single owner of all service instances. It manages
+// two categories of objects with different ownership semantics:
+//
+// 1. MEMBER OBJECTS (stack-allocated, automatic lifetime):
+//    - clock, intents, bus, mode, gpio, pwm, dcMotor, servo, stepper, motion
+//    - encoder, imu, lidar, ultrasonic, transport, telemetry
+//    - heartbeat, logger, schedulers
+//    These are constructed when ServiceStorage is created and destroyed
+//    when ServiceStorage goes out of scope.
+//
+// 2. HEAP-ALLOCATED OBJECTS (via new, explicit lifetime):
+//    - uart, wifi, ble (transports needing runtime config)
+//    - router, commands, control, host, identity
+//    - All handlers (safetyHandler, motionHandler, etc.)
+//    These are created in init*() methods because they need:
+//    - Runtime parameters (Serial, port numbers, device name)
+//    - Dependencies that must be fully constructed first
+//    The destructor deletes all of these.
+//
+// THREAD SAFETY:
+//    - ServiceStorage must be created on a single thread (setup())
+//    - ServiceContext pointers can be passed to other threads
+//    - Individual services handle their own thread safety
+//
+// LIFETIME GUARANTEE:
+//    - ServiceStorage must outlive all ServiceContext references
+//    - In typical embedded use, ServiceStorage is static and lives forever
+//
+// =============================================================================
+
 /// ServiceStorage owns all service instances.
 /// This replaces global variables with a single owning struct.
 /// Services are constructed in dependency order.
 ///
 /// Usage:
 ///   static ServiceStorage storage;
-///   storage.init();
+///   storage.initTransports(...);
+///   storage.initRouter();
+///   storage.initCommands();
+///   storage.initControl();
+///   storage.initHost(...);
 ///   ServiceContext ctx = storage.buildContext();
 struct ServiceStorage {
+    // Non-copyable, non-movable (prevents accidental ownership transfer)
+    ServiceStorage() = default;
+    ServiceStorage(const ServiceStorage&) = delete;
+    ServiceStorage& operator=(const ServiceStorage&) = delete;
+    ServiceStorage(ServiceStorage&&) = delete;
+    ServiceStorage& operator=(ServiceStorage&&) = delete;
+
+    /// Destructor cleans up all heap-allocated objects.
+    /// In typical embedded use (static storage), this is never called.
+    /// Included for completeness and testing scenarios.
+    ~ServiceStorage();
     // =========================================================================
     // Tier 1: Core infrastructure (no dependencies)
     // =========================================================================
-    EventBus    bus;
-    ModeManager mode;
-    GpioManager gpio;
-    PwmManager  pwm;
+    SystemClock  clock;    // Time abstraction
+    IntentBuffer intents;  // Command intent buffer
+    EventBus     bus;
+    ModeManager  mode;
+    GpioManager  gpio;
+    PwmManager   pwm;
 
     // =========================================================================
     // Tier 2: Motor control
@@ -149,145 +204,23 @@ struct ServiceStorage {
 
     /// Initialize transports that require runtime parameters.
     /// Call this in setup() after Serial is ready.
-    void initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort) {
-        uart = new UartTransport(serial, baud);
-        wifi = new WifiTransport(tcpPort);
-#if HAS_BLE
-        ble = new BleTransport("ESP32-SPP");
-#endif
-        if (uart) transport.addTransport(uart);
-        if (wifi) transport.addTransport(wifi);
-#if HAS_BLE
-        if (ble) transport.addTransport(ble);
-#endif
-    }
+    void initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort);
 
     /// Initialize router (call after transports are set up).
-    void initRouter() {
-        router = new MessageRouter(bus, transport);
-    }
+    void initRouter();
 
     /// Initialize command registry and handlers.
-    void initCommands() {
-        commands = new CommandRegistry(bus, mode, motion);
-
-        // Create handlers
-        safetyHandler    = new SafetyHandler(mode);
-        motionHandler    = new MotionHandler(motion);
-        gpioHandler      = new GpioHandler(gpio, pwm);
-        servoHandler     = new ServoHandler(servo, motion);
-        stepperHandler   = new StepperHandler(stepper, motion);
-        dcMotorHandler   = new DcMotorHandler(dcMotor);
-        sensorHandler    = new SensorHandler(ultrasonic, encoder);
-        telemetryHandler = new TelemetryHandler(telemetry);
-        controlHandler   = new ControlHandler();
-        observerHandler  = new ObserverHandler();
-
-        // Register handlers
-        commands->registerHandler(safetyHandler);
-        commands->registerHandler(motionHandler);
-        commands->registerHandler(gpioHandler);
-        commands->registerHandler(servoHandler);
-        commands->registerHandler(stepperHandler);
-        commands->registerHandler(dcMotorHandler);
-        commands->registerHandler(sensorHandler);
-        commands->registerHandler(telemetryHandler);
-        commands->registerHandler(controlHandler);
-        commands->registerHandler(observerHandler);
-    }
+    void initCommands();
 
     /// Initialize control module.
-    void initControl() {
-        control = new ControlModule(
-            &bus,
-            &mode,
-            &motion,
-            &encoder,
-            &imu,
-            &telemetry
-        );
-
-        // Wire control module to handlers
-        if (controlHandler) {
-            controlHandler->setControlModule(control);
-        }
-        if (observerHandler) {
-            observerHandler->setControlModule(control);
-        }
-        if (commands) {
-            commands->setControlModule(control);
-        }
-    }
+    void initControl();
 
     /// Initialize host and identity module.
-    void initHost(const char* deviceName) {
-        host = new MCUHost(bus, router);
-        identity = new IdentityModule(bus, transport, deviceName);
-    }
+    void initHost(const char* deviceName);
 
     /// Build a ServiceContext from this storage.
     /// Call after all init methods have been called.
-    ServiceContext buildContext() {
-        ServiceContext ctx;
-
-        // Tier 1
-        ctx.bus  = &bus;
-        ctx.mode = &mode;
-        ctx.gpio = &gpio;
-        ctx.pwm  = &pwm;
-
-        // Tier 2
-        ctx.dcMotor = &dcMotor;
-        ctx.servo   = &servo;
-        ctx.stepper = &stepper;
-        ctx.motion  = &motion;
-
-        // Tier 3
-        ctx.encoder    = &encoder;
-        ctx.imu        = &imu;
-        ctx.lidar      = &lidar;
-        ctx.ultrasonic = &ultrasonic;
-
-        // Tier 4
-        ctx.transport = &transport;
-        ctx.uart      = uart;
-        ctx.wifi      = wifi;
-        ctx.ble       = ble;
-        ctx.router    = router;
-        ctx.commands  = commands;
-        ctx.telemetry = &telemetry;
-
-        // Tier 5
-        ctx.control = control;
-        ctx.host    = host;
-
-        // Modules
-        ctx.heartbeat = &heartbeat;
-        ctx.logger    = &logger;
-        ctx.identity  = identity;
-        if (control) {
-            ctx.observers = &control->observers();
-        }
-
-        // Handlers
-        ctx.safetyHandler    = safetyHandler;
-        ctx.motionHandler    = motionHandler;
-        ctx.gpioHandler      = gpioHandler;
-        ctx.servoHandler     = servoHandler;
-        ctx.stepperHandler   = stepperHandler;
-        ctx.dcMotorHandler   = dcMotorHandler;
-        ctx.sensorHandler    = sensorHandler;
-        ctx.telemetryHandler = telemetryHandler;
-        ctx.controlHandler   = controlHandler;
-        ctx.observerHandler  = observerHandler;
-
-        // Schedulers
-        ctx.safetyScheduler    = &safetyScheduler;
-        ctx.controlScheduler   = &controlScheduler;
-        ctx.telemetryScheduler = &telemetryScheduler;
-
-        return ctx;
-    }
+    ServiceContext buildContext();
 };
 
 } // namespace mcu

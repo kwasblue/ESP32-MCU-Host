@@ -2,6 +2,8 @@
 #pragma once
 
 #include <Arduino.h>
+#include "core/Clock.h"
+#include "core/RealTimeContract.h"
 
 class DcMotorManager;
 class ServoManager;
@@ -28,11 +30,11 @@ public:
     virtual ~MotionController() = default;
 
     // ===== Differential drive velocity interface =====
-    virtual void setVelocity(float vx, float omega);
-    virtual void stop();
+    RT_SAFE virtual void setVelocity(float vx, float omega);
+    RT_SAFE virtual void stop();
 
-    float vx() const;
-    float omega() const;
+    RT_SAFE float vx() const;
+    RT_SAFE float omega() const;
 
     void setAccelLimits(float maxLinAccel, float maxAngAccel);
 
@@ -41,21 +43,32 @@ public:
     bool baseEnabled() const { return baseEnabled_; }
 
     // ===== Servo interface =====
-    void setServoTarget(uint8_t servoId,
-                        float angleDeg,
-                        uint32_t durationMs = 0);
-    void setServoImmediate(uint8_t servoId, float angleDeg);
+    RT_SAFE void setServoTarget(uint8_t servoId,
+                                float angleDeg,
+                                uint32_t durationMs = 0);
+    RT_SAFE void setServoImmediate(uint8_t servoId, float angleDeg);
 
     // ===== Stepper interface =====
-    void moveStepperRelative(int motorId,
-                             int steps,
-                             float speedStepsPerSec);
-    void enableStepper(int motorId, bool enabled);
+    RT_SAFE void moveStepperRelative(int motorId,
+                                     int steps,
+                                     float speedStepsPerSec);
+    RT_SAFE void enableStepper(int motorId, bool enabled);
 
     // ===== Main update (called every loop) =====
-    void update(float dt);
+    RT_SAFE void update(float dt);
+
+    // Clock injection for testability
+    void setClock(mcu::IClock* clk) { clock_ = clk; }
 
 private:
+    mcu::IClock* clock_ = nullptr;
+
+    /// Get current time from clock or fallback to system clock
+    uint32_t now_ms() const {
+        if (clock_) return clock_->millis();
+        return mcu::getSystemClock().millis();
+    }
+
     // References
     DcMotorManager& motors_;
     ServoManager*   servoMgr_    = nullptr;

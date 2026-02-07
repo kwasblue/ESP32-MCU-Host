@@ -8,13 +8,38 @@
 
 class MessageRouter;  // forward-declare
 
+namespace mcu {
+struct ServiceContext;
+}
+
+/**
+ * MCUHost - Central orchestrator for modules and communication.
+ *
+ * Manages two sources of modules:
+ * 1. Manually added via addModule() - legacy pattern
+ * 2. Self-registered via REGISTER_MODULE macro - new extensible pattern
+ *
+ * The setup() and loop() methods handle both seamlessly.
+ */
 class MCUHost {
 public:
     MCUHost(EventBus& bus, MessageRouter* router = nullptr);
 
+    /**
+     * Add a module manually (legacy pattern).
+     * Use REGISTER_MODULE macro for new modules instead.
+     */
     void addModule(IModule* module);
 
-    void setup();
+    /**
+     * Initialize and finalize all modules.
+     * @param ctx ServiceContext for self-registered modules (optional)
+     */
+    void setup(mcu::ServiceContext* ctx = nullptr);
+
+    /**
+     * Run all module loops.
+     */
     void loop(uint32_t now_ms);
 
     EventBus& bus() { return bus_; }
@@ -26,7 +51,7 @@ public:
 private:
     EventBus&             bus_;
     MessageRouter*        router_ = nullptr;
-    std::vector<IModule*> modules_;
+    std::vector<IModule*> modules_;  // Manually added modules
     uint32_t              lastHeartbeatMs_ = 0;
     std::function<void()> routerLoop_;
 

@@ -1,6 +1,11 @@
 // include/core/SignalBus.h
 // Signal routing system for control kernel
 // Stores named signals with values and timestamps
+//
+// Thread Safety:
+//   - Individual get/set operations are protected with spinlock
+//   - Use snapshot() for thread-safe bulk reads (telemetry)
+//   - all() returns raw reference - use only during setup or with external sync
 
 #pragma once
 
@@ -12,9 +17,15 @@
 #include <vector>
 #include <cstring>
 #include <unordered_map>
+#include "core/CriticalSection.h"
+#include "core/RealTimeContract.h"
 
 class SignalBus {
 public:
+    SignalBus() {
+        mcu::initSpinlock(lock_);
+    }
+
     enum class Kind : uint8_t {
         REF  = 0,   // Reference/setpoint
         MEAS = 1,   // Measurement/feedback
@@ -52,7 +63,7 @@ public:
     bool exists(uint16_t id) const;
     
     // Set signal value with timestamp
-    bool set(uint16_t id, float v, uint32_t now_ms = 0);
+    RT_SAFE bool set(uint16_t id, float v, uint32_t now_ms = 0);
 
     // Set with rate limiting (checks min interval and max updates/sec)
     SetResult setWithRateLimit(uint16_t id, float v, uint32_t now_ms);
@@ -65,7 +76,7 @@ public:
     uint16_t getMaxUpdatesPerSec() const { return global_max_updates_per_sec_; }
 
     // Get signal value
-    bool get(uint16_t id, float& out) const;
+    RT_SAFE bool get(uint16_t id, float& out) const;
     
     // Get signal timestamp
     bool getTimestamp(uint16_t id, uint32_t& out) const;
@@ -76,14 +87,32 @@ public:
     // Get signal by ID (returns nullptr if not found)
     const SignalDef* find(uint16_t id) const;
     
-    // Access all signals (for telemetry/listing)
+    // Access all signals - NOT THREAD SAFE
+    // Use only during setup or with external synchronization
+    // For telemetry, use snapshot() instead
     const std::vector<SignalDef>& all() const { return signals_; }
-    
+
     // Number of defined signals
     size_t count() const { return signals_.size(); }
-    
-    // Clear all signals
+
+    // Clear all signals - NOT THREAD SAFE, use during setup only
     void clear() { signals_.clear(); idToIndex_.clear(); aliases_.clear(); }
+
+    // -------------------------------------------------------------------------
+    // Thread-safe snapshot for telemetry
+    // -------------------------------------------------------------------------
+
+    /// Lightweight signal value for snapshots (no name storage)
+    struct SignalSnapshot {
+        uint16_t id = 0;
+        float value = 0.0f;
+        uint32_t ts_ms = 0;
+        Kind kind = Kind::REF;
+    };
+
+    /// Take thread-safe snapshot of all signal values
+    /// Returns number of signals copied
+    size_t snapshot(SignalSnapshot* out, size_t max_count) const;
 
     // -------------------------------------------------------------------------
     // Signal Aliasing - reference signals by name
@@ -119,6 +148,9 @@ private:
         uint16_t id = 0;
     };
     std::vector<Alias> aliases_;
+
+    // Thread safety (spinlock)
+    mutable mcu::SpinlockType lock_ = MCU_SPINLOCK_INIT;
 };
 
 // -----------------------------------------------------------------------------
@@ -203,6 +235,13 @@ public:
         uint32_t ts_ms = 0;
     };
 
+    struct SignalSnapshot {
+        uint16_t id = 0;
+        float value = 0.0f;
+        uint32_t ts_ms = 0;
+        Kind kind = Kind::REF;
+    };
+
     bool define(uint16_t, const char*, Kind, float = 0.0f) { return false; }
     bool exists(uint16_t) const { return false; }
     bool set(uint16_t, float, uint32_t = 0) { return false; }
@@ -216,6 +255,7 @@ public:
     const SignalDef* find(uint16_t) const { return nullptr; }
     const std::vector<SignalDef>& all() const { return empty_; }
     size_t count() const { return 0; }
+    size_t snapshot(SignalSnapshot*, size_t) const { return 0; }
     const SignalDef* getByIndex(size_t) const { return nullptr; }
     bool remove(uint16_t) { return false; }
     bool deleteSignal(uint16_t) { return false; }

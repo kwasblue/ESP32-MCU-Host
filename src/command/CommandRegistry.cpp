@@ -1,6 +1,7 @@
 // src/command/CommandRegistry.cpp
 
 #include "command/CommandRegistry.h"
+#include "command/HandlerRegistry.h"
 #include "command/ModeManager.h"
 #include "motor/MotionController.h"
 #include "module/ControlModule.h"
@@ -16,17 +17,26 @@ CommandRegistry::CommandRegistry(EventBus& bus, ModeManager& mode, MotionControl
     s_instance = this;
 }
 
+void CommandRegistry::registerStringHandler(IStringHandler* handler) {
+    if (handler) {
+        HandlerRegistry::instance().registerHandler(handler);
+        DBG_PRINTF("[REG] Registered string handler: %s\n", handler->name());
+    }
+}
+
 void CommandRegistry::registerHandler(ICommandHandler* handler) {
     if (handler) {
         handlers_.push_back(handler);
-        DBG_PRINTF("[REG] Registered handler: %s\n", handler->name());
+        DBG_PRINTF("[REG] Registered legacy handler: %s\n", handler->name());
     }
 }
 
 void CommandRegistry::setup() {
     DBG_PRINTLN("[REG] CommandRegistry::setup() subscribing");
     ctx_.bus.subscribe(&CommandRegistry::handleEventStatic);
-    DBG_PRINTF("[REG] Registered %d handlers\n", (int)handlers_.size());
+    DBG_PRINTF("[REG] Registered %d string handlers, %d legacy handlers\n",
+               (int)HandlerRegistry::instance().handlerCount(),
+               (int)handlers_.size());
 }
 
 void CommandRegistry::handleEventStatic(const Event& evt) {
@@ -38,11 +48,11 @@ void CommandRegistry::handleEventStatic(const Event& evt) {
 void CommandRegistry::handleEvent(const Event& evt) {
     switch (evt.type) {
     case EventType::JSON_MESSAGE_RX:
-        ctx_.mode.onHostHeartbeat(millis());
+        ctx_.mode.onHostHeartbeat(ctx_.now_ms());
         onJsonCommand(evt.payload.json);
         break;
     case EventType::BIN_MESSAGE_RX:
-        ctx_.mode.onHostHeartbeat(millis());
+        ctx_.mode.onHostHeartbeat(ctx_.now_ms());
         onBinaryCommand(evt.payload.bin);
         break;
     default:
@@ -95,11 +105,17 @@ void CommandRegistry::onJsonCommand(const std::string& jsonStr) {
         return;
     }
 
-    // Find and invoke handler
+    JsonVariantConst payload = msg.payload.as<JsonVariantConst>();
+
+    // Try new string-based registry first (for self-registered handlers)
+    if (HandlerRegistry::instance().dispatch(msg.typeStr.c_str(), payload, ctx_)) {
+        return;  // Handled by new registry
+    }
+
+    // Fall back to legacy enum-based handlers
     ICommandHandler* handler = findHandler(msg.cmdType);
     if (handler) {
         DBG_PRINTF("[REG] Dispatching to %s\n", handler->name());
-        JsonVariantConst payload = msg.payload.as<JsonVariantConst>();
         handler->handle(msg.cmdType, payload, ctx_);
     } else {
         DBG_PRINTF("[REG] No handler for cmdType: %s\n", msg.typeStr.c_str());
@@ -123,7 +139,7 @@ void CommandRegistry::onBinaryCommand(const std::vector<uint8_t>& binData) {
         return;
     }
 
-    uint32_t now_ms = millis();
+    uint32_t now_ms = ctx_.now_ms();
 
     switch (result.opcode) {
     case BinaryCommands::Opcode::SET_VEL:

@@ -1,7 +1,7 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-02-06 17:10:19
-Total Files: 131
+Generated: 2026-02-06 21:46:47
+Total Files: 154
 ================================================================================
 
 🧩 📄 include/audio/AudioGraphManager.h
@@ -68,46 +68,96 @@ Total Files: 131
 
 🧩 📄 include/command/CommandContext.h
    🧱 struct CommandContext
+      ├── now_ms()
       ├── sendAck(const char* cmd, bool ok, JsonDocument& resp)
       ├── sendError(const char* cmd, const char* error)
       ├── requireIdle(const char* cmdName)
       ├── requireArmed(const char* cmdName)
+      ├── requireField(JsonVariantConst payload, const char* key, const char* cmdName)
+      ├── requireFloat(JsonVariantConst payload, const char* key, float& out, const char* cmdName)
+      ├── requireInt(JsonVariantConst payload, const char* key, int& out, const char* cmdName)
+      ├── requireUint8(JsonVariantConst payload, const char* key, uint8_t& out, const char* cmdName)
+      ├── requireSlot(JsonVariantConst payload, uint8_t& slot, uint8_t maxSlots, const char* cmdName)
+      ├── requireInRange(float val, float minVal, float maxVal, const char* field, const char* cmdName)
+      ├── requireIntInRange(int val, int minVal, int maxVal, const char* field, const char* cmdName)
       ├── tryReplayAck(CmdType cmd, uint32_t cmdSeq)
       ├── storeAck(CmdType cmd, uint32_t cmdSeq, const std::string& ackJson)
       ├── publishJson(std::string&& out)
       └── publishJsonCopy(const std::string& out)
    🧱 struct AckCacheEntry
       (no in-class method bodies detected)
+   ⚙️  now_ms()
    ⚙️  sendAck(const char* cmd, bool ok, JsonDocument& resp)
    ⚙️  sendError(const char* cmd, const char* error)
    ⚙️  requireIdle(const char* cmdName)
    ⚙️  requireArmed(const char* cmdName)
+   ⚙️  requireField(JsonVariantConst payload, const char* key, const char* cmdName)
+   ⚙️  requireFloat(JsonVariantConst payload, const char* key, float& out, const char* cmdName)
+   ⚙️  requireInt(JsonVariantConst payload, const char* key, int& out, const char* cmdName)
+   ⚙️  requireUint8(JsonVariantConst payload, const char* key, uint8_t& out, const char* cmdName)
+   ⚙️  requireSlot(JsonVariantConst payload, uint8_t& slot, uint8_t maxSlots, const char* cmdName)
+   ⚙️  requireInRange(float val, float minVal, float maxVal, const char* field, const char* cmdName)
+   ⚙️  requireIntInRange(int val, int minVal, int maxVal, const char* field, const char* cmdName)
    ⚙️  tryReplayAck(CmdType cmd, uint32_t cmdSeq)
    ⚙️  storeAck(CmdType cmd, uint32_t cmdSeq, const std::string& ackJson)
    ⚙️  publishJson(std::string&& out)
    ⚙️  publishJsonCopy(const std::string& out)
 
-🧩 📄 include/command/CommandHandler.h
-   🧱 class CommandHandler
-      └── setControlModule(ControlModule* cm)
-   ⚙️  setControlModule(ControlModule* cm)
-   🧱 struct AckCacheEntry
-      (no in-class method bodies detected)
-   ⚙️  clampHz(uint16_t& hz, uint16_t min_hz, uint16_t max_hz)
+🧩 📄 include/command/CommandDecoders.h
+   📦 namespace mcu
+   📦 namespace cmd
+   ⚙️  decodeSetVelocity(JsonVariantConst payload)
+   ⚙️  decodeSetSignal(JsonVariantConst payload)
+   ⚙️  decodeSetRate(JsonVariantConst payload,
+    uint16_t min_hz,
+    uint16_t max_hz)
+   ⚙️  decodeGpioWrite(JsonVariantConst payload)
+   ⚙️  decodeGpioRead(JsonVariantConst payload)
+   ⚙️  decodeSlotEnable(JsonVariantConst payload)
+   ⚙️  decodeSlotReset(JsonVariantConst payload)
+   ⚙️  decodeSlotSetParam(JsonVariantConst payload)
+   ⚙️  extractUint16Array(JsonArrayConst arr, uint16_t* out, size_t maxLen)
+   ⚙️  extractFloatArray(JsonArrayConst arr, float* out, size_t maxLen)
+   ⚙️  validateArraySize(size_t actual, size_t expected, const char* name, const char** error)
 
 🧩 📄 include/command/CommandRegistry.h
    🧱 class CommandRegistry
       ├── setControlModule(ControlModule* cm)
       ├── setMotionController(MotionController* mc)
+      ├── setClock(mcu::IClock* clk)
+      ├── setIntentBuffer(mcu::IntentBuffer* ib)
       └── context()
    ⚙️  setControlModule(ControlModule* cm)
    ⚙️  setMotionController(MotionController* mc)
+   ⚙️  setClock(mcu::IClock* clk)
+   ⚙️  setIntentBuffer(mcu::IntentBuffer* ib)
    ⚙️  context()
+
+🧩 📄 include/command/HandlerRegistry.h
+   🧱 class HandlerRegistry
+      ├── handlerCount()
+      ├── isFinalized()
+      ├── setAvailableCaps(uint32_t caps)
+      ├── availableCaps()
+      └── capsAvailable(const IStringHandler* handler)
+   ⚙️  handlerCount()
+   ⚙️  isFinalized()
+   ⚙️  setAvailableCaps(uint32_t caps)
+   ⚙️  availableCaps()
+   ⚙️  capsAvailable(const IStringHandler* handler)
 
 🧩 📄 include/command/ICommandHandler.h
    🧱 class ICommandHandler
       └── name()
    ⚙️  name()
+
+🧩 📄 include/command/IStringHandler.h
+   📦 namespace HandlerCap
+   🧱 class IStringHandler
+      ├── priority()
+      └── requiredCaps()
+   ⚙️  priority()
+   ⚙️  requiredCaps()
 
 🧩 📄 include/command/MessageRouter.h
    🧱 class MessageRouter
@@ -128,10 +178,8 @@ Total Files: 131
       ├── motionAgeMs(uint32_t now_ms)
       ├── onStop(StopCallback cb)
       ├── onEmergencyStop(StopCallback cb)
-      ├── enterCritical()
-      ├── exitCritical()
-      ├── enterCritical()
-      └── exitCritical()
+      ├── setClock(mcu::IClock* clk)
+      └── now_ms()
    ⚙️  ModeManager()
    ⚙️  configure(const SafetyConfig& cfg)
    ⚙️  mode()
@@ -143,10 +191,66 @@ Total Files: 131
    ⚙️  motionAgeMs(uint32_t now_ms)
    ⚙️  onStop(StopCallback cb)
    ⚙️  onEmergencyStop(StopCallback cb)
-   ⚙️  enterCritical()
-   ⚙️  exitCritical()
-   ⚙️  enterCritical()
-   ⚙️  exitCritical()
+   ⚙️  setClock(mcu::IClock* clk)
+   ⚙️  now_ms()
+
+🧩 📄 include/command/TypedCommands.h
+   📦 namespace mcu
+   📦 namespace cmd
+   🧱 struct SetVelocityCmd
+      └── isValid()
+   ⚙️  isValid()
+   🧱 struct StopCmd
+      (no in-class method bodies detected)
+   🧱 struct SetSignalCmd
+      └── isValid()
+   ⚙️  isValid()
+   🧱 struct ArmCmd
+      (no in-class method bodies detected)
+   🧱 struct DisarmCmd
+      (no in-class method bodies detected)
+   🧱 struct EstopCmd
+      (no in-class method bodies detected)
+   🧱 struct ClearEstopCmd
+      (no in-class method bodies detected)
+   🧱 struct GpioWriteCmd
+      (no in-class method bodies detected)
+   🧱 struct GpioReadCmd
+      (no in-class method bodies detected)
+   🧱 struct SetRateCmd
+      ├── isValid()
+      └── clamp()
+   ⚙️  isValid()
+   ⚙️  clamp()
+   🧱 struct SlotConfigCmd
+      └── isValid()
+   ⚙️  isValid()
+   🧱 struct SlotEnableCmd
+      (no in-class method bodies detected)
+   🧱 struct SlotResetCmd
+      (no in-class method bodies detected)
+   🧱 struct SlotSetParamCmd
+      └── isValid()
+   ⚙️  isValid()
+   🧱 struct DecodeResult
+      ├── ok(const T& c)
+      └── fail(const char* err)
+   ⚙️  ok(const T& c)
+   ⚙️  fail(const char* err)
+
+🧩 📄 include/command/decoders/ControlDecoders.h
+   📦 namespace mcu
+   📦 namespace cmd
+   🧱 struct SlotConfigResult
+      (no in-class method bodies detected)
+   🧱 struct SignalDefResult
+      (no in-class method bodies detected)
+
+🧩 📄 include/command/decoders/ObserverDecoders.h
+   📦 namespace mcu
+   📦 namespace cmd
+   🧱 struct ObserverConfigResult
+      (no in-class method bodies detected)
 
 🧩 📄 include/command/handlers/ControlHandler.h
    ⚙️  setControlModule(ControlModule* cm)
@@ -181,7 +285,7 @@ Total Files: 131
    ⚙️  handleLedOff(CommandContext& ctx)
 
 🧩 📄 include/command/handlers/MotionHandler.h
-   ⚙️  handleSetVel(JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  executeSetVelocity(const mcu::cmd::SetVelocityCmd& cmd, CommandContext& ctx)
 
 🧩 📄 include/command/handlers/ObserverHandler.h
    ⚙️  setControlModule(ControlModule* cm)
@@ -235,6 +339,9 @@ Total Files: 131
    ⚙️  cmdTypeFromString(const std::string& s)
    ⚙️  cmdTypeToString(CmdType c)
 
+🧩 📄 include/config/FeatureFlags.h
+   ⚙️  buildCapabilityMask()
+
 🧩 📄 include/config/GpioChannelDefs.h
    🧱 struct GpioChannelDef
       (no in-class method bodies detected)
@@ -242,8 +349,30 @@ Total Files: 131
 🧩 📄 include/config/PinConfig.h
    📦 namespace Pins
 
+🧩 📄 include/config/RobotConfig.h
+   📦 namespace config
+   🧱 struct Safety
+      (no in-class method bodies detected)
+   🧱 struct LoopRates
+      ├── control_period_ms()
+      ├── safety_period_ms()
+      └── telemetry_period_ms()
+   ⚙️  control_period_ms()
+   ⚙️  safety_period_ms()
+   ⚙️  telemetry_period_ms()
+   🧱 struct ControlTask
+      (no in-class method bodies detected)
+   🧱 struct Network
+      (no in-class method bodies detected)
+   🧱 struct Motion
+      (no in-class method bodies detected)
+   🧱 struct RobotConfig
+      └── defaults()
+   ⚙️  defaults()
+
 🧩 📄 include/config/Version.h
    📦 namespace Version
+   📦 namespace Caps
 
 🧩 📄 include/control/ControlKernel.h
    🧱 class ControlWatchdog
@@ -293,17 +422,6 @@ Total Files: 131
    ⚙️  provideSignalsBin(uint8_t* buf, size_t max_len, const SignalBus& bus)
    ⚙️  provideObserversBin(uint8_t* buf, size_t max_len, const ObserverManager& mgr)
    ⚙️  provideSlotsBin(uint8_t* buf, size_t max_len, const ControlKernel& kernel)
-
-🧩 📄 include/control/IController.h
-   🧱 struct ControlIO
-      (no in-class method bodies detected)
-   🧱 struct ControlCtx
-      (no in-class method bodies detected)
-   🧱 class IController
-      ├── configureIO(const ControlIO& io)
-      └── io()
-   ⚙️  configureIO(const ControlIO& io)
-   ⚙️  io()
 
 🧩 📄 include/control/Observer.h
    🧱 struct ObserverConfig
@@ -392,11 +510,13 @@ Total Files: 131
 
 🧩 📄 include/control/SignalBus.h
    🧱 class SignalBus
+      ├── SignalBus()
       ├── getMinInterval()
       ├── getMaxUpdatesPerSec()
       ├── all()
       ├── count()
       └── clear()
+   ⚙️  SignalBus()
    🧱 struct SignalDef
       (no in-class method bodies detected)
    ⚙️  getMinInterval()
@@ -404,6 +524,8 @@ Total Files: 131
    ⚙️  all()
    ⚙️  count()
    ⚙️  clear()
+   🧱 struct SignalSnapshot
+      (no in-class method bodies detected)
    🧱 struct Alias
       (no in-class method bodies detected)
    🧱 class SignalRef
@@ -433,6 +555,7 @@ Total Files: 131
       ├── find(uint16_t)
       ├── all()
       ├── count()
+      ├── snapshot(SignalSnapshot*, size_t)
       ├── getByIndex(size_t)
       ├── remove(uint16_t)
       ├── deleteSignal(uint16_t)
@@ -443,6 +566,8 @@ Total Files: 131
       ├── setByName(const char*, float, uint32_t = 0)
       └── resolveId(const char*)
    🧱 struct SignalDef
+      (no in-class method bodies detected)
+   🧱 struct SignalSnapshot
       (no in-class method bodies detected)
    ⚙️  define(uint16_t, const char*, Kind, float = 0.0f)
    ⚙️  exists(uint16_t)
@@ -457,6 +582,7 @@ Total Files: 131
    ⚙️  find(uint16_t)
    ⚙️  all()
    ⚙️  count()
+   ⚙️  snapshot(SignalSnapshot*, size_t)
    ⚙️  getByIndex(size_t)
    ⚙️  remove(uint16_t)
    ⚙️  deleteSignal(uint16_t)
@@ -481,6 +607,29 @@ Total Files: 131
    ⚙️  id()
    ⚙️  signalKindToString(SignalBus::Kind)
    ⚙️  signalKindFromString(const char*)
+
+🧩 📄 include/core/Clock.h
+   📦 namespace mcu
+   🧱 class IClock
+      (no in-class method bodies detected)
+   ⚙️  setMillis(uint32_t ms)
+   ⚙️  setMicros(uint32_t us)
+   ⚙️  advanceMillis(uint32_t delta)
+   ⚙️  advanceMicros(uint32_t delta)
+
+🧩 📄 include/core/CriticalSection.h
+   📦 namespace mcu
+   🧱 struct SpinlockStub
+      (no in-class method bodies detected)
+   🧱 class CriticalSection
+      ├── ~CriticalSection()
+      ├── enter()
+      └── exit()
+   ⚙️  enter()
+   ⚙️  exit()
+   ⚙️  initSpinlock([[maybe_unused]] SpinlockType& lock)
+   🧱 class CriticalSectionISR
+      └── ~CriticalSectionISR()
 
 🧩 📄 include/core/Event.h
    🧱 struct TelemetrySystemPayload
@@ -527,19 +676,43 @@ Total Files: 131
    ⚙️  eventMask(EventType type)
    ⚙️  dispatchEvent(const Event& evt)
 
+🧩 📄 include/core/Fwd.h
+   📦 namespace mcu
+
 🧩 📄 include/core/IModule.h
+   📦 namespace mcu
    🧱 class IModule
+      ├── init(mcu::ServiceContext& ctx)
       ├── setup()
       ├── loop(uint32_t now_ms)
-      └── handleEvent(const Event& evt)
+      ├── handleEvent(const Event& evt)
+      └── priority()
+   ⚙️  init(mcu::ServiceContext& ctx)
    ⚙️  setup()
    ⚙️  loop(uint32_t now_ms)
    ⚙️  handleEvent(const Event& evt)
+   ⚙️  priority()
 
 🧩 📄 include/core/ITransport.h
    🧱 class ITransport
       └── setFrameHandler(FrameHandler handler)
    ⚙️  setFrameHandler(FrameHandler handler)
+
+🧩 📄 include/core/IntentBuffer.h
+   📦 namespace mcu
+   🧱 struct VelocityIntent
+      (no in-class method bodies detected)
+   🧱 struct ServoIntent
+      (no in-class method bodies detected)
+   🧱 struct DcMotorIntent
+      (no in-class method bodies detected)
+   🧱 struct StepperIntent
+      (no in-class method bodies detected)
+   🧱 struct SignalIntent
+      (no in-class method bodies detected)
+   🧱 class IntentBuffer
+      └── IntentBuffer()
+   ⚙️  IntentBuffer()
 
 🧩 📄 include/core/LoopRates.h
    🧱 struct LoopRates
@@ -566,6 +739,7 @@ Total Files: 131
    ⚙️  reset()
 
 🧩 📄 include/core/MCUHost.h
+   📦 namespace mcu
    🧱 class MCUHost
       └── bus()
    ⚙️  bus()
@@ -578,6 +752,18 @@ Total Files: 131
    ⚙️  payload()
    ⚙️  parseJsonToMessage(const std::string& jsonStr, JsonMessage& outMsg)
 
+🧩 📄 include/core/ModuleManager.h
+   📦 namespace mcu
+   🧱 class ModuleManager
+      ├── moduleCount()
+      ├── isFinalized()
+      ├── isInitialized()
+      └── modules()
+   ⚙️  moduleCount()
+   ⚙️  isFinalized()
+   ⚙️  isInitialized()
+   ⚙️  modules()
+
 🧩 📄 include/core/Protocol.h
    📦 namespace Protocol
    ⚙️  crc16_ccitt(const uint8_t* data, size_t len, uint16_t crc = 0xFFFF)
@@ -586,6 +772,16 @@ Total Files: 131
                    const uint8_t* payload,
                    size_t payloadLen,
                    std::vector<uint8_t>& outFrame)
+
+🧩 📄 include/core/RealTimeContract.h
+   📦 namespace mcu
+   🧱 struct RtTimingStats
+      ├── recordPeriod(uint32_t period_us)
+      ├── jitter_us()
+      └── reset()
+   ⚙️  recordPeriod(uint32_t period_us)
+   ⚙️  jitter_us()
+   ⚙️  reset()
 
 🧩 📄 include/core/Result.h
    📦 namespace mcu
@@ -617,7 +813,22 @@ Total Files: 131
    ⚙️  error()
    ⚙️  errorCode()
 
+🧩 📄 include/core/Runtime.h
+   📦 namespace mcu
+   🧱 struct RuntimeConfig
+      (no in-class method bodies detected)
+   🧱 class Runtime
+      ├── hasCriticalFailure()
+      ├── context()
+      ├── context()
+      └── storage()
+   ⚙️  hasCriticalFailure()
+   ⚙️  context()
+   ⚙️  context()
+   ⚙️  storage()
+
 🧩 📄 include/core/ServiceContext.h
+   📦 namespace mcu
    📦 namespace mcu
    🧱 struct ServiceContext
       ├── hasMotorControl()
@@ -632,18 +843,7 @@ Total Files: 131
 🧩 📄 include/core/ServiceStorage.h
    📦 namespace mcu
    🧱 struct ServiceStorage
-      ├── initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort)
-      ├── initRouter()
-      ├── initCommands()
-      ├── initControl()
-      ├── initHost(const char* deviceName)
-      └── buildContext()
-   ⚙️  initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort)
-   ⚙️  initRouter()
-   ⚙️  initCommands()
-   ⚙️  initControl()
-   ⚙️  initHost(const char* deviceName)
-   ⚙️  buildContext()
+      (no in-class method bodies detected)
 
 🧩 📄 include/hw/GpioManager.h
    🧱 class GpioManager
@@ -691,7 +891,7 @@ Total Files: 131
    ⚙️  kernel()
    ⚙️  observers()
 
-🧩 📄 include/module/HearbeatModule.h
+🧩 📄 include/module/HeartbeatModule.h
    ⚙️  bus_(bus)
 
 🧩 📄 include/module/LoggingModule.h
@@ -780,8 +980,12 @@ Total Files: 131
 
 🧩 📄 include/motor/MotionController.h
    🧱 class MotionController
-      └── baseEnabled()
+      ├── baseEnabled()
+      ├── setClock(mcu::IClock* clk)
+      └── now_ms()
    ⚙️  baseEnabled()
+   ⚙️  setClock(mcu::IClock* clk)
+   ⚙️  now_ms()
 
 🧩 📄 include/motor/PID.h
    🧱 class PID
@@ -944,7 +1148,7 @@ Total Files: 131
    ⚙️  isOnline()
    ⚙️  readSample(Sample&)
 
-🧩 📄 include/sensor/LimitSwitchManagr.h
+🧩 📄 include/sensor/LimitSwitchManager.h
    🧱 struct LimitSwitchConfig
       (no in-class method bodies detected)
    🧱 class LimitSwitchManager
@@ -964,23 +1168,43 @@ Total Files: 131
 
 🧩 📄 include/sensor/UltrasonicManager.h
    🧱 class UltrasonicManager
+      ├── setSampleInterval(uint32_t ms)
+      ├── getSampleInterval()
       ├── attach(uint8_t id, int trigPin, int echoPin)
       ├── isAttached(uint8_t id)
-      └── readDistanceCm(uint8_t id)
+      ├── loop(uint32_t now_ms)
+      ├── readDistanceCm(uint8_t id)
+      ├── sampleNow(uint8_t id)
+      ├── getReadingAgeMs(uint8_t id, uint32_t now_ms)
+      └── sampleSensor(uint8_t id, uint32_t now_ms)
    🧱 struct Sensor
       (no in-class method bodies detected)
+   ⚙️  setSampleInterval(uint32_t ms)
+   ⚙️  getSampleInterval()
    ⚙️  attach(uint8_t id, int trigPin, int echoPin)
    ⚙️  isAttached(uint8_t id)
+   ⚙️  loop(uint32_t now_ms)
    ⚙️  readDistanceCm(uint8_t id)
+   ⚙️  sampleNow(uint8_t id)
+   ⚙️  getReadingAgeMs(uint8_t id, uint32_t now_ms)
+   ⚙️  sampleSensor(uint8_t id, uint32_t now_ms)
    🧱 class UltrasonicManager
+      ├── setSampleInterval(uint32_t)
+      ├── getSampleInterval()
       ├── attach(uint8_t, int, int)
       ├── isAttached(uint8_t)
-      └── readDistanceCm(uint8_t)
-   🧱 struct Sensor
-      (no in-class method bodies detected)
+      ├── loop(uint32_t)
+      ├── readDistanceCm(uint8_t)
+      ├── sampleNow(uint8_t)
+      └── getReadingAgeMs(uint8_t, uint32_t)
+   ⚙️  setSampleInterval(uint32_t)
+   ⚙️  getSampleInterval()
    ⚙️  attach(uint8_t, int, int)
    ⚙️  isAttached(uint8_t)
+   ⚙️  loop(uint32_t)
    ⚙️  readDistanceCm(uint8_t)
+   ⚙️  sampleNow(uint8_t)
+   ⚙️  getReadingAgeMs(uint8_t, uint32_t)
 
 🧩 📄 include/setup/ISetupModule.h
    📦 namespace mcu
@@ -1012,6 +1236,10 @@ Total Files: 131
 
 🧩 📄 include/transport/MultiTransport.h
    ⚙️  addTransport(ITransport* t)
+   ⚙️  sendBytesToAll(const uint8_t* data, size_t len)
+   ⚙️  transportCount()
+   ⚙️  getTransport(size_t idx)
+   ⚙️  lastReceiveTransportIndex()
 
 🧩 📄 include/transport/UartTransport.h
    ⚙️  Protocol::extractFrames(rxBuffer_, [this](const uint8_t* frame, size_t len)
@@ -1024,7 +1252,7 @@ Total Files: 131
    ⚙️  WifiTransport(uint16_t)
 
 🧩 📄 src/audio/AudioGraphManager.cpp
-   ⚙️  AudioGraphManager::attach(EventBus* bus, CommandHandler* cmd)
+   ⚙️  AudioGraphManager::attach(EventBus* bus, CommandRegistry* cmd)
    ⚙️  AudioGraphManager::begin()
    ⚙️  AudioGraphManager::validateChainMessage(const JsonObjectConst& msg)
    ⚙️  AudioGraphManager::swapChain(std::unique_ptr<audio::DspChain> new_chain)
@@ -1040,80 +1268,8 @@ Total Files: 131
    ⚙️  designLowShelf(float sr, float freq, float Q, float db)
    ⚙️  designHighShelf(float sr, float freq, float Q, float db)
 
-🧩 📄 src/command/CommandHandler.cpp
-   ⚙️  CommandHandler::setup()
-   ⚙️  CommandHandler::handleEventStatic(const Event& evt)
-   ⚙️  CommandHandler::handleEvent(const Event& evt)
-   ⚙️  CommandHandler::onJsonCommand(const std::string& jsonStr)
-   ⚙️  CommandHandler::onBinaryCommand(const std::vector<uint8_t>& binData)
-   ⚙️  CommandHandler::tryReplayAck(CmdType cmdType, uint32_t seq)
-   ⚙️  CommandHandler::storeAck(CmdType cmdType, uint32_t seq, const std::string& ackJson)
-   ⚙️  CommandHandler::publishJson(std::string&& out)
-   ⚙️  CommandHandler::publishJsonCopy(const std::string& out)
-   ⚙️  CommandHandler::sendAck(const char* cmd, bool ok, JsonDocument& resp)
-   ⚙️  CommandHandler::sendError(const char* cmd, const char* error)
-   ⚙️  CommandHandler::requireIdle(const char* cmdName)
-   ⚙️  CommandHandler::requireArmed(const char* cmdName)
-   ⚙️  CommandHandler::handleHeartbeat()
-   ⚙️  CommandHandler::handleArm()
-   ⚙️  CommandHandler::handleDisarm()
-   ⚙️  CommandHandler::handleActivate()
-   ⚙️  CommandHandler::handleDeactivate()
-   ⚙️  CommandHandler::handleEstop()
-   ⚙️  CommandHandler::handleClearEstop()
-   ⚙️  CommandHandler::handleStop()
-   ⚙️  CommandHandler::handleSetMode(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleSetVel(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleLedOn()
-   ⚙️  CommandHandler::handleLedOff()
-   ⚙️  CommandHandler::handleGpioWrite(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleGpioRead(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleGpioToggle(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleGpioRegisterChannel(JsonVariantConst payload)
-   ⚙️  CommandHandler::handlePwmSet(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleServoAttach(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleServoDetach(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleServoSetAngle(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleStepperEnable(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleStepperMoveRel(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleStepperStop(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleUltrasonicAttach(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleUltrasonicRead(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleEncoderAttach(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleEncoderRead(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleEncoderReset(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleDcSetSpeed(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleDcStop(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleDcVelPidEnable(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleDcSetVelTarget(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleDcSetVelGains(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleTelemSetInterval(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleSetLogLevel(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleGetRates(JsonVariantConst)
-   ⚙️  CommandHandler::handleCtrlSetRate(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleSafetySetRate(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleTelemSetRate(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleCtrlSignalDefine(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleCtrlSignalSet(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleCtrlSignalGet(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleCtrlSignalsList(JsonVariantConst)
-   ⚙️  CommandHandler::handleCtrlSlotConfig(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleCtrlSlotEnable(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleCtrlSlotReset(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleCtrlSlotSetParam(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleCtrlSlotSetParamArray(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleCtrlSlotStatus(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleObserverConfig(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleObserverEnable(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleObserverReset(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleObserverSetParam(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleObserverSetParamArray(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleObserverStatus(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleCtrlSignalsClear(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleCtrlSignalDelete(JsonVariantConst payload)
-   ⚙️  CommandHandler::handleCtrlSlotGetParam(JsonVariantConst payload)
-
 🧩 📄 src/command/CommandRegistry.cpp
+   ⚙️  CommandRegistry::registerStringHandler(IStringHandler* handler)
    ⚙️  CommandRegistry::registerHandler(ICommandHandler* handler)
    ⚙️  CommandRegistry::setup()
    ⚙️  CommandRegistry::handleEventStatic(const Event& evt)
@@ -1121,6 +1277,14 @@ Total Files: 131
    ⚙️  CommandRegistry::findHandler(CmdType cmd)
    ⚙️  CommandRegistry::onJsonCommand(const std::string& jsonStr)
    ⚙️  CommandRegistry::onBinaryCommand(const std::vector<uint8_t>& binData)
+
+🧩 📄 src/command/HandlerRegistry.cpp
+   ⚙️  HandlerRegistry::instance()
+   ⚙️  HandlerRegistry::registerHandler(IStringHandler* handler)
+   ⚙️  HandlerRegistry::finalize()
+   ⚙️  HandlerRegistry::findHandler(const char* cmd)
+   ⚙️  HandlerRegistry::dispatch(const char* cmd, JsonVariantConst payload, CommandContext& ctx)
+   ⚙️  HandlerRegistry::capName(uint32_t capBit)
 
 🧩 📄 src/command/MessageRouter.cpp
    ⚙️  MessageRouter::setup()
@@ -1148,6 +1312,26 @@ Total Files: 131
    ⚙️  ModeManager::validateVelocity(float vx, float omega, float& out_vx, float& out_omega)
    ⚙️  ModeManager::triggerStop()
    ⚙️  ModeManager::triggerEmergencyStop()
+
+🧩 📄 src/command/decoders/ControlDecoders.cpp
+   📦 namespace mcu
+   📦 namespace cmd
+   ⚙️  extractUint16Array(JsonArrayConst arr, uint16_t* out, size_t maxLen)
+   ⚙️  extractFloatArray(JsonArrayConst arr, float* out, size_t maxLen)
+   ⚙️  decodeSlotConfig(JsonVariantConst payload)
+   ⚙️  decodeSignalDef(JsonVariantConst payload)
+
+🧩 📄 src/command/decoders/ObserverDecoders.cpp
+   📦 namespace mcu
+   📦 namespace cmd
+   ⚙️  decodeObserverConfig(JsonVariantConst payload)
+
+🧩 📄 src/config/RobotConfig.cpp
+   📦 namespace config
+   ⚙️  getRobotConfig()
+   ⚙️  resetRobotConfig()
+   ⚙️  RobotConfig::applyOverrides(const char* json)
+   ⚙️  RobotConfig::toJson(char* buffer, size_t bufferSize)
 
 🧩 📄 src/control/ControlKernel.cpp
    ⚙️  ControlKernel::getSlot_(uint8_t slot)
@@ -1232,6 +1416,28 @@ Total Files: 131
    ⚙️  SignalBus::resolveId(const char* name)
    ⚙️  SignalBus::getByName(const char* name, float& out)
    ⚙️  SignalBus::setByName(const char* name, float v, uint32_t now_ms)
+   ⚙️  SignalBus::snapshot(SignalSnapshot* out, size_t max_count)
+
+🧩 📄 src/core/Clock.cpp
+   📦 namespace mcu
+   ⚙️  SystemClock::millis()
+   ⚙️  SystemClock::micros()
+   ⚙️  getSystemClock()
+
+🧩 📄 src/core/IntentBuffer.cpp
+   📦 namespace mcu
+   ⚙️  IntentBuffer::setVelocityIntent(float vx, float omega, uint32_t now_ms)
+   ⚙️  IntentBuffer::consumeVelocityIntent(VelocityIntent& out)
+   ⚙️  IntentBuffer::setServoIntent(uint8_t id, float angle, uint32_t dur_ms, uint32_t now_ms)
+   ⚙️  IntentBuffer::consumeServoIntent(uint8_t id, ServoIntent& out)
+   ⚙️  IntentBuffer::setDcMotorIntent(uint8_t id, float speed, uint32_t now_ms)
+   ⚙️  IntentBuffer::consumeDcMotorIntent(uint8_t id, DcMotorIntent& out)
+   ⚙️  IntentBuffer::setStepperIntent(int id, int steps, float speed, uint32_t now_ms)
+   ⚙️  IntentBuffer::consumeStepperIntent(int id, StepperIntent& out)
+   ⚙️  IntentBuffer::queueSignalIntent(uint16_t id, float value, uint32_t now_ms)
+   ⚙️  IntentBuffer::consumeSignalIntent(SignalIntent& out)
+   ⚙️  IntentBuffer::pendingSignalCount()
+   ⚙️  IntentBuffer::clearAll()
 
 🧩 📄 src/core/LoopRates.cpp
    ⚙️  getLoopRates()
@@ -1243,11 +1449,38 @@ Total Files: 131
 
 🧩 📄 src/core/McuHost.cpp
    ⚙️  MCUHost::addModule(IModule* module)
-   ⚙️  MCUHost::setup()
+   ⚙️  MCUHost::setup(mcu::ServiceContext* ctx)
    ⚙️  MCUHost::loop(uint32_t now_ms)
    ⚙️  MCUHost::onEventStatic(const Event& evt)
    ⚙️  MCUHost::onEvent(const Event& evt)
    ⚙️  MCUHost::runSafety(uint32_t now_ms)
+
+🧩 📄 src/core/ModuleManager.cpp
+   ⚙️  ModuleManager::instance()
+   ⚙️  ModuleManager::registerModule(IModule* module)
+   ⚙️  ModuleManager::finalize()
+   ⚙️  ModuleManager::initAll(mcu::ServiceContext& ctx)
+   ⚙️  ModuleManager::setupAll()
+   ⚙️  ModuleManager::loopAll(uint32_t now_ms)
+
+🧩 📄 src/core/Runtime.cpp
+   📦 namespace mcu
+   ⚙️  Runtime::setup(const RuntimeConfig& config)
+   ⚙️  Runtime::loop()
+   ⚙️  Runtime::initializeStorage()
+   ⚙️  Runtime::runSetupModules()
+   ⚙️  Runtime::startControlTask()
+   ⚙️  Runtime::updateLoopSchedulers()
+   ⚙️  Runtime::runMainLoop(uint32_t now_ms)
+
+🧩 📄 src/core/ServiceStorage.cpp
+   📦 namespace mcu
+   ⚙️  ServiceStorage::initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort)
+   ⚙️  ServiceStorage::initRouter()
+   ⚙️  ServiceStorage::initCommands()
+   ⚙️  ServiceStorage::initControl()
+   ⚙️  ServiceStorage::initHost(const char* deviceName)
+   ⚙️  ServiceStorage::buildContext()
 
 🧩 📄 src/loop/LoopControl.cpp
    📦 namespace mcu
@@ -1357,6 +1590,11 @@ Total Files: 131
    ⚙️  getControlTaskStats()
    ⚙️  resetControlTaskStats()
 
+🧩 📄 src/setup/SetupManifest.cpp
+   ⚙️  populateManifest()
+   ⚙️  getSetupManifest()
+   ⚙️  getSetupManifestSize()
+
 🧩 📄 src/setup/SetupMotors.cpp
    ⚙️  getSetupMotorsModule()
 
@@ -1388,13 +1626,19 @@ Total Files: 131
    ⚙️  MqttTransport::publishDiscoveryResponse()
 
 🧩 📄 test/common/NativeStubs.cpp
+   📦 namespace mcu
+   ⚙️  SystemClock::millis()
+   ⚙️  SystemClock::micros()
+   ⚙️  getSystemClock()
    ⚙️  robotModeToString(RobotMode mode)
+   ⚙️  ModeManager::begin()
    ⚙️  ModeManager::arm()
    ⚙️  ModeManager::disarm()
    ⚙️  ModeManager::activate()
    ⚙️  ModeManager::deactivate()
    ⚙️  ModeManager::estop()
    ⚙️  ModeManager::clearEstop()
+   ⚙️  ModeManager::update(uint32_t)
    ⚙️  ModeManager::onHostHeartbeat(uint32_t)
    ⚙️  ModeManager::onMotionCommand(uint32_t)
    ⚙️  ModeManager::validateVelocity(float vx, float omega, float& outVx, float& outOmega)
@@ -1418,6 +1662,8 @@ Total Files: 131
    ⚙️  MotionController::stop()
    ⚙️  MotionController::setServoTarget(uint8_t , float , uint32_t)
    ⚙️  MotionController::moveStepperRelative(int , int , float)
+   ⚙️  SignalBus::set(uint16_t , float , uint32_t)
+   ⚙️  SignalBus::get(uint16_t , float&)
 
 🧩 📄 test/fakes/Arduino.h
    ⚙️  pinMode(int pin, int mode)
@@ -1451,8 +1697,11 @@ Total Files: 131
 
 🧩 📄 test/support/arduino_stubs.h
    ⚙️  millis()
+   ⚙️  micros()
    ⚙️  test_set_millis(uint32_t v)
+   ⚙️  test_set_micros(uint32_t v)
    ⚙️  test_advance_millis(uint32_t d)
+   ⚙️  test_advance_micros(uint32_t d)
 
 🧩 📄 test/support/arduino_test_main.cpp
    ⚙️  setup()
@@ -1467,6 +1716,10 @@ Total Files: 131
    ⚙️  main(int argc, char** argv)
 
 🧩 📄 test/test_command_handler_ack/native_stubs.cpp
+   📦 namespace mcu
+   ⚙️  SystemClock::millis()
+   ⚙️  SystemClock::micros()
+   ⚙️  getSystemClock()
    ⚙️  getLoopRates()
    ⚙️  robotModeToString(RobotMode mode)
    ⚙️  ModeManager::onHostHeartbeat(uint32_t)
@@ -1538,6 +1791,26 @@ Total Files: 131
    ⚙️  MotionController::moveStepperRelative(int motorId, int steps, float speedStepsPerSec)
    ⚙️  MotionController::enableStepper(int motorId, bool enabled)
    ⚙️  MotionController::update(float dt)
+   📦 namespace mcu
+   ⚙️  IntentBuffer::setVelocityIntent(float vx, float omega, uint32_t now_ms)
+   ⚙️  IntentBuffer::consumeVelocityIntent(VelocityIntent& out)
+   ⚙️  IntentBuffer::setServoIntent(uint8_t id, float angle, uint32_t dur_ms, uint32_t now_ms)
+   ⚙️  IntentBuffer::consumeServoIntent(uint8_t id, ServoIntent& out)
+   ⚙️  IntentBuffer::setDcMotorIntent(uint8_t id, float speed, uint32_t now_ms)
+   ⚙️  IntentBuffer::consumeDcMotorIntent(uint8_t id, DcMotorIntent& out)
+   ⚙️  IntentBuffer::setStepperIntent(int id, int steps, float speed, uint32_t now_ms)
+   ⚙️  IntentBuffer::consumeStepperIntent(int id, StepperIntent& out)
+   ⚙️  IntentBuffer::queueSignalIntent(uint16_t id, float value, uint32_t now_ms)
+   ⚙️  IntentBuffer::consumeSignalIntent(SignalIntent& out)
+   ⚙️  IntentBuffer::pendingSignalCount()
+   ⚙️  IntentBuffer::clearAll()
+   📦 namespace mcu
+   📦 namespace cmd
+   ⚙️  extractUint16Array(JsonArrayConst arr, uint16_t* out, size_t maxLen)
+   ⚙️  extractFloatArray(JsonArrayConst arr, float* out, size_t maxLen)
+   ⚙️  decodeSlotConfig(JsonVariantConst payload)
+   ⚙️  decodeSignalDef(JsonVariantConst payload)
+   ⚙️  decodeObserverConfig(JsonVariantConst payload)
 
 🧩 📄 test/test_command_handler_ack/test_command_handler_ack.cpp
    ⚙️  MotionController(motors, 0, 1,
@@ -1584,6 +1857,19 @@ Total Files: 131
    ⚙️  setup()
    ⚙️  loop()
    ⚙️  main(int, char**)
+
+🧩 📄 test/test_golden_path/test_golden_path.cpp
+   ⚙️  setUp()
+   ⚙️  tearDown()
+   ⚙️  test_velocity_intent_set_and_consume()
+   ⚙️  test_velocity_intent_latest_wins()
+   ⚙️  test_servo_intent_set_and_consume()
+   ⚙️  test_dc_motor_intent_set_and_consume()
+   ⚙️  test_stepper_intent_set_and_consume()
+   ⚙️  test_signal_intent_queue()
+   ⚙️  test_clear_all_intents()
+   ⚙️  test_independent_motor_ids()
+   ⚙️  main(int argc, char** argv)
 
 🧩 📄 test/test_identity_version_handshake/test_identity_version_handshake.cpp
    ⚙️  captureTx(const Event& evt)
@@ -1813,9 +2099,9 @@ Total Files: 131
 ================================================================================
 📊 STATISTICS
 ================================================================================
-Namespaces:       23
-Classes/Structs:  115
+Namespaces:       58
+Classes/Structs:  151
 Enums:            3
-Free Functions:   1002
-In-class Methods: 286
+Free Functions:   1095
+In-class Methods: 337
 ================================================================================

@@ -5,9 +5,10 @@
 
 #include "command/ICommandHandler.h"
 #include "command/CommandContext.h"
+#include "command/decoders/ObserverDecoders.h"
+#include "command/decoders/ControlDecoders.h"  // For extractFloatArray
 #include "module/ControlModule.h"
 #include "core/Debug.h"
-#include <algorithm>
 
 class ObserverHandler : public ICommandHandler {
 public:
@@ -49,54 +50,21 @@ private:
     void handleConfig(JsonVariantConst payload, CommandContext& ctx) {
         static constexpr const char* ACK = "CMD_OBSERVER_CONFIG";
 
-        if (!controlModule_) {
-            ctx.sendError(ACK, "no_control_module");
-            return;
-        }
+        if (!ctx.requireIdle(ACK)) return;
+        if (!controlModule_) { ctx.sendError(ACK, "no_control_module"); return; }
 
-        ObserverConfig cfg;
-        cfg.num_states = payload["num_states"] | 2;
-        cfg.num_inputs = payload["num_inputs"] | 1;
-        cfg.num_outputs = payload["num_outputs"] | 1;
+        auto result = mcu::cmd::decodeObserverConfig(payload);
+        if (!result.valid) { ctx.sendError(ACK, result.error); return; }
 
-        // Input signal IDs (control commands u)
-        JsonArrayConst input_ids = payload["input_ids"].as<JsonArrayConst>();
-        if (input_ids) {
-            for (size_t i = 0; i < input_ids.size() && i < ObserverConfig::MAX_INPUTS; i++) {
-                cfg.input_ids[i] = input_ids[i].as<uint16_t>();
-            }
-        }
-
-        // Output signal IDs (measurements y)
-        JsonArrayConst output_ids = payload["output_ids"].as<JsonArrayConst>();
-        if (output_ids) {
-            for (size_t i = 0; i < output_ids.size() && i < ObserverConfig::MAX_OUTPUTS; i++) {
-                cfg.output_ids[i] = output_ids[i].as<uint16_t>();
-            }
-        }
-
-        // Estimate signal IDs (where to write x̂)
-        JsonArrayConst estimate_ids = payload["estimate_ids"].as<JsonArrayConst>();
-        if (estimate_ids) {
-            for (size_t i = 0; i < estimate_ids.size() && i < ObserverConfig::MAX_STATES; i++) {
-                cfg.estimate_ids[i] = estimate_ids[i].as<uint16_t>();
-            }
-        }
-
-        uint8_t slot = payload["slot"] | 0;
-        uint16_t rate_hz = payload["rate_hz"] | 200;
-
-        bool ok = controlModule_->observers().configure(slot, cfg, rate_hz);
+        bool ok = controlModule_->observers().configure(result.slot, result.config, result.rate_hz);
 
         JsonDocument resp;
-        resp["slot"] = slot;
-        resp["num_states"] = cfg.num_states;
-        resp["num_inputs"] = cfg.num_inputs;
-        resp["num_outputs"] = cfg.num_outputs;
-        resp["rate_hz"] = rate_hz;
-        if (!ok) {
-            resp["error"] = "config_failed";
-        }
+        resp["slot"] = result.slot;
+        resp["num_states"] = result.config.num_states;
+        resp["num_inputs"] = result.config.num_inputs;
+        resp["num_outputs"] = result.config.num_outputs;
+        resp["rate_hz"] = result.rate_hz;
+        if (!ok) resp["error"] = "config_failed";
         ctx.sendAck(ACK, ok, resp);
     }
 
@@ -173,10 +141,7 @@ private:
     void handleSetParamArray(JsonVariantConst payload, CommandContext& ctx) {
         static constexpr const char* ACK = "CMD_OBSERVER_SET_PARAM_ARRAY";
 
-        if (!controlModule_) {
-            ctx.sendError(ACK, "no_control_module");
-            return;
-        }
+        if (!controlModule_) { ctx.sendError(ACK, "no_control_module"); return; }
 
         uint8_t slot = payload["slot"] | 0;
         const char* key = payload["key"] | "";
@@ -193,20 +158,15 @@ private:
 
         // Extract float array (max 36 for 6x6 matrix)
         float values[36];
-        size_t len = std::min(arr.size(), sizeof(values) / sizeof(values[0]));
-        for (size_t i = 0; i < len; i++) {
-            values[i] = arr[i].as<float>();
-        }
+        size_t len = mcu::cmd::extractFloatArray(arr, values, sizeof(values) / sizeof(values[0]));
 
         bool ok = controlModule_->observers().setParamArray(slot, key, values, len);
 
         JsonDocument resp;
         resp["slot"] = slot;
         resp["key"] = key;
-        resp["count"] = (int)len;
-        if (!ok) {
-            resp["error"] = "set_param_array_failed";
-        }
+        resp["count"] = static_cast<int>(len);
+        if (!ok) resp["error"] = "set_param_array_failed";
         ctx.sendAck(ACK, ok, resp);
     }
 

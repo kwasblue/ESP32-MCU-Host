@@ -3,14 +3,33 @@
 // These stubs allow the test to link without pulling in the full firmware
 
 #include "command/ModeManager.h"
+#include "command/decoders/ControlDecoders.h"
+#include "command/decoders/ObserverDecoders.h"
 #include "control/ControlKernel.h"
 #include "control/Observer.h"
 #include "control/SignalBus.h"
 #include "core/LoopRates.h"
+#include "core/Clock.h"
+#include "core/IntentBuffer.h"
 #include "module/LoggingModule.h"
 #include "sensor/EncoderManager.h"
 #include "module/TelemetryModule.h"
 #include "motor/MotionController.h"
+
+// ============================================================================
+// Time stubs
+// ============================================================================
+extern "C" {
+    uint32_t __test_millis = 0;
+    uint32_t __test_micros = 0;
+}
+
+namespace mcu {
+uint32_t SystemClock::millis() const { return __test_millis; }
+uint32_t SystemClock::micros() const { return __test_micros; }
+static SystemClock g_systemClock;
+SystemClock& getSystemClock() { return g_systemClock; }
+} // namespace mcu
 
 // ============================================================================
 // LoopRates
@@ -398,3 +417,202 @@ void MotionController::enableStepper(int motorId, bool enabled) {
 void MotionController::update(float dt) {
     (void)dt;
 }
+
+// ============================================================================
+// IntentBuffer stubs
+// ============================================================================
+namespace mcu {
+
+void IntentBuffer::setVelocityIntent(float vx, float omega, uint32_t now_ms) {
+    velocity_.vx = vx;
+    velocity_.omega = omega;
+    velocity_.timestamp_ms = now_ms;
+    velocity_.pending = true;
+}
+
+bool IntentBuffer::consumeVelocityIntent(VelocityIntent& out) {
+    if (!velocity_.pending) return false;
+    out = velocity_;
+    velocity_.pending = false;
+    return true;
+}
+
+void IntentBuffer::setServoIntent(uint8_t id, float angle, uint32_t dur_ms, uint32_t now_ms) {
+    if (id >= MAX_SERVO_INTENTS) return;
+    servos_[id].id = id;
+    servos_[id].angle_deg = angle;
+    servos_[id].duration_ms = dur_ms;
+    servos_[id].timestamp_ms = now_ms;
+    servos_[id].pending = true;
+}
+
+bool IntentBuffer::consumeServoIntent(uint8_t id, ServoIntent& out) {
+    if (id >= MAX_SERVO_INTENTS) return false;
+    if (!servos_[id].pending) return false;
+    out = servos_[id];
+    servos_[id].pending = false;
+    return true;
+}
+
+void IntentBuffer::setDcMotorIntent(uint8_t id, float speed, uint32_t now_ms) {
+    if (id >= MAX_DC_MOTOR_INTENTS) return;
+    dcMotors_[id].id = id;
+    dcMotors_[id].speed = speed;
+    dcMotors_[id].timestamp_ms = now_ms;
+    dcMotors_[id].pending = true;
+}
+
+bool IntentBuffer::consumeDcMotorIntent(uint8_t id, DcMotorIntent& out) {
+    if (id >= MAX_DC_MOTOR_INTENTS) return false;
+    if (!dcMotors_[id].pending) return false;
+    out = dcMotors_[id];
+    dcMotors_[id].pending = false;
+    return true;
+}
+
+void IntentBuffer::setStepperIntent(int id, int steps, float speed, uint32_t now_ms) {
+    if (id < 0 || id >= MAX_STEPPER_INTENTS) return;
+    steppers_[id].motor_id = id;
+    steppers_[id].steps = steps;
+    steppers_[id].speed_steps_s = speed;
+    steppers_[id].timestamp_ms = now_ms;
+    steppers_[id].pending = true;
+}
+
+bool IntentBuffer::consumeStepperIntent(int id, StepperIntent& out) {
+    if (id < 0 || id >= MAX_STEPPER_INTENTS) return false;
+    if (!steppers_[id].pending) return false;
+    out = steppers_[id];
+    steppers_[id].pending = false;
+    return true;
+}
+
+void IntentBuffer::queueSignalIntent(uint16_t id, float value, uint32_t now_ms) {
+    uint8_t next = (signalHead_ + 1) % MAX_SIGNAL_INTENTS;
+    if (next == signalTail_) {
+        signalTail_ = (signalTail_ + 1) % MAX_SIGNAL_INTENTS;
+    }
+    signalRing_[signalHead_].id = id;
+    signalRing_[signalHead_].value = value;
+    signalRing_[signalHead_].timestamp_ms = now_ms;
+    signalHead_ = next;
+}
+
+bool IntentBuffer::consumeSignalIntent(SignalIntent& out) {
+    if (signalHead_ == signalTail_) return false;
+    out = signalRing_[signalTail_];
+    signalTail_ = (signalTail_ + 1) % MAX_SIGNAL_INTENTS;
+    return true;
+}
+
+uint8_t IntentBuffer::pendingSignalCount() const {
+    if (signalHead_ >= signalTail_) {
+        return signalHead_ - signalTail_;
+    }
+    return MAX_SIGNAL_INTENTS - signalTail_ + signalHead_;
+}
+
+void IntentBuffer::clearAll() {
+    velocity_.pending = false;
+    for (uint8_t i = 0; i < MAX_SERVO_INTENTS; ++i) servos_[i].pending = false;
+    for (uint8_t i = 0; i < MAX_DC_MOTOR_INTENTS; ++i) dcMotors_[i].pending = false;
+    for (uint8_t i = 0; i < MAX_STEPPER_INTENTS; ++i) steppers_[i].pending = false;
+    signalHead_ = 0;
+    signalTail_ = 0;
+}
+
+} // namespace mcu
+
+// ============================================================================
+// Control/Observer Decoder stubs
+// ============================================================================
+namespace mcu {
+namespace cmd {
+
+size_t extractUint16Array(JsonArrayConst arr, uint16_t* out, size_t maxLen) {
+    if (!arr || !out || maxLen == 0) return 0;
+    size_t count = 0;
+    for (size_t i = 0; i < arr.size() && i < maxLen; i++) {
+        out[i] = arr[i].as<uint16_t>();
+        count++;
+    }
+    return count;
+}
+
+size_t extractFloatArray(JsonArrayConst arr, float* out, size_t maxLen) {
+    if (!arr || !out || maxLen == 0) return 0;
+    size_t count = 0;
+    for (size_t i = 0; i < arr.size() && i < maxLen; i++) {
+        out[i] = arr[i].as<float>();
+        count++;
+    }
+    return count;
+}
+
+SlotConfigResult decodeSlotConfig(JsonVariantConst payload) {
+    SlotConfigResult result;
+    result.config.slot = payload["slot"] | 0;
+    result.config.rate_hz = payload["rate_hz"] | 100;
+    result.config.require_armed = payload["require_armed"] | true;
+    result.config.require_active = payload["require_active"] | true;
+    result.controllerType = payload["controller_type"] | "PID";
+
+    if (strcmp(result.controllerType, "STATE_SPACE") == 0 ||
+        strcmp(result.controllerType, "SS") == 0) {
+        result.config.ss_io.num_states = payload["num_states"] | 2;
+        result.config.ss_io.num_inputs = payload["num_inputs"] | 1;
+        JsonArrayConst state_ids = payload["state_ids"].as<JsonArrayConst>();
+        if (state_ids) extractUint16Array(state_ids, result.config.ss_io.state_ids, StateSpaceIO::MAX_STATES);
+        JsonArrayConst ref_ids = payload["ref_ids"].as<JsonArrayConst>();
+        if (ref_ids) extractUint16Array(ref_ids, result.config.ss_io.ref_ids, StateSpaceIO::MAX_STATES);
+        JsonArrayConst out_ids = payload["output_ids"].as<JsonArrayConst>();
+        if (out_ids) extractUint16Array(out_ids, result.config.ss_io.output_ids, StateSpaceIO::MAX_INPUTS);
+    } else {
+        result.config.io.ref_id = payload["ref_id"] | 0;
+        result.config.io.meas_id = payload["meas_id"] | 0;
+        result.config.io.out_id = payload["out_id"] | 0;
+    }
+    result.valid = true;
+    return result;
+}
+
+SignalDefResult decodeSignalDef(JsonVariantConst payload) {
+    SignalDefResult result;
+    if (payload["id"].isNull() || payload["name"].isNull() || payload["kind"].isNull()) {
+        result.error = "missing_fields";
+        return result;
+    }
+    result.id = payload["id"].as<uint16_t>();
+    const char* name = payload["name"].as<const char*>();
+    if (name) {
+        strncpy(result.name, name, SignalBus::NAME_MAX_LEN);
+        result.name[SignalBus::NAME_MAX_LEN] = '\0';
+    }
+    const char* kindStr = payload["signal_kind"] | payload["kind"] | "REF";
+    result.kind = signalKindFromString(kindStr);
+    result.initial = payload["initial"] | 0.0f;
+    result.valid = true;
+    return result;
+}
+
+ObserverConfigResult decodeObserverConfig(JsonVariantConst payload) {
+    ObserverConfigResult result;
+    result.slot = payload["slot"] | 0;
+    result.rate_hz = payload["rate_hz"] | 200;
+    result.config.num_states = payload["num_states"] | 2;
+    result.config.num_inputs = payload["num_inputs"] | 1;
+    result.config.num_outputs = payload["num_outputs"] | 1;
+
+    JsonArrayConst input_ids = payload["input_ids"].as<JsonArrayConst>();
+    if (input_ids) extractUint16Array(input_ids, result.config.input_ids, ObserverConfig::MAX_INPUTS);
+    JsonArrayConst output_ids = payload["output_ids"].as<JsonArrayConst>();
+    if (output_ids) extractUint16Array(output_ids, result.config.output_ids, ObserverConfig::MAX_OUTPUTS);
+    JsonArrayConst estimate_ids = payload["estimate_ids"].as<JsonArrayConst>();
+    if (estimate_ids) extractUint16Array(estimate_ids, result.config.estimate_ids, ObserverConfig::MAX_STATES);
+
+    result.valid = true;
+    return result;
+}
+
+} // namespace cmd
+} // namespace mcu

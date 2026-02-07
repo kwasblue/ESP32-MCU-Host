@@ -32,6 +32,10 @@ struct ControlTaskStats {
     uint32_t max_exec_us = 0;
     uint32_t overruns = 0;          // Times loop exceeded period
     uint32_t last_exec_us = 0;
+    // Jitter tracking
+    uint32_t min_period_us = 0;     // Minimum observed period between iterations
+    uint32_t max_period_us = 0;     // Maximum observed period between iterations
+    uint32_t jitter_violations = 0; // Count of periods deviating > 500us from target
 };
 ControlTaskStats getControlTaskStats();
 

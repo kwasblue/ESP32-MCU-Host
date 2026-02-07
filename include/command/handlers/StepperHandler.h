@@ -66,8 +66,15 @@ private:
         DBG_PRINTF("[STEPPER] MOVE_REL motor=%d steps=%d speed=%.1f\n",
                    motorId, steps, speed);
 
-        ctx.mode.onMotionCommand(millis());
-        motion_.moveStepperRelative(motorId, steps, speed);
+        const uint32_t now_ms = ctx.now_ms();
+        ctx.mode.onMotionCommand(now_ms);
+
+        // Store stepper intent (control task will consume and apply)
+        if (ctx.intents) {
+            ctx.intents->setStepperIntent(motorId, steps, speed, now_ms);
+        } else {
+            motion_.moveStepperRelative(motorId, steps, speed);  // Fallback
+        }
 
         JsonDocument resp;
         resp["motor_id"] = motorId;
