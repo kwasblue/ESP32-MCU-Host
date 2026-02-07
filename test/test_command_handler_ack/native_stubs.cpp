@@ -56,7 +56,7 @@ const char* robotModeToString(RobotMode mode) {
 }
 
 void ModeManager::onHostHeartbeat(uint32_t) {}
-void ModeManager::onMotionCommand(uint32_t) {}
+void ModeManager::onMotionCommand(uint32_t, float, float) {}
 
 bool ModeManager::validateVelocity(float vx, float omega, float& outVx, float& outOmega) {
     outVx = vx;

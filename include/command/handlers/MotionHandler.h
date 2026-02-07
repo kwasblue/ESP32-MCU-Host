@@ -52,7 +52,7 @@ public:
         // Always allow "STOP" even if not armed
         const bool is_stop_cmd = (fabsf(safe_vx) < 1e-6f) && (fabsf(safe_omega) < 1e-6f);
         if (is_stop_cmd) {
-            ctx.mode.onMotionCommand(now_ms);
+            ctx.mode.onMotionCommand(now_ms, 0.0f, 0.0f);
             // Store zero velocity intent (control task will consume and apply)
             if (ctx.intents) {
                 ctx.intents->setVelocityIntent(0.0f, 0.0f, now_ms);
@@ -75,7 +75,7 @@ public:
             return;
         }
 
-        ctx.mode.onMotionCommand(now_ms);
+        ctx.mode.onMotionCommand(now_ms, safe_vx, safe_omega);
         // Store velocity intent (control task will consume and apply)
         if (ctx.intents) {
             ctx.intents->setVelocityIntent(safe_vx, safe_omega, now_ms);

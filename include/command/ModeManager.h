@@ -43,7 +43,7 @@ public:
     
     // Watchdog feeds
     void onHostHeartbeat(uint32_t now_ms);
-    void onMotionCommand(uint32_t now_ms);
+    void onMotionCommand(uint32_t now_ms, float vx = 0.0f, float omega = 0.0f);
     
     // Transitions
     void arm();
@@ -84,6 +84,7 @@ private:
     uint32_t lastMotionCmd_ = 0;
     bool hostEverSeen_ = false;
     bool bypassed_ = false;
+    bool wasMoving_ = false;  // True if non-zero velocity was commanded
 
     StopCallback stopCallback_;
     StopCallback emergencyStopCallback_;  // Direct motor disable for E-stop

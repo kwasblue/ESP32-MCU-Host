@@ -151,7 +151,7 @@ void CommandRegistry::onBinaryCommand(const std::vector<uint8_t>& binData) {
                    result.set_vel.vx, result.set_vel.omega);
         if (motion_) {
             motion_->setVelocity(result.set_vel.vx, result.set_vel.omega);
-            ctx_.mode.onMotionCommand(now_ms);
+            ctx_.mode.onMotionCommand(now_ms, result.set_vel.vx, result.set_vel.omega);
         }
         break;
 

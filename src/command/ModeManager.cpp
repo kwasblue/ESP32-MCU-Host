@@ -57,13 +57,15 @@ void ModeManager::update(uint32_t now_ms) {
         }
     }
 
-    // Motion timeout (only in ACTIVE)
-    if (mode_ == RobotMode::ACTIVE && lastMotionCmd_ > 0) {
+    // Motion timeout (only in ACTIVE and only if robot was actually moving)
+    // This prevents timeout spam during testing when no motion is commanded
+    if (mode_ == RobotMode::ACTIVE && lastMotionCmd_ > 0 && wasMoving_) {
         uint32_t dtm = now_ms - lastMotionCmd_;
         if (dtm > cfg_.motion_timeout_ms) {
             mcu::CriticalSection lock(lock_);
             triggerStop();
             mode_ = RobotMode::ARMED;
+            wasMoving_ = false;
 
             // Prevent re-triggering every loop iteration
             lastMotionCmd_ = now_ms;
@@ -109,8 +111,13 @@ void ModeManager::onHostHeartbeat(uint32_t now_ms) {
     }
 }
 
-void ModeManager::onMotionCommand(uint32_t now_ms) {
+void ModeManager::onMotionCommand(uint32_t now_ms, float vx, float omega) {
     lastMotionCmd_ = now_ms;
+    // Track if actual motion was commanded (non-zero velocity)
+    // Motion timeout only applies if robot was actually moving
+    if (fabsf(vx) > 0.001f || fabsf(omega) > 0.001f) {
+        wasMoving_ = true;
+    }
 }
 
 bool ModeManager::canTransition(RobotMode from, RobotMode to) {

@@ -90,7 +90,7 @@ bool ModeManager::clearEstop() {
 
 void ModeManager::update(uint32_t /*now_ms*/) {}
 void ModeManager::onHostHeartbeat(uint32_t /*ms*/) {}
-void ModeManager::onMotionCommand(uint32_t /*ms*/) {}
+void ModeManager::onMotionCommand(uint32_t /*ms*/, float /*vx*/, float /*omega*/) {}
 
 bool ModeManager::validateVelocity(float vx, float omega, float& outVx, float& outOmega) {
     // Clamp to configured limits
