@@ -31,6 +31,7 @@ This repository contains the **ESP32 firmware** - a modular, configurable firmwa
 ## Key Features
 
 - **Modular Architecture**: Enable/disable features via compile-time flags
+- **Self-Registration**: Add handlers, modules, sensors, transports, and actuators with a single macro
 - **Multiple Transports**: USB Serial, WiFi TCP, Bluetooth Classic, MQTT
 - **Motor Control**: DC motors, servos, steppers with motion controller
 - **Sensors**: IMU (MPU6050), encoders, ultrasonic, LIDAR (VL53L0X)
@@ -109,16 +110,23 @@ ESP32 MCU Host/
 │   │   ├── ModuleMacros.h   # REGISTER_MODULE macro
 │   │   └── Protocol.h       # Frame protocol
 │   ├── transport/       # Communication transports
+│   │   ├── IRegisteredTransport.h  # Self-registration interface
+│   │   ├── TransportRegistry.h     # Transport registry
 │   │   ├── UartTransport.h
 │   │   ├── WifiTransport.h
 │   │   ├── BleTransport.h
 │   │   └── MqttTransport.h
-│   ├── motor/           # Motor drivers
+│   ├── motor/           # Motor drivers + actuators
+│   │   ├── IActuator.h         # Self-registration interface
+│   │   ├── ActuatorRegistry.h  # Actuator registry
+│   │   ├── DcMotorActuator.h   # Self-registering DC motor
 │   │   ├── DcMotorManager.h
 │   │   ├── ServoManager.h
 │   │   ├── StepperManager.h
 │   │   └── MotionController.h
 │   ├── sensor/          # Sensor interfaces
+│   │   ├── ISensor.h           # Self-registration interface
+│   │   ├── SensorRegistry.h    # Sensor registry
 │   │   ├── ImuManager.h
 │   │   ├── EncoderManager.h
 │   │   ├── UltrasonicManager.h
@@ -203,6 +211,42 @@ Define hardware pin assignments:
 #define IMU_SDA       21
 #define IMU_SCL       22
 ```
+
+## Extensibility
+
+MARA uses self-registration patterns to minimize boilerplate when adding components:
+
+| Component | Macro | Files to Edit |
+|-----------|-------|---------------|
+| Command Handler | `REGISTER_HANDLER(ClassName)` | 1 (+ include) |
+| Module | `REGISTER_MODULE(ClassName)` | 1 (+ include) |
+| Sensor | `REGISTER_SENSOR(ClassName)` | 1 (+ include) |
+| Transport | `REGISTER_TRANSPORT(ClassName)` | 1 (+ include) |
+| Actuator | `REGISTER_ACTUATOR(ClassName)` | 1 (+ include) |
+
+Example (adding a new command handler):
+
+```cpp
+// include/command/handlers/MyHandler.h
+#include "command/IStringHandler.h"
+#include "command/HandlerMacros.h"
+
+class MyHandler : public IStringHandler {
+public:
+    static constexpr const char* CMDS[] = {"CMD_MY_COMMAND", nullptr};
+    const char* const* commands() const override { return CMDS; }
+    const char* name() const override { return "MyHandler"; }
+
+    void handle(const char* cmd, JsonVariantConst payload, CommandContext& ctx) override {
+        // Handle command...
+        ctx.sendAck(cmd, true, JsonDocument{});
+    }
+};
+
+REGISTER_HANDLER(MyHandler);  // Auto-registers at startup
+```
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed extensibility documentation.
 
 ## Protocol
 
