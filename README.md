@@ -298,16 +298,31 @@ pio test -e native -v
 This firmware is designed to work with the [MARA Host](../../../Host) Python package:
 
 ```python
-from robot_host.transport.serial_transport import SerialTransport
-from robot_host.command.client import AsyncRobotClient
+from robot_host import Robot
 
-transport = SerialTransport("/dev/ttyUSB0", baudrate=115200)
-client = AsyncRobotClient(transport=transport)
+async with Robot("/dev/ttyUSB0") as robot:
+    await robot.arm()
+    await robot.activate()
+    await robot.motion.set_velocity(vx=0.2, omega=0.0)
+```
 
-await client.start()
-await client.arm()
-await client.activate()
-await client.set_vel(vx=0.2, omega=0.0)
+### Code Generation
+
+Several headers are auto-generated from `robot_host/tools/platform_schema.py`:
+
+| Generated Header | Schema Source |
+|-----------------|---------------|
+| `include/config/CommandDefs.h` | `COMMANDS` dict |
+| `include/command/BinaryCommands.h` | `BINARY_COMMANDS` dict |
+| `include/telemetry/TelemetrySections.h` | `TELEMETRY_SECTIONS` dict |
+| `include/config/Version.h` | `VERSION` dict |
+| `include/config/PinConfig.h` | `pins.json` |
+| `include/config/GpioChannelDefs.h` | `GPIO_CHANNELS` dict |
+
+To regenerate, run from the Host repository:
+```bash
+cd robot_host/tools
+python generate_all.py
 ```
 
 ## Performance

@@ -424,6 +424,26 @@ enum class Opcode : uint8_t {
 };
 ```
 
+### Telemetry Section IDs
+
+Binary telemetry uses section IDs defined in `include/telemetry/TelemetrySections.h` (auto-generated from Host's `platform_schema.py`):
+
+```cpp
+namespace TelemetrySections {
+enum class SectionId : uint8_t {
+    TELEM_IMU            = 0x01,  // IMU sensor data
+    TELEM_ULTRASONIC     = 0x02,  // Ultrasonic distance
+    TELEM_LIDAR          = 0x03,  // LiDAR distance
+    TELEM_ENCODER0       = 0x04,  // Encoder 0 ticks
+    TELEM_STEPPER0       = 0x05,  // Stepper motor 0 state
+    TELEM_DC_MOTOR0      = 0x06,  // DC motor 0 state
+    TELEM_CTRL_SIGNALS   = 0x10,  // Control signal bus values
+    TELEM_CTRL_OBSERVERS = 0x11,  // Observer state estimates
+    TELEM_CTRL_SLOTS     = 0x12,  // Control slot status
+};
+}
+```
+
 ## Extensibility System
 
 MARA uses a unified self-registration pattern across all component types. Adding new functionality requires **1 file + 1 include**.
