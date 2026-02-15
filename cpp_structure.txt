@@ -1,6 +1,6 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-02-08 09:03:33
+Generated: 2026-02-15 03:12:03
 Total Files: 170
 ================================================================================
 
@@ -1318,8 +1318,11 @@ Total Files: 170
 
 🧩 📄 include/transport/MqttTransport.h
    ⚙️  setFrameHandler(FrameCallback cb)
+   ⚙️  setFrameHandlerV2(FrameCallbackV2 cb)
    ⚙️  isConnected()
    ⚙️  MqttTransport(const char*, uint16_t, const char*, const char* = nullptr, const char* = nullptr)
+   ⚙️  setFrameHandler(FrameCallback)
+   ⚙️  setFrameHandlerV2(FrameCallbackV2)
    ⚙️  isConnected()
 
 🧩 📄 include/transport/MultiTransport.h
@@ -1590,7 +1593,9 @@ Total Files: 170
 
 🧩 📄 src/core/ServiceStorage.cpp
    📦 namespace mcu
-   ⚙️  ServiceStorage::initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort)
+   ⚙️  ServiceStorage::initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort,
+                                    const char* mqttBroker, uint16_t mqttPort,
+                                    const char* robotId)
    ⚙️  ServiceStorage::initRouter()
    ⚙️  ServiceStorage::initCommands()
    ⚙️  ServiceStorage::initControl()
@@ -1789,11 +1794,13 @@ Total Files: 170
    ⚙️  getSetupWifiModule()
 
 🧩 📄 src/transport/MqttTransport.cpp
+   ⚙️  dumpHexPrefix(const uint8_t* data, unsigned len, unsigned maxBytes = 16)
    ⚙️  password_(password ? password : "")
    ⚙️  MqttTransport::begin()
    ⚙️  MqttTransport::loop()
    ⚙️  MqttTransport::reconnect()
    ⚙️  MqttTransport::onMessage(char* topic, uint8_t* payload, unsigned int length)
+   ⚙️  Protocol::extractFrames(rxBuffer, [this](const uint8_t* frame, size_t len)
    ⚙️  MqttTransport::sendBytes(const uint8_t* data, size_t len)
    ⚙️  MqttTransport::publishDiscoveryResponse()
 
@@ -2285,6 +2292,6 @@ Total Files: 170
 Namespaces:       79
 Classes/Structs:  162
 Enums:            3
-Free Functions:   1193
+Free Functions:   1198
 In-class Methods: 361
 ================================================================================
