@@ -21,6 +21,7 @@ namespace HandlerCap {
     constexpr uint32_t WIFI           = (1 << 0);
     constexpr uint32_t BLE            = (1 << 1);
     constexpr uint32_t MQTT           = (1 << 2);
+    constexpr uint32_t CAN            = (1 << 17);
 
     // Motor
     constexpr uint32_t DC_MOTOR       = (1 << 3);

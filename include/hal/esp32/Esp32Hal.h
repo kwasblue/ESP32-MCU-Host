@@ -3,11 +3,13 @@
 // ESP32 HAL Implementation
 // Include this header for ESP32-specific HAL classes
 
+#include "config/FeatureFlags.h"
 #include "Esp32Gpio.h"
 #include "Esp32Pwm.h"
 #include "Esp32I2c.h"
 #include "Esp32Timer.h"
 #include "Esp32Watchdog.h"
+#include "Esp32Can.h"
 #include "../Hal.h"
 
 namespace hal {
@@ -20,6 +22,9 @@ struct Esp32HalStorage {
     Esp32I2c      i2c1{1};  // Wire1 (secondary)
     Esp32Timer    timer;
     Esp32Watchdog watchdog;
+#if HAS_CAN
+    Esp32Can      can;      // CAN bus (TWAI)
+#endif
 
     /// Build HalContext with pointers to owned instances
     HalContext buildContext() {
@@ -29,7 +34,12 @@ struct Esp32HalStorage {
             .i2c      = &i2c,
             .i2c1     = &i2c1,
             .timer    = &timer,
-            .watchdog = &watchdog
+            .watchdog = &watchdog,
+#if HAS_CAN
+            .can      = &can
+#else
+            .can      = nullptr
+#endif
         };
     }
 };

@@ -88,6 +88,7 @@ class IntentBuffer;
 class UartTransport;
 class WifiTransport;
 class BleTransport;
+namespace mcu { class CanTransport; }
 
 // Base class types (using base classes avoids needing inheritance info)
 class ICommandHandler;
@@ -165,6 +166,7 @@ struct ServiceContext {
     UartTransport* uart = nullptr;
     WifiTransport* wifi = nullptr;
     BleTransport*  ble  = nullptr;
+    CanTransport*  can  = nullptr;
 
     // =========================================================================
     // Tier 5: Orchestration

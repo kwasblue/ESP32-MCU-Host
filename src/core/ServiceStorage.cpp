@@ -9,6 +9,7 @@
 #include "motor/ActuatorRegistry.h"
 #include "config/FeatureFlags.h"
 #include "transport/MqttTransport.h"
+#include "transport/CanTransport.h"
 
 namespace mcu {
 
@@ -37,6 +38,7 @@ ServiceStorage::~ServiceStorage() {
     // Tier 4
     delete commands;
     delete router;
+    delete can;
     delete mqtt;
     delete ble;
     delete wifi;
@@ -63,6 +65,19 @@ void ServiceStorage::initTransports(HardwareSerial& serial, uint32_t baud, uint1
 #endif
 #if HAS_MQTT_TRANSPORT && HAS_WIFI
     if (mqtt) transport.addTransport(mqtt);
+#endif
+}
+
+void ServiceStorage::initCan(uint8_t nodeId, uint32_t baudRate) {
+#if HAS_CAN
+    can = new CanTransport();
+    can->setHal(&hal.can);
+    can->setNodeId(nodeId);
+    can->setBaudRate(baudRate);
+    transport.addTransport(can);
+#else
+    (void)nodeId;
+    (void)baudRate;
 #endif
 }
 
@@ -169,6 +184,7 @@ ServiceContext ServiceStorage::buildContext() {
     ctx.uart      = uart;
     ctx.wifi      = wifi;
     ctx.ble       = ble;
+    ctx.can       = can;
     ctx.router    = router;
     ctx.commands  = commands;
     ctx.telemetry = &telemetry;

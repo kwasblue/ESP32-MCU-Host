@@ -39,6 +39,7 @@
 #include "transport/WifiTransport.h"
 #include "transport/BleTransport.h"
 #include "transport/MqttTransport.h"
+#include "transport/CanTransport.h"
 
 #include "module/HeartbeatModule.h"
 #include "module/LoggingModule.h"
@@ -162,6 +163,7 @@ struct ServiceStorage {
     WifiTransport* wifi = nullptr;
     BleTransport*  ble  = nullptr;
     MqttTransport* mqtt = nullptr;
+    CanTransport*  can  = nullptr;
 
     // Router depends on bus and transport
     MessageRouter* router = nullptr;
@@ -239,6 +241,11 @@ struct ServiceStorage {
     void initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort,
                         const char* mqttBroker = nullptr, uint16_t mqttPort = 1883,
                         const char* robotId = "node0");
+
+    /// Initialize CAN transport (optional, call after initHal).
+    /// @param nodeId Local CAN node ID (0-14)
+    /// @param baudRate CAN baud rate (default 500000)
+    void initCan(uint8_t nodeId = 0, uint32_t baudRate = 500000);
 
     /// Initialize router (call after transports are set up).
     void initRouter();

@@ -22,6 +22,10 @@
 #define HAS_MQTT_TRANSPORT 0
 #endif
 
+#ifndef HAS_CAN
+#define HAS_CAN 0
+#endif
+
 // MQTT requires WiFi
 #if HAS_MQTT_TRANSPORT && !HAS_WIFI
 #error "HAS_MQTT_TRANSPORT requires HAS_WIFI=1"
@@ -211,7 +215,7 @@
 // =============================================================================
 #define HAS_ANY_MOTOR (HAS_DC_MOTOR || HAS_SERVO || HAS_STEPPER)
 #define HAS_ANY_SENSOR (HAS_IMU || HAS_LIDAR || HAS_ULTRASONIC || HAS_ENCODER)
-#define HAS_ANY_TRANSPORT (HAS_WIFI || HAS_BLE || HAS_UART_TRANSPORT || HAS_MQTT_TRANSPORT)
+#define HAS_ANY_TRANSPORT (HAS_WIFI || HAS_BLE || HAS_UART_TRANSPORT || HAS_MQTT_TRANSPORT || HAS_CAN)
 #define HAS_ANY_CONTROL (HAS_CONTROL_KERNEL || HAS_OBSERVER || HAS_SIGNAL_BUS)
 
 // =============================================================================
@@ -235,6 +239,9 @@ inline uint32_t buildCapabilityMask() {
     #endif
     #if HAS_MQTT_TRANSPORT
     caps |= HandlerCap::MQTT;
+    #endif
+    #if HAS_CAN
+    caps |= HandlerCap::CAN;
     #endif
 
     // Motor
@@ -298,7 +305,7 @@ inline uint32_t buildCapabilityMask() {
 #if ENABLE_DEBUG_LOGS
 #define FEATURE_FLAGS_SUMMARY() do { \
     DBG_PRINTLN("=== Feature Flags ==="); \
-    DBG_PRINTF("Transport: WIFI=%d BLE=%d UART=%d MQTT=%d\n", HAS_WIFI, HAS_BLE, HAS_UART_TRANSPORT, HAS_MQTT_TRANSPORT); \
+    DBG_PRINTF("Transport: WIFI=%d BLE=%d UART=%d MQTT=%d CAN=%d\n", HAS_WIFI, HAS_BLE, HAS_UART_TRANSPORT, HAS_MQTT_TRANSPORT, HAS_CAN); \
     DBG_PRINTF("Motor: DC=%d SERVO=%d STEPPER=%d ENCODER=%d MOTION=%d\n", HAS_DC_MOTOR, HAS_SERVO, HAS_STEPPER, HAS_ENCODER, HAS_MOTION_CONTROLLER); \
     DBG_PRINTF("Sensor: IMU=%d LIDAR=%d ULTRASONIC=%d\n", HAS_IMU, HAS_LIDAR, HAS_ULTRASONIC); \
     DBG_PRINTF("Control: SIGNAL_BUS=%d KERNEL=%d OBSERVER=%d\n", HAS_SIGNAL_BUS, HAS_CONTROL_KERNEL, HAS_OBSERVER); \

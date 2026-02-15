@@ -15,6 +15,7 @@
 #include "II2c.h"
 #include "ITimer.h"
 #include "IWatchdog.h"
+#include "ICan.h"
 
 namespace hal {
 
@@ -26,6 +27,7 @@ struct HalContext {
     II2c*      i2c1     = nullptr;   // Secondary I2C bus (optional)
     ITimer*    timer    = nullptr;
     IWatchdog* watchdog = nullptr;
+    ICan*      can      = nullptr;   // CAN bus (optional)
 };
 
 } // namespace hal

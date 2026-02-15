@@ -22,6 +22,7 @@ namespace TransportCap {
     constexpr uint32_t WIFI = (1 << 1);
     constexpr uint32_t BLE  = (1 << 2);
     constexpr uint32_t MQTT = (1 << 3);
+    constexpr uint32_t CAN  = (1 << 4);
 }
 
 /// Extended transport interface for self-registration
