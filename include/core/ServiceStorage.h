@@ -3,6 +3,9 @@
 #include <Arduino.h>  // For HardwareSerial
 #include "core/ITransport.h"
 
+// HAL (Hardware Abstraction Layer)
+#include "hal/esp32/Esp32Hal.h"
+
 // Include all necessary headers for service types
 #include "core/Clock.h"
 #include "core/IntentBuffer.h"
@@ -103,6 +106,12 @@ struct ServiceStorage {
     /// In typical embedded use (static storage), this is never called.
     /// Included for completeness and testing scenarios.
     ~ServiceStorage();
+
+    // =========================================================================
+    // Tier 0: Hardware Abstraction Layer (platform-specific)
+    // =========================================================================
+    hal::Esp32HalStorage hal;
+
     // =========================================================================
     // Tier 1: Core infrastructure (no dependencies)
     // =========================================================================
@@ -203,6 +212,26 @@ struct ServiceStorage {
     // =========================================================================
     // Initialization methods
     // =========================================================================
+
+    /// Initialize HAL and wire it to managers.
+    /// Call this first in setup(), before other init methods.
+    void initHal() {
+        // Wire HAL to managers
+        gpio.setHal(&hal.gpio);
+        pwm.setHal(&hal.pwm);
+        imu.setHal(&hal.i2c);
+        lidar.setHal(&hal.i2c);
+        encoder.setHal(&hal.gpio);
+        stepper.setHal(&hal.timer);
+        mode.setHalGpio(&hal.gpio);
+        mode.setHalWatchdog(&hal.watchdog);
+    }
+
+    /// Initialize I2C bus via HAL.
+    /// Call after initHal() but before sensors need I2C.
+    void initI2c(uint8_t sda, uint8_t scl, uint32_t freq = 400000) {
+        hal.i2c.begin(sda, scl, freq);
+    }
 
     /// Initialize transports that require runtime parameters.
     /// Call this in setup() after Serial is ready.

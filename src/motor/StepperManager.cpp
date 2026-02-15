@@ -105,9 +105,13 @@ void StepperManager::moveRelative(int motorId, int steps, float speedStepsPerSec
 
     for (int i = 0; i < count; ++i) {
         gpio_.write(st->chStep, HIGH);
-        delayMicroseconds(delayMicros);
+        if (timer_) {
+            timer_->delayMicros(delayMicros);
+        }
         gpio_.write(st->chStep, LOW);
-        delayMicroseconds(delayMicros);
+        if (timer_) {
+            timer_->delayMicros(delayMicros);
+        }
     }
 
     if (hasEn) {

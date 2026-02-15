@@ -5,99 +5,83 @@
 #include "sensor/ImuManager.h"
 
 // MPU-60x0 / MPU-9250 style registers
-static constexpr uint8_t REG_PWR_MGMT_1    = 0x6B;
-static constexpr uint8_t REG_WHO_AM_I      = 0x75;
-static constexpr uint8_t REG_ACCEL_XOUT_H  = 0x3B;
+static constexpr uint8_t REG_PWR_MGMT_1   = 0x6B;
+static constexpr uint8_t REG_WHO_AM_I     = 0x75;
+static constexpr uint8_t REG_ACCEL_XOUT_H = 0x3B;
 
 // WHO_AM_I expected values (depends on chip, keep both)
-static constexpr uint8_t WHO_AM_I_MPU6050  = 0x68;
-static constexpr uint8_t WHO_AM_I_MPU6500  = 0x70; // some variants
-static constexpr uint8_t WHO_AM_I_MPU9250  = 0x71;
+static constexpr uint8_t WHO_AM_I_MPU6050 = 0x68;
+static constexpr uint8_t WHO_AM_I_MPU6500 = 0x70;
+static constexpr uint8_t WHO_AM_I_MPU9250 = 0x71;
 
-bool ImuManager::begin(int sdaPin, int sclPin, uint8_t addr) {
+bool ImuManager::begin(uint8_t addr) {
+    if (!hal_) {
+        DBG_PRINTLN("[ImuManager] begin() failed: HAL not set!");
+        return false;
+    }
+
     addr_ = addr;
+    DBG_PRINTF("[ImuManager] begin() addr=0x%02X\n", addr_);
 
-    DBG_PRINTF("[ImuManager] begin() SDA=%d SCL=%d addr=0x%02X\n", sdaPin, sclPin, addr_);
-
-    // Initialize I2C on given pins
-    Wire.begin(sdaPin, sclPin);
-    Wire.setClock(400000);  // 400 kHz
+    // Check if device is present
+    if (!hal_->devicePresent(addr_)) {
+        DBG_PRINTLN("[ImuManager] Device not found on I2C bus");
+        online_ = false;
+        return false;
+    }
 
     // Read WHO_AM_I
-    uint8_t who = readByte(REG_WHO_AM_I);
+    uint8_t who = 0;
+    hal::I2cResult result = hal_->readReg(addr_, REG_WHO_AM_I, &who);
+    if (result != hal::I2cResult::Ok) {
+        DBG_PRINTLN("[ImuManager] Failed to read WHO_AM_I");
+        online_ = false;
+        return false;
+    }
+
     DBG_PRINTF("[ImuManager] WHO_AM_I=0x%02X\n", who);
 
     if (who != WHO_AM_I_MPU6050 &&
         who != WHO_AM_I_MPU6500 &&
-        who != WHO_AM_I_MPU9250)
-    {
+        who != WHO_AM_I_MPU9250) {
         DBG_PRINTLN("[ImuManager] Unexpected WHO_AM_I, IMU may not be connected");
         online_ = false;
         return false;
     }
 
     // Wake up device: clear sleep bit
-    writeByte(REG_PWR_MGMT_1, 0x00);
-    delay(100);
+    result = hal_->writeReg(addr_, REG_PWR_MGMT_1, 0x00);
+    if (result != hal::I2cResult::Ok) {
+        DBG_PRINTLN("[ImuManager] Failed to write PWR_MGMT_1");
+        online_ = false;
+        return false;
+    }
+
+    // Small delay for device to wake up
+    // Note: In portable code, we'd use hal_->timer->delayMillis(100)
+    // For now, use a busy loop or trust the device is fast
+    volatile int dummy = 0;
+    for (int i = 0; i < 100000; ++i) { dummy++; }
 
     DBG_PRINTLN("[ImuManager] IMU online and initialized");
     online_ = true;
     return true;
 }
 
-void ImuManager::writeByte(uint8_t reg, uint8_t value) {
-    Wire.beginTransmission(addr_);
-    Wire.write(reg);
-    Wire.write(value);
-    Wire.endTransmission();
-}
-
-uint8_t ImuManager::readByte(uint8_t reg) {
-    Wire.beginTransmission(addr_);
-    Wire.write(reg);
-    Wire.endTransmission(false);  // repeated start
-
-    Wire.requestFrom(addr_, (uint8_t)1);
-    if (Wire.available()) {
-        return Wire.read();
-    }
-    return 0;
-}
-
-bool ImuManager::readBytes(uint8_t startReg, uint8_t* buffer, size_t length) {
-    Wire.beginTransmission(addr_);
-    Wire.write(startReg);
-    if (Wire.endTransmission(false) != 0) {
-        return false;
-    }
-
-    size_t readCount = Wire.requestFrom(addr_, (uint8_t)length);
-    if (readCount != length) {
-        return false;
-    }
-
-    for (size_t i = 0; i < length; ++i) {
-        if (!Wire.available()) {
-            return false;
-        }
-        buffer[i] = Wire.read();
-    }
-    return true;
-}
-
 bool ImuManager::readSample(Sample& out) {
-    if (!online_) {
+    if (!online_ || !hal_) {
         return false;
     }
 
     uint8_t raw[14];
-    if (!readBytes(REG_ACCEL_XOUT_H, raw, sizeof(raw))) {
-        DBG_PRINTLN("[ImuManager] readBytes failed");
+    hal::I2cResult result = hal_->readRegs(addr_, REG_ACCEL_XOUT_H, raw, sizeof(raw));
+    if (result != hal::I2cResult::Ok) {
+        DBG_PRINTLN("[ImuManager] readRegs failed");
         return false;
     }
 
     auto toInt16 = [](uint8_t hi, uint8_t lo) -> int16_t {
-        return (int16_t)((hi << 8) | lo);
+        return static_cast<int16_t>((hi << 8) | lo);
     };
 
     int16_t ax_raw   = toInt16(raw[0],  raw[1]);
@@ -111,9 +95,9 @@ bool ImuManager::readSample(Sample& out) {
     // Convert to physical units (assuming default config):
     // accel: ±2g → 16384 LSB/g
     // gyro:  ±250 deg/s → 131 LSB/(deg/s)
-    out.ax_g   = ax_raw / 16384.0f;
-    out.ay_g   = ay_raw / 16384.0f;
-    out.az_g   = az_raw / 16384.0f;
+    out.ax_g = ax_raw / 16384.0f;
+    out.ay_g = ay_raw / 16384.0f;
+    out.az_g = az_raw / 16384.0f;
 
     out.gx_dps = gx_raw / 131.0f;
     out.gy_dps = gy_raw / 131.0f;

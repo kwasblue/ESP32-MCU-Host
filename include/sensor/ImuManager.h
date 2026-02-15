@@ -4,8 +4,7 @@
 
 #if HAS_IMU
 
-#include <Arduino.h>
-#include <Wire.h>
+#include "hal/II2c.h"
 #include "core/Debug.h"
 
 class ImuManager {
@@ -22,22 +21,31 @@ public:
 
     ImuManager() = default;
 
-    // Initialize I2C + IMU. Returns true if WHO_AM_I looks OK.
-    bool begin(int sdaPin, int sclPin, uint8_t addr = 0x68);
+    /// Set the HAL I2C driver (must be called before begin)
+    void setHal(hal::II2c* i2c) {
+        hal_ = i2c;
+    }
+
+    /// Initialize IMU at given address. I2C bus must already be initialized.
+    /// Returns true if WHO_AM_I looks OK.
+    bool begin(uint8_t addr = 0x68);
+
+    /// Legacy signature for compatibility (pins ignored, HAL handles I2C init)
+    bool begin(int sdaPin, int sclPin, uint8_t addr = 0x68) {
+        (void)sdaPin;
+        (void)sclPin;
+        return begin(addr);
+    }
 
     bool isOnline() const { return online_; }
 
-    // Read one accel/gyro/temp sample. Returns false if IMU offline or read failed.
+    /// Read one accel/gyro/temp sample. Returns false if IMU offline or read failed.
     bool readSample(Sample& out);
 
 private:
-    uint8_t  addr_   = 0x68;
-    bool     online_ = false;
-
-    // Low-level helpers
-    void     writeByte(uint8_t reg, uint8_t value);
-    uint8_t  readByte(uint8_t reg);
-    bool     readBytes(uint8_t startReg, uint8_t* buffer, size_t length);
+    hal::II2c* hal_ = nullptr;
+    uint8_t addr_ = 0x68;
+    bool online_ = false;
 };
 
 #else // !HAS_IMU
@@ -56,6 +64,8 @@ public:
     };
 
     ImuManager() = default;
+    void setHal(void*) {}
+    bool begin(uint8_t = 0x68) { return false; }
     bool begin(int, int, uint8_t = 0x68) { return false; }
     bool isOnline() const { return false; }
     bool readSample(Sample&) { return false; }

@@ -5,6 +5,8 @@
 #include <functional>
 #include "core/Clock.h"
 #include "core/CriticalSection.h"
+#include "hal/IGpio.h"
+#include "hal/IWatchdog.h"
 
 enum class RobotMode : uint8_t {
     BOOT,
@@ -75,7 +77,15 @@ public:
     // Clock injection for testability
     void setClock(mcu::IClock* clk) { clock_ = clk; }
 
+    /// Set HAL GPIO driver (for E-stop, bypass, relay pins)
+    void setHalGpio(hal::IGpio* gpio) { halGpio_ = gpio; }
+
+    /// Set HAL watchdog driver
+    void setHalWatchdog(hal::IWatchdog* watchdog) { halWatchdog_ = watchdog; }
+
 private:
+    hal::IGpio*     halGpio_     = nullptr;
+    hal::IWatchdog* halWatchdog_ = nullptr;
     SafetyConfig cfg_;
     RobotMode mode_ = RobotMode::BOOT;
     RobotMode lastLoggedMode_ = RobotMode::BOOT;

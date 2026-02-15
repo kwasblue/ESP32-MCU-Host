@@ -22,11 +22,16 @@ EncoderManager::EncoderManager() {
 // ---- Internal helpers ----
 
 // On ESP32 you *can* use CHANGE on A only and read B inside the ISR.
-// That’s what we do here. We also install a B ISR so we could upgrade
+// That's what we do here. We also install a B ISR so we could upgrade
 // to full 4x decoding later if you want.
 void EncoderManager::attach(uint8_t id, uint8_t pinA, uint8_t pinB) {
     if (id >= MAX_ENCODERS) {
         DBG_PRINTF("[EncoderManager] attach: id=%u out of range\n", id);
+        return;
+    }
+
+    if (!hal_) {
+        DBG_PRINTLN("[EncoderManager] attach() failed: HAL not set!");
         return;
     }
 
@@ -37,8 +42,8 @@ void EncoderManager::attach(uint8_t id, uint8_t pinA, uint8_t pinB) {
     e.count = 0;
     e.initialized = true;
 
-    pinMode(pinA, INPUT_PULLUP);
-    pinMode(pinB, INPUT_PULLUP);
+    hal_->pinMode(pinA, hal::PinMode::InputPullup);
+    hal_->pinMode(pinB, hal::PinMode::InputPullup);
 
     DBG_PRINTF("[EncoderManager] attach id=%u pinA=%u pinB=%u\n",
                id, pinA, pinB);
@@ -47,21 +52,21 @@ void EncoderManager::attach(uint8_t id, uint8_t pinA, uint8_t pinB) {
     // We trigger on CHANGE on A, and optionally on B too.
     switch (id) {
         case 0:
-            attachInterrupt(digitalPinToInterrupt(pinA), []() {
+            hal_->attachInterrupt(pinA, []() {
                 if (s_globalEncoderMgr) s_globalEncoderMgr->handleA(0);
-            }, CHANGE);
-            attachInterrupt(digitalPinToInterrupt(pinB), []() {
+            }, hal::InterruptMode::Change);
+            hal_->attachInterrupt(pinB, []() {
                 if (s_globalEncoderMgr) s_globalEncoderMgr->handleB(0);
-            }, CHANGE);
+            }, hal::InterruptMode::Change);
             break;
 
         case 1:
-            attachInterrupt(digitalPinToInterrupt(pinA), []() {
+            hal_->attachInterrupt(pinA, []() {
                 if (s_globalEncoderMgr) s_globalEncoderMgr->handleA(1);
-            }, CHANGE);
-            attachInterrupt(digitalPinToInterrupt(pinB), []() {
+            }, hal::InterruptMode::Change);
+            hal_->attachInterrupt(pinB, []() {
                 if (s_globalEncoderMgr) s_globalEncoderMgr->handleB(1);
-            }, CHANGE);
+            }, hal::InterruptMode::Change);
             break;
 
         default:
@@ -78,9 +83,14 @@ int32_t EncoderManager::getCount(uint8_t id) const {
 
     // Take an atomic-ish snapshot. On ESP32, reading a 32-bit volatile is
     // already atomic, but this guards against weirdness if you want.
-    noInterrupts();
+    // Use HAL if available, fallback to direct calls for ISR safety
+    if (hal_) {
+        hal_->disableInterrupts();
+    }
     int32_t c = encoders_[id].count;
-    interrupts();
+    if (hal_) {
+        hal_->enableInterrupts();
+    }
     return c;
 }
 
@@ -89,9 +99,13 @@ void EncoderManager::reset(uint8_t id) {
         return;
     }
 
-    noInterrupts();
+    if (hal_) {
+        hal_->disableInterrupts();
+    }
     encoders_[id].count = 0;
-    interrupts();
+    if (hal_) {
+        hal_->enableInterrupts();
+    }
 }
 
 // ---- ISR helpers ----
@@ -103,26 +117,26 @@ void EncoderManager::reset(uint8_t id) {
 //
 // We call the same logic from handleA and handleB, so you get up to 4x decoding.
 void EncoderManager::handleA(uint8_t id) {
-    if (id >= MAX_ENCODERS || !encoders_[id].initialized) {
+    if (id >= MAX_ENCODERS || !encoders_[id].initialized || !hal_) {
         return;
     }
     Encoder& e = encoders_[id];
 
-    int a = digitalRead(e.pinA);
-    int b = digitalRead(e.pinB);
+    int a = hal_->digitalRead(e.pinA);
+    int b = hal_->digitalRead(e.pinB);
 
     int dir = (a == b) ? +1 : -1;
     e.count += dir;
 }
 
 void EncoderManager::handleB(uint8_t id) {
-    if (id >= MAX_ENCODERS || !encoders_[id].initialized) {
+    if (id >= MAX_ENCODERS || !encoders_[id].initialized || !hal_) {
         return;
     }
     Encoder& e = encoders_[id];
 
-    int a = digitalRead(e.pinA);
-    int b = digitalRead(e.pinB);
+    int a = hal_->digitalRead(e.pinA);
+    int b = hal_->digitalRead(e.pinB);
 
     int dir = (a == b) ? +1 : -1;
     e.count += dir;

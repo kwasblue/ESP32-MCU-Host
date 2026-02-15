@@ -47,6 +47,16 @@
 
 #pragma once
 
+// Forward declarations for HAL
+namespace hal {
+    class IGpio;
+    class IPwm;
+    class II2c;
+    class ITimer;
+    class IWatchdog;
+    struct HalContext;
+}
+
 // Forward declarations for all service types
 class EventBus;
 class ModeManager;
@@ -108,14 +118,24 @@ namespace mcu {
 /// - Tier 5: Orchestration (depend on multiple tiers)
 struct ServiceContext {
     // =========================================================================
+    // Tier 0: Hardware Abstraction Layer (platform-specific)
+    // =========================================================================
+    hal::IGpio*     halGpio     = nullptr;   // Platform GPIO abstraction
+    hal::IPwm*      halPwm      = nullptr;   // Platform PWM abstraction
+    hal::II2c*      halI2c      = nullptr;   // Platform I2C abstraction (primary bus)
+    hal::II2c*      halI2c1     = nullptr;   // Platform I2C abstraction (secondary bus)
+    hal::ITimer*    halTimer    = nullptr;   // Platform timer abstraction
+    hal::IWatchdog* halWatchdog = nullptr;   // Platform watchdog abstraction
+
+    // =========================================================================
     // Tier 1: Core infrastructure (no dependencies)
     // =========================================================================
     IClock*         clock = nullptr;    // Time abstraction (use for all timing)
     IntentBuffer*   intents = nullptr;  // Command intent buffer (for control task)
     EventBus*       bus  = nullptr;
     ModeManager*    mode = nullptr;
-    GpioManager*    gpio = nullptr;
-    PwmManager*     pwm  = nullptr;
+    GpioManager*    gpio = nullptr;     // Legacy GPIO manager (uses halGpio internally)
+    PwmManager*     pwm  = nullptr;     // Legacy PWM manager (uses halPwm internally)
 
     // =========================================================================
     // Tier 2: Motor control (depend on GPIO, PWM)
@@ -195,6 +215,14 @@ struct ServiceContext {
     // =========================================================================
     // Convenience methods for null-safety
     // =========================================================================
+    bool hasHal() const {
+        return halGpio != nullptr && halPwm != nullptr;
+    }
+
+    bool hasI2c() const {
+        return halI2c != nullptr;
+    }
+
     bool hasMotorControl() const {
         return dcMotor != nullptr && motion != nullptr;
     }

@@ -3,27 +3,35 @@
 #if HAS_LIDAR
 
 #include "sensor/LidarManager.h"
-#include "core/Debug.h"
 
-bool LidarManager::begin(uint8_t sdaPin, uint8_t sclPin, uint8_t addr) {
+bool LidarManager::begin(uint8_t addr) {
+    if (!hal_) {
+        DBG_PRINTLN("[LidarManager] begin() failed: HAL not set!");
+        return false;
+    }
+
     addr_ = addr;
+    DBG_PRINTF("[LidarManager] begin() addr=0x%02X\n", addr_);
 
-    Wire.begin(sdaPin, sclPin);
-
-    if (!lidar_.init()) {
-        DBG_PRINTLN("[LidarManager] VL53L0X init() failed");
+    // Initialize driver with HAL I2C
+    if (!lidar_.begin(hal_, addr_)) {
+        DBG_PRINTLN("[LidarManager] VL53L0X init failed");
         online_ = false;
         return false;
     }
 
-    // If you ever want to change address (multiple sensors), you’d call setAddress(addr_) here.
-    // lidar_.setAddress(addr_);
+    // Set timeout
+    lidar_.setTimeout(500);
 
-    lidar_.setTimeout(500);      // ms timeout for reads
-    lidar_.startContinuous();    // continuous mode for fast polling
+    // Start continuous mode for fast polling
+    if (!lidar_.startContinuous()) {
+        DBG_PRINTLN("[LidarManager] Failed to start continuous mode");
+        online_ = false;
+        return false;
+    }
 
     online_ = true;
-    DBG_PRINTLN("[LidarManager] VL53L0X initialized OK");
+    DBG_PRINTLN("[LidarManager] VL53L0X initialized OK (HAL-based driver)");
     return true;
 }
 
@@ -39,8 +47,8 @@ bool LidarManager::readSample(Sample& out) {
         return false;
     }
 
-    // Basic sanity check
-    if (mm == 0 || mm > 4000) {   // ~4m cap
+    // Sanity check: 0 or >4m is invalid
+    if (mm == 0 || mm > 4000 || mm == 0xFFFF) {
         return false;
     }
 

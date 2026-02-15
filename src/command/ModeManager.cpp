@@ -3,7 +3,6 @@
 #include "command/ModeManager.h"
 #include "core/CriticalSection.h"
 #include <Arduino.h>
-#include <esp_task_wdt.h>
 #include <cmath>
 
 const char* robotModeToString(RobotMode m) {
@@ -20,22 +19,33 @@ const char* robotModeToString(RobotMode m) {
 
 void ModeManager::begin() {
     // Watchdog timeout: 2 seconds (was 5s - reduced for faster fault detection)
-    // If the main loop hangs for >2s, ESP32 will reset
-    esp_task_wdt_init(2, true);
-    esp_task_wdt_add(NULL);
+    // If the main loop hangs for >2s, MCU will reset
+    if (halWatchdog_) {
+        halWatchdog_->begin(2, true);
+        halWatchdog_->addCurrentTask();
+    }
 
-    if (cfg_.estop_pin >= 0) pinMode(cfg_.estop_pin, INPUT_PULLUP);
-    if (cfg_.bypass_pin >= 0) pinMode(cfg_.bypass_pin, INPUT_PULLUP);
-    if (cfg_.relay_pin >= 0) {
-        pinMode(cfg_.relay_pin, OUTPUT);
-        digitalWrite(cfg_.relay_pin, LOW);
+    // Configure safety pins via HAL
+    if (halGpio_) {
+        if (cfg_.estop_pin >= 0) {
+            halGpio_->pinMode(cfg_.estop_pin, hal::PinMode::InputPullup);
+        }
+        if (cfg_.bypass_pin >= 0) {
+            halGpio_->pinMode(cfg_.bypass_pin, hal::PinMode::InputPullup);
+        }
+        if (cfg_.relay_pin >= 0) {
+            halGpio_->pinMode(cfg_.relay_pin, hal::PinMode::Output);
+            halGpio_->digitalWrite(cfg_.relay_pin, 0);
+        }
     }
 
     mode_ = RobotMode::DISCONNECTED;
 }
 
 void ModeManager::update(uint32_t now_ms) {
-    esp_task_wdt_reset();
+    if (halWatchdog_) {
+        halWatchdog_->reset();
+    }
     readHardwareInputs();
 
     // Host timeout
@@ -81,19 +91,21 @@ void ModeManager::update(uint32_t now_ms) {
         lastLoggedMode_ = mode_;
     }
 
-    // Relay control
-    if (cfg_.relay_pin >= 0) {
+    // Relay control via HAL
+    if (cfg_.relay_pin >= 0 && halGpio_) {
         bool allow = canMove() && !isEstopped();
-        digitalWrite(cfg_.relay_pin, allow ? HIGH : LOW);
+        halGpio_->digitalWrite(cfg_.relay_pin, allow ? 1 : 0);
     }
 }
 
 void ModeManager::readHardwareInputs() {
+    if (!halGpio_) return;
+
     if (cfg_.bypass_pin >= 0) {
-        bypassed_ = (digitalRead(cfg_.bypass_pin) == LOW);
+        bypassed_ = (halGpio_->digitalRead(cfg_.bypass_pin) == 0);
     }
     if (cfg_.estop_pin >= 0) {
-        if (digitalRead(cfg_.estop_pin) == LOW && !isEstopped()) {
+        if (halGpio_->digitalRead(cfg_.estop_pin) == 0 && !isEstopped()) {
             estop();
         }
     }
@@ -186,8 +198,10 @@ bool ModeManager::clearEstop() {
     }
 
     // Hardware E-stop must be released
-    if (cfg_.estop_pin >= 0 && digitalRead(cfg_.estop_pin) == LOW) {
-        return false;
+    if (cfg_.estop_pin >= 0 && halGpio_) {
+        if (halGpio_->digitalRead(cfg_.estop_pin) == 0) {
+            return false;
+        }
     }
 
     mode_ = RobotMode::IDLE;

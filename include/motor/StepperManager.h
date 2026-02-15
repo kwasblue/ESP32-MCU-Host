@@ -4,9 +4,10 @@
 
 #if HAS_STEPPER
 
-#include <Arduino.h>
+#include <cstdint>
 #include <map>
 #include "hw/GpioManager.h"
+#include "hal/ITimer.h"
 
 struct StepperConfig {
     int  pinStep;
@@ -56,6 +57,9 @@ public:
     explicit StepperManager(GpioManager& gpio)
         : gpio_(gpio) {}
 
+    /// Set the HAL timer driver for microsecond delays
+    void setHal(hal::ITimer* timer) { timer_ = timer; }
+
     // Register a stepper motor
     void registerStepper(int motorId,
                          int pinStep,
@@ -83,12 +87,14 @@ private:
     const StepperState* getState(int motorId) const;
 
     GpioManager& gpio_;
+    hal::ITimer* timer_ = nullptr;
     std::map<int, StepperState> steppers_;
 };
 
 #else // !HAS_STEPPER
 
 class GpioManager;
+namespace hal { class ITimer; }
 
 // Stub when stepper is disabled
 class StepperManager {
@@ -111,6 +117,7 @@ public:
     };
 
     explicit StepperManager(GpioManager&) {}
+    void setHal(hal::ITimer*) {}
     void registerStepper(int, int, int, int = -1, bool = false) {}
     void setEnabled(int, bool) {}
     void moveRelative(int, int, float = 1000.0f) {}

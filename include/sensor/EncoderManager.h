@@ -5,12 +5,14 @@
 
 #if HAS_ENCODER
 
-#include <Arduino.h>
+#include "hal/IGpio.h"
+#include <cstdint>
 
 // Simple quadrature encoder manager (A/B only, no index/Z yet).
 // - Supports up to MAX_ENCODERS encoders
 // - Uses ISR callbacks wired in EncoderManager.cpp
 // - Count is signed: positive / negative based on direction
+// - Now uses HAL GPIO for platform portability
 class EncoderManager {
 public:
     struct Encoder {
@@ -23,6 +25,9 @@ public:
     static constexpr uint8_t MAX_ENCODERS = 2;
 
     EncoderManager();
+
+    /// Set the HAL GPIO driver (must be called before attach)
+    void setHal(hal::IGpio* gpio) { hal_ = gpio; }
 
     // Attach an encoder to A/B pins and install ISR(s).
     // id must be < MAX_ENCODERS.
@@ -44,6 +49,7 @@ public:
     }
 
 private:
+    hal::IGpio* hal_ = nullptr;
     Encoder encoders_[MAX_ENCODERS];
 };
 
@@ -51,6 +57,10 @@ private:
 EncoderManager* getGlobalEncoderManager();
 
 #else // !HAS_ENCODER
+
+#include <cstdint>
+
+namespace hal { class IGpio; }
 
 // Stub when encoder is disabled
 class EncoderManager {
@@ -65,6 +75,7 @@ public:
     static constexpr uint8_t MAX_ENCODERS = 2;
 
     EncoderManager() = default;
+    void setHal(hal::IGpio*) {}
     void attach(uint8_t, uint8_t, uint8_t) {}
     int32_t getCount(uint8_t) const { return 0; }
     void reset(uint8_t) {}

@@ -136,6 +136,14 @@ void ServiceStorage::initHost(const char* deviceName) {
 ServiceContext ServiceStorage::buildContext() {
     ServiceContext ctx;
 
+    // Tier 0: HAL
+    ctx.halGpio     = &hal.gpio;
+    ctx.halPwm      = &hal.pwm;
+    ctx.halI2c      = &hal.i2c;
+    ctx.halI2c1     = &hal.i2c1;
+    ctx.halTimer    = &hal.timer;
+    ctx.halWatchdog = &hal.watchdog;
+
     // Tier 1
     ctx.clock   = &clock;
     ctx.intents = &intents;
