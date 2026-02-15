@@ -6,6 +6,7 @@
 
 #include "transport/MqttTransport.h"
 #include "config/Version.h"
+#include "core/Protocol.h"
 #include <ArduinoJson.h>
 
 static void dumpHexPrefix(const uint8_t* data, unsigned len, unsigned maxBytes = 16) {
@@ -96,21 +97,35 @@ void MqttTransport::onMessage(char* topic, uint8_t* payload, unsigned int length
         // Optional debug
         // dumpHexPrefix(payload, length);
 
-        // Preferred: callback with explicit reply fn
-        if (frameCallbackV2_) {
-            auto reply = [this](const uint8_t* data, size_t len) -> bool {
-                return this->sendBytes(data, len);  // publishes to mara/{node}/ack
-            };
-            frameCallbackV2_(payload, length, reply);
-            return;
-        }
+        // Copy payload to buffer for frame extraction
+        std::vector<uint8_t> rxBuffer(payload, payload + length);
 
-        // Legacy: ingest-only
-        if (frameCallback_) {
-            frameCallback_(payload, length);
-        } else {
+        // Extract frames using Protocol (same as UART/WiFi/BLE transports)
+        // This parses [0xAA][len][len][msg_type][payload][crc] and delivers [msg_type][payload]
+        Protocol::extractFrames(rxBuffer, [this](const uint8_t* frame, size_t len) {
+            // Preferred: callback with explicit reply fn (V2 API)
+            if (frameCallbackV2_) {
+                auto reply = [this](const uint8_t* data, size_t len) -> bool {
+                    return this->sendBytes(data, len);  // publishes to mara/{node}/ack
+                };
+                frameCallbackV2_(frame, len, reply);
+                return;
+            }
+
+            // Legacy: MqttTransport-specific callback
+            if (frameCallback_) {
+                frameCallback_(frame, len);
+                return;
+            }
+
+            // Base class handler (set by MultiTransport::begin())
+            if (handler_) {
+                handler_(frame, len);
+                return;
+            }
+
             Serial.println("[MQTT] RX cmd but no frame handler set");
-        }
+        });
         return;
     }
 

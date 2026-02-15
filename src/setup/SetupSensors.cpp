@@ -6,6 +6,7 @@
 #include "config/FeatureFlags.h"
 #include "sensor/ImuManager.h"
 #include "sensor/LidarManager.h"
+#include "sensor/ISensor.h"
 
 // Include all self-registering sensors (triggers static registration)
 #include "sensor/AllSensors.h"
