@@ -8,6 +8,7 @@
 #include "transport/TransportRegistry.h"
 #include "motor/ActuatorRegistry.h"
 #include "config/FeatureFlags.h"
+#include "transport/MqttTransport.h"
 
 namespace mcu {
 
@@ -36,21 +37,32 @@ ServiceStorage::~ServiceStorage() {
     // Tier 4
     delete commands;
     delete router;
+    delete mqtt;
     delete ble;
     delete wifi;
     delete uart;
 }
 
-void ServiceStorage::initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort) {
+void ServiceStorage::initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort,
+                                    const char* mqttBroker, uint16_t mqttPort,
+                                    const char* robotId) {
     uart = new UartTransport(serial, baud);
     wifi = new WifiTransport(tcpPort);
 #if HAS_BLE
     ble = new BleTransport("ESP32-SPP");
 #endif
+#if HAS_MQTT_TRANSPORT && HAS_WIFI
+    if (mqttBroker != nullptr) {
+        mqtt = new MqttTransport(mqttBroker, mqttPort, robotId);
+    }
+#endif
     if (uart) transport.addTransport(uart);
     if (wifi) transport.addTransport(wifi);
 #if HAS_BLE
     if (ble) transport.addTransport(ble);
+#endif
+#if HAS_MQTT_TRANSPORT && HAS_WIFI
+    if (mqtt) transport.addTransport(mqtt);
 #endif
 }
 

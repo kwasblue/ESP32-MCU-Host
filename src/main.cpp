@@ -19,6 +19,7 @@
 
 // Config
 #include "config/PinConfig.h"
+#include "config/WifiSecrets.h"
 
 // Set to true to use FreeRTOS task for control loop (Core 1, high priority)
 // Set to false to use cooperative scheduling in main loop()
@@ -66,7 +67,8 @@ void setup() {
     // =========================================================================
     // Phase 1: Initialize storage components that need runtime parameters
     // =========================================================================
-    g_storage.initTransports(Serial, 115200, 3333);
+    g_storage.initTransports(Serial, 115200, 3333,
+                              MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_ROBOT_ID);
     g_storage.initRouter();
     g_storage.initCommands();
     g_storage.initControl();

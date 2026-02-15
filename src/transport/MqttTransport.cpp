@@ -8,13 +8,22 @@
 #include "config/Version.h"
 #include <ArduinoJson.h>
 
+static void dumpHexPrefix(const uint8_t* data, unsigned len, unsigned maxBytes = 16) {
+    Serial.print("[MQTT] RX bytes: ");
+    for (unsigned i = 0; i < len && i < maxBytes; i++) {
+        Serial.printf("%02X ", data[i]);
+    }
+    if (len > maxBytes) Serial.print("...");
+    Serial.println();
+}
+
 MqttTransport::MqttTransport(
     const char* broker,
     uint16_t port,
     const char* robotId,
     const char* username,
     const char* password
-) : 
+) :
     mqtt_(wifi_),
     broker_(broker),
     port_(port),
@@ -22,7 +31,6 @@ MqttTransport::MqttTransport(
     username_(username ? username : ""),
     password_(password ? password : "")
 {
-    // Build topic strings
     topicCmd_       = "mara/" + robotId_ + "/cmd";
     topicAck_       = "mara/" + robotId_ + "/ack";
     topicTelemetry_ = "mara/" + robotId_ + "/telemetry";
@@ -33,11 +41,11 @@ MqttTransport::MqttTransport(
 void MqttTransport::begin() {
     mqtt_.setServer(broker_.c_str(), port_);
     mqtt_.setBufferSize(1024);
-    
+
     mqtt_.setCallback([this](char* topic, uint8_t* payload, unsigned int length) {
         this->onMessage(topic, payload, length);
     });
-    
+
     reconnect();
 }
 
@@ -55,33 +63,27 @@ void MqttTransport::loop() {
 
 void MqttTransport::reconnect() {
     if (mqtt_.connected()) return;
-    
-    Serial.printf("[MQTT] Connecting to %s:%d as %s...\n", 
+
+    Serial.printf("[MQTT] Connecting to %s:%d as %s...\n",
         broker_.c_str(), port_, robotId_.c_str());
-    
+
     bool connected = false;
     if (username_.empty()) {
         connected = mqtt_.connect(robotId_.c_str());
     } else {
-        connected = mqtt_.connect(
-            robotId_.c_str(), 
-            username_.c_str(), 
-            password_.c_str()
-        );
+        connected = mqtt_.connect(robotId_.c_str(), username_.c_str(), password_.c_str());
     }
-    
+
     if (connected) {
         Serial.println("[MQTT] Connected!");
-        
-        // Subscribe to command topic
-        mqtt_.subscribe(topicCmd_.c_str());
-        
-        // Subscribe to fleet discovery
-        mqtt_.subscribe(topicDiscovery_.c_str());
-        
-        // Announce presence
+
+        bool ok1 = mqtt_.subscribe(topicCmd_.c_str());
+        bool ok2 = mqtt_.subscribe(topicDiscovery_.c_str());
+
+        Serial.printf("[MQTT] Sub cmd=%d (%s)\n", ok1, topicCmd_.c_str());
+        Serial.printf("[MQTT] Sub discover=%d (%s)\n", ok2, topicDiscovery_.c_str());
+
         publishDiscoveryResponse();
-        
     } else {
         Serial.printf("[MQTT] Failed, rc=%d\n", mqtt_.state());
     }
@@ -89,56 +91,71 @@ void MqttTransport::reconnect() {
 
 void MqttTransport::onMessage(char* topic, uint8_t* payload, unsigned int length) {
     std::string t(topic);
-    
+
     if (t == topicCmd_) {
-        // Command from host
+        // Optional debug
+        // dumpHexPrefix(payload, length);
+
+        // Preferred: callback with explicit reply fn
+        if (frameCallbackV2_) {
+            auto reply = [this](const uint8_t* data, size_t len) -> bool {
+                return this->sendBytes(data, len);  // publishes to mara/{node}/ack
+            };
+            frameCallbackV2_(payload, length, reply);
+            return;
+        }
+
+        // Legacy: ingest-only
         if (frameCallback_) {
             frameCallback_(payload, length);
+        } else {
+            Serial.println("[MQTT] RX cmd but no frame handler set");
         }
-    } else if (t == topicDiscovery_) {
-        // Discovery request
+        return;
+    }
+
+    if (t == topicDiscovery_) {
         publishDiscoveryResponse();
+        return;
     }
 }
 
-// FIX: Return bool instead of void
 bool MqttTransport::sendBytes(const uint8_t* data, size_t len) {
-    if (mqtt_.connected()) {
-        return mqtt_.publish(topicAck_.c_str(), data, len);
-    }
-    return false;
+    if (!mqtt_.connected()) return false;
+    return mqtt_.publish(topicAck_.c_str(), data, len);
 }
 
 void MqttTransport::publishDiscoveryResponse() {
     JsonDocument doc;
-    doc["robot_id"] = robotId_;
-    
-    // FIX: Use the correct constant names from your Version.h
-    // Check your config/Version.h for the actual names
+
+    // Keep robot_id, but ALSO provide node_id for host compatibility
+    doc["robot_id"] = robotId_.c_str();
+    doc["node_id"]  = robotId_.c_str();
+
     #ifdef MARA_FIRMWARE_VERSION
         doc["firmware"] = MARA_FIRMWARE_VERSION;
     #else
-        doc["firmware"] = "1.0.0";  // Fallback
+        doc["firmware"] = "1.0.0";
     #endif
-    
+
     #ifdef MARA_PROTOCOL_VERSION
         doc["protocol"] = MARA_PROTOCOL_VERSION;
     #else
-        doc["protocol"] = 1;  // Fallback
+        doc["protocol"] = 1;
     #endif
-    
+
     #ifdef MARA_BOARD_TYPE
         doc["board"] = MARA_BOARD_TYPE;
     #else
-        doc["board"] = "esp32";  // Fallback
+        doc["board"] = "esp32";
     #endif
-    
-    doc["state"] = "ONLINE";
-    
-    std::string json;
-    serializeJson(doc, json);
-    
-    mqtt_.publish("mara/fleet/discover_response", json.c_str());
+
+    // Lowercase matches your Python NodeState Enum values
+    doc["state"] = "online";
+
+    char out[256];
+    size_t n = serializeJson(doc, out, sizeof(out));
+    mqtt_.publish("mara/fleet/discover_response", out, n);
 }
 
 #endif // HAS_MQTT_TRANSPORT && HAS_WIFI

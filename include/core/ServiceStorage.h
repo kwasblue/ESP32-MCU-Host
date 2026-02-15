@@ -35,6 +35,7 @@
 #include "transport/UartTransport.h"
 #include "transport/WifiTransport.h"
 #include "transport/BleTransport.h"
+#include "transport/MqttTransport.h"
 
 #include "module/HeartbeatModule.h"
 #include "module/LoggingModule.h"
@@ -151,6 +152,7 @@ struct ServiceStorage {
     UartTransport* uart = nullptr;
     WifiTransport* wifi = nullptr;
     BleTransport*  ble  = nullptr;
+    MqttTransport* mqtt = nullptr;
 
     // Router depends on bus and transport
     MessageRouter* router = nullptr;
@@ -204,7 +206,10 @@ struct ServiceStorage {
 
     /// Initialize transports that require runtime parameters.
     /// Call this in setup() after Serial is ready.
-    void initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort);
+    /// mqttBroker can be nullptr to disable MQTT.
+    void initTransports(HardwareSerial& serial, uint32_t baud, uint16_t tcpPort,
+                        const char* mqttBroker = nullptr, uint16_t mqttPort = 1883,
+                        const char* robotId = "node0");
 
     /// Initialize router (call after transports are set up).
     void initRouter();

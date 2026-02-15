@@ -7,6 +7,26 @@
 enum class CmdType {
     ACTIVATE,
     ARM,
+    CAM_APPLY_PRESET,
+    CAM_CAPTURE_FRAME,
+    CAM_FLASH,
+    CAM_GET_CONFIG,
+    CAM_GET_STATUS,
+    CAM_SET_AWB,
+    CAM_SET_BRIGHTNESS,
+    CAM_SET_CONTRAST,
+    CAM_SET_EXPOSURE,
+    CAM_SET_FLIP,
+    CAM_SET_GAIN,
+    CAM_SET_MOTION_DETECTION,
+    CAM_SET_QUALITY,
+    CAM_SET_RESOLUTION,
+    CAM_SET_SATURATION,
+    CAM_SET_SHARPNESS,
+    CAM_START_CAPTURE,
+    CAM_START_RECORDING,
+    CAM_STOP_CAPTURE,
+    CAM_STOP_RECORDING,
     CLEAR_ESTOP,
     CTRL_SET_RATE,
     CTRL_SIGNALS_CLEAR,
@@ -69,6 +89,26 @@ enum class CmdType {
 inline CmdType cmdTypeFromString(const std::string& s) {
     if (s == "CMD_ACTIVATE") return CmdType::ACTIVATE;
     if (s == "CMD_ARM") return CmdType::ARM;
+    if (s == "CMD_CAM_APPLY_PRESET") return CmdType::CAM_APPLY_PRESET;
+    if (s == "CMD_CAM_CAPTURE_FRAME") return CmdType::CAM_CAPTURE_FRAME;
+    if (s == "CMD_CAM_FLASH") return CmdType::CAM_FLASH;
+    if (s == "CMD_CAM_GET_CONFIG") return CmdType::CAM_GET_CONFIG;
+    if (s == "CMD_CAM_GET_STATUS") return CmdType::CAM_GET_STATUS;
+    if (s == "CMD_CAM_SET_AWB") return CmdType::CAM_SET_AWB;
+    if (s == "CMD_CAM_SET_BRIGHTNESS") return CmdType::CAM_SET_BRIGHTNESS;
+    if (s == "CMD_CAM_SET_CONTRAST") return CmdType::CAM_SET_CONTRAST;
+    if (s == "CMD_CAM_SET_EXPOSURE") return CmdType::CAM_SET_EXPOSURE;
+    if (s == "CMD_CAM_SET_FLIP") return CmdType::CAM_SET_FLIP;
+    if (s == "CMD_CAM_SET_GAIN") return CmdType::CAM_SET_GAIN;
+    if (s == "CMD_CAM_SET_MOTION_DETECTION") return CmdType::CAM_SET_MOTION_DETECTION;
+    if (s == "CMD_CAM_SET_QUALITY") return CmdType::CAM_SET_QUALITY;
+    if (s == "CMD_CAM_SET_RESOLUTION") return CmdType::CAM_SET_RESOLUTION;
+    if (s == "CMD_CAM_SET_SATURATION") return CmdType::CAM_SET_SATURATION;
+    if (s == "CMD_CAM_SET_SHARPNESS") return CmdType::CAM_SET_SHARPNESS;
+    if (s == "CMD_CAM_START_CAPTURE") return CmdType::CAM_START_CAPTURE;
+    if (s == "CMD_CAM_START_RECORDING") return CmdType::CAM_START_RECORDING;
+    if (s == "CMD_CAM_STOP_CAPTURE") return CmdType::CAM_STOP_CAPTURE;
+    if (s == "CMD_CAM_STOP_RECORDING") return CmdType::CAM_STOP_RECORDING;
     if (s == "CMD_CLEAR_ESTOP") return CmdType::CLEAR_ESTOP;
     if (s == "CMD_CTRL_SET_RATE") return CmdType::CTRL_SET_RATE;
     if (s == "CMD_CTRL_SIGNALS_CLEAR") return CmdType::CTRL_SIGNALS_CLEAR;
@@ -132,6 +172,26 @@ inline const char* cmdTypeToString(CmdType c) {
     switch (c) {
         case CmdType::ACTIVATE: return "CMD_ACTIVATE";
         case CmdType::ARM: return "CMD_ARM";
+        case CmdType::CAM_APPLY_PRESET: return "CMD_CAM_APPLY_PRESET";
+        case CmdType::CAM_CAPTURE_FRAME: return "CMD_CAM_CAPTURE_FRAME";
+        case CmdType::CAM_FLASH: return "CMD_CAM_FLASH";
+        case CmdType::CAM_GET_CONFIG: return "CMD_CAM_GET_CONFIG";
+        case CmdType::CAM_GET_STATUS: return "CMD_CAM_GET_STATUS";
+        case CmdType::CAM_SET_AWB: return "CMD_CAM_SET_AWB";
+        case CmdType::CAM_SET_BRIGHTNESS: return "CMD_CAM_SET_BRIGHTNESS";
+        case CmdType::CAM_SET_CONTRAST: return "CMD_CAM_SET_CONTRAST";
+        case CmdType::CAM_SET_EXPOSURE: return "CMD_CAM_SET_EXPOSURE";
+        case CmdType::CAM_SET_FLIP: return "CMD_CAM_SET_FLIP";
+        case CmdType::CAM_SET_GAIN: return "CMD_CAM_SET_GAIN";
+        case CmdType::CAM_SET_MOTION_DETECTION: return "CMD_CAM_SET_MOTION_DETECTION";
+        case CmdType::CAM_SET_QUALITY: return "CMD_CAM_SET_QUALITY";
+        case CmdType::CAM_SET_RESOLUTION: return "CMD_CAM_SET_RESOLUTION";
+        case CmdType::CAM_SET_SATURATION: return "CMD_CAM_SET_SATURATION";
+        case CmdType::CAM_SET_SHARPNESS: return "CMD_CAM_SET_SHARPNESS";
+        case CmdType::CAM_START_CAPTURE: return "CMD_CAM_START_CAPTURE";
+        case CmdType::CAM_START_RECORDING: return "CMD_CAM_START_RECORDING";
+        case CmdType::CAM_STOP_CAPTURE: return "CMD_CAM_STOP_CAPTURE";
+        case CmdType::CAM_STOP_RECORDING: return "CMD_CAM_STOP_RECORDING";
         case CmdType::CLEAR_ESTOP: return "CMD_CLEAR_ESTOP";
         case CmdType::CTRL_SET_RATE: return "CMD_CTRL_SET_RATE";
         case CmdType::CTRL_SIGNALS_CLEAR: return "CMD_CTRL_SIGNALS_CLEAR";

@@ -1,6 +1,6 @@
 ================================================================================
 📂 C++ PROJECT STRUCTURE
-Generated: 2026-02-07 12:45:30
+Generated: 2026-02-08 09:03:33
 Total Files: 170
 ================================================================================
 
@@ -1409,7 +1409,7 @@ Total Files: 170
    ⚙️  ModeManager::update(uint32_t now_ms)
    ⚙️  ModeManager::readHardwareInputs()
    ⚙️  ModeManager::onHostHeartbeat(uint32_t now_ms)
-   ⚙️  ModeManager::onMotionCommand(uint32_t now_ms)
+   ⚙️  ModeManager::onMotionCommand(uint32_t now_ms, float vx, float omega)
    ⚙️  ModeManager::canTransition(RobotMode from, RobotMode to)
    ⚙️  ModeManager::arm()
    ⚙️  ModeManager::activate()
@@ -1823,7 +1823,7 @@ Total Files: 170
    ⚙️  ModeManager::clearEstop()
    ⚙️  ModeManager::update(uint32_t)
    ⚙️  ModeManager::onHostHeartbeat(uint32_t)
-   ⚙️  ModeManager::onMotionCommand(uint32_t)
+   ⚙️  ModeManager::onMotionCommand(uint32_t , float , float)
    ⚙️  ModeManager::validateVelocity(float vx, float omega, float& outVx, float& outOmega)
    ⚙️  LoggingModule::setLogLevel(const char*)
    ⚙️  EncoderManager::EncoderManager()
@@ -1906,7 +1906,7 @@ Total Files: 170
    ⚙️  getLoopRates()
    ⚙️  robotModeToString(RobotMode mode)
    ⚙️  ModeManager::onHostHeartbeat(uint32_t)
-   ⚙️  ModeManager::onMotionCommand(uint32_t)
+   ⚙️  ModeManager::onMotionCommand(uint32_t, float, float)
    ⚙️  ModeManager::validateVelocity(float vx, float omega, float& outVx, float& outOmega)
    ⚙️  ModeManager::arm()
    ⚙️  ModeManager::activate()
