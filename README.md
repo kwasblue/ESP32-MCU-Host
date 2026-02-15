@@ -31,6 +31,7 @@ This repository contains the **ESP32 firmware** - a modular, configurable firmwa
 ## Key Features
 
 - **Modular Architecture**: Enable/disable features via compile-time flags
+- **Hardware Abstraction Layer (HAL)**: Platform-agnostic interfaces for GPIO, PWM, I2C, Timer, Watchdog - enables porting to STM32, RP2040, and other MCUs
 - **Self-Registration**: Add handlers, modules, sensors, transports, and actuators with a single macro
 - **Multiple Transports**: USB Serial, WiFi TCP, Bluetooth Classic, MQTT
 - **Motor Control**: DC motors, servos, steppers with motion controller
@@ -90,7 +91,14 @@ pio device monitor -b 115200
 ├─────────────┬─────────────┬─────────────┬─────────────┬─────────┤
 │ DcMotor     │ Servo       │ IMU         │ Encoder     │ Lidar   │
 │ Manager     │ Manager     │ Manager     │ Manager     │ Manager │
-└─────────────┴─────────────┴─────────────┴─────────────┴─────────┘
+├─────────────┴─────────────┴─────────────┴─────────────┴─────────┤
+│                  Hardware Abstraction Layer (HAL)                │
+├─────────────┬─────────────┬─────────────┬─────────────┬─────────┤
+│   IGpio     │    IPwm     │    II2c     │   ITimer    │IWatchdog│
+│  (GPIO)     │   (PWM)     │   (I2C)     │  (Timers)   │ (WDT)   │
+├─────────────┴─────────────┴─────────────┴─────────────┴─────────┤
+│              Platform Implementation (esp32/, stm32/, rp2040/)   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Directory Structure
@@ -146,10 +154,26 @@ ESP32 MCU Host/
 │   │   ├── TelemetryModule.h
 │   │   ├── HeartbeatModule.h
 │   │   └── IdentityModule.h
-│   └── hw/              # Hardware abstraction
-│       ├── GpioManager.h
-│       ├── PwmManager.h
-│       └── SafetyManager.h
+│   ├── hw/              # Hardware managers (use HAL internally)
+│   │   ├── GpioManager.h
+│   │   ├── PwmManager.h
+│   │   └── SafetyManager.h
+│   └── hal/             # Hardware Abstraction Layer
+│       ├── Hal.h            # Unified HAL header + HalContext
+│       ├── IGpio.h          # GPIO interface (pins, interrupts)
+│       ├── IPwm.h           # PWM interface (duty, frequency)
+│       ├── II2c.h           # I2C interface (read, write)
+│       ├── ITimer.h         # Timer interface (delays, callbacks)
+│       ├── IWatchdog.h      # Watchdog interface
+│       ├── drivers/         # HAL-based device drivers
+│       │   └── Vl53l0x.h    # VL53L0X LiDAR (portable)
+│       └── esp32/           # ESP32 HAL implementation
+│           ├── Esp32Hal.h   # ESP32 HAL storage
+│           ├── Esp32Gpio.h/.cpp
+│           ├── Esp32Pwm.h/.cpp
+│           ├── Esp32I2c.h/.cpp
+│           ├── Esp32Timer.h/.cpp
+│           └── Esp32Watchdog.h/.cpp
 ├── src/                 # Implementation files
 │   └── (mirrors include structure)
 ├── test/                # Unit tests
@@ -211,6 +235,39 @@ Define hardware pin assignments:
 #define IMU_SDA       21
 #define IMU_SCL       22
 ```
+
+## Hardware Abstraction Layer (HAL)
+
+MARA includes a HAL for platform portability. All hardware access goes through abstract interfaces, enabling the firmware to be ported to different MCU platforms.
+
+### Supported Interfaces
+
+| Interface | Purpose | ESP32 Implementation |
+|-----------|---------|---------------------|
+| `IGpio` | Digital I/O, interrupts | Arduino GPIO + ESP-IDF |
+| `IPwm` | PWM output | ESP32 LEDC peripheral |
+| `II2c` | I2C communication | Wire library |
+| `ITimer` | Timers, delays | esp_timer API |
+| `IWatchdog` | Task watchdog | esp_task_wdt API |
+
+### Porting to New Platforms
+
+To port MARA to a new MCU (e.g., STM32, RP2040):
+
+1. Create `include/hal/<platform>/` directory
+2. Implement each interface (e.g., `Stm32Gpio : public IGpio`)
+3. Create `<Platform>HalStorage` struct with `buildContext()`
+4. Update `ServiceStorage.h` to use the new HAL
+
+No changes needed to managers, handlers, or business logic - they all use HAL interfaces.
+
+### HAL-Based Drivers
+
+Some device drivers are implemented using HAL for full portability:
+
+| Driver | Location | Description |
+|--------|----------|-------------|
+| `Vl53l0x` | `hal/drivers/Vl53l0x.h` | VL53L0X Time-of-Flight sensor |
 
 ## Extensibility
 

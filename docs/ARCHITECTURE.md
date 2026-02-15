@@ -89,6 +89,18 @@ The MARA Firmware follows a layered, real-time architecture with:
 │  │ Manager  │ │ Manager  │ │ Manager  │ │ Manager  │ │ Manager  │          │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘          │
 ├─────────────────────────────────────────────────────────────────────────────┤
+│                     Hardware Abstraction Layer (HAL)                         │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌───────────┐ │
+│  │   IGpio    │ │    IPwm    │ │    II2c    │ │   ITimer   │ │ IWatchdog │ │
+│  │ (pins,ISR) │ │(duty,freq) │ │(read,write)│ │(delay,tick)│ │  (reset)  │ │
+│  └────────────┘ └────────────┘ └────────────┘ └────────────┘ └───────────┘ │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                    Platform Implementation (hal/esp32/)                      │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌───────────┐ │
+│  │ Esp32Gpio  │ │  Esp32Pwm  │ │  Esp32I2c  │ │ Esp32Timer │ │Esp32Wdog  │ │
+│  │ (Arduino)  │ │   (LEDC)   │ │   (Wire)   │ │(esp_timer) │ │(task_wdt) │ │
+│  └────────────┘ └────────────┘ └────────────┘ └────────────┘ └───────────┘ │
+├─────────────────────────────────────────────────────────────────────────────┤
 │                              Transport Layer                                 │
 │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐               │
 │  │   UART     │ │   WiFi     │ │    BLE     │ │   MQTT     │               │
@@ -143,6 +155,105 @@ These modules are marked `isCritical() = true`. If they fail during setup, the s
 
 - **SetupSafety** - ModeManager must be operational
 - **SetupTransport** - Must be able to receive commands
+
+## Hardware Abstraction Layer (HAL)
+
+The HAL provides platform-agnostic interfaces for all hardware access, enabling the firmware to be ported to different MCU platforms (STM32, RP2040, etc.) without changing business logic.
+
+### HAL Interfaces
+
+| Interface | Purpose | Methods |
+|-----------|---------|---------|
+| `IGpio` | Digital I/O | `pinMode`, `digitalRead`, `digitalWrite`, `attachInterrupt`, `detachInterrupt`, `enableInterrupts`, `disableInterrupts` |
+| `IPwm` | PWM output | `attach`, `detach`, `setDuty`, `setDutyFloat`, `setFrequency` |
+| `II2c` | I2C communication | `begin`, `write`, `read`, `writeReg`, `readRegs` |
+| `ITimer` | Timers and delays | `startRepeating`, `startOnce`, `stop`, `millis`, `micros`, `delayMicros`, `delayMillis` |
+| `IWatchdog` | Task watchdog | `begin`, `addCurrentTask`, `removeCurrentTask`, `reset` |
+
+### HAL Context
+
+All HAL interfaces are grouped into `HalContext` for dependency injection:
+
+```cpp
+namespace hal {
+struct HalContext {
+    IGpio*     gpio     = nullptr;
+    IPwm*      pwm      = nullptr;
+    II2c*      i2c      = nullptr;   // Primary I2C bus
+    II2c*      i2c1     = nullptr;   // Secondary I2C bus
+    ITimer*    timer    = nullptr;
+    IWatchdog* watchdog = nullptr;
+};
+}
+```
+
+### Platform Implementations
+
+Each platform provides concrete implementations:
+
+```
+hal/
+├── IGpio.h, IPwm.h, II2c.h, ITimer.h, IWatchdog.h   # Interfaces
+├── Hal.h                                             # HalContext struct
+├── drivers/
+│   └── Vl53l0x.h/.cpp    # HAL-based VL53L0X driver (portable)
+└── esp32/                 # ESP32 implementation
+    ├── Esp32Hal.h         # Esp32HalStorage + buildContext()
+    ├── Esp32Gpio.h/.cpp   # Wraps Arduino GPIO
+    ├── Esp32Pwm.h/.cpp    # Wraps ESP32 LEDC peripheral
+    ├── Esp32I2c.h/.cpp    # Wraps Wire library
+    ├── Esp32Timer.h/.cpp  # Wraps esp_timer API
+    └── Esp32Watchdog.h/.cpp # Wraps esp_task_wdt API
+```
+
+### Manager Integration
+
+Managers receive HAL interfaces via `setHal()` methods:
+
+```cpp
+// In ServiceStorage::initHal()
+gpio.setHal(&hal.gpio);
+pwm.setHal(&hal.pwm);
+imu.setHal(&hal.i2c);
+lidar.setHal(&hal.i2c);
+encoder.setHal(&hal.gpio);
+stepper.setHal(&hal.timer);
+mode.setHalGpio(&hal.gpio);
+mode.setHalWatchdog(&hal.watchdog);
+```
+
+### HAL-Based Device Drivers
+
+Complex device drivers that would otherwise be non-portable are implemented using HAL:
+
+| Driver | File | Description |
+|--------|------|-------------|
+| `Vl53l0x` | `hal/drivers/Vl53l0x.h` | VL53L0X Time-of-Flight sensor, ~350 lines, continuous ranging support |
+
+### Porting to New Platforms
+
+To port MARA to a new MCU (e.g., STM32):
+
+1. Create `include/hal/stm32/` directory
+2. Implement each interface:
+   ```cpp
+   class Stm32Gpio : public hal::IGpio {
+       void pinMode(uint8_t pin, PinMode mode) override { /* STM32 HAL */ }
+       // ...
+   };
+   ```
+3. Create `Stm32HalStorage` struct:
+   ```cpp
+   struct Stm32HalStorage {
+       Stm32Gpio gpio;
+       Stm32Pwm pwm;
+       // ...
+       HalContext buildContext() { return {&gpio, &pwm, ...}; }
+   };
+   ```
+4. Update `ServiceStorage.h` to use `Stm32HalStorage` instead of `Esp32HalStorage`
+
+No changes needed to managers, handlers, or business logic.
 
 ## Real-Time Contract Enforcement
 
@@ -1595,9 +1706,25 @@ ESP32 MCU Host/
 │   │   ├── AllActuators.h     # Include all actuators
 │   │   ├── DcMotorActuator.h  # Self-registering DC motor
 │   │   └── ... (legacy managers)
-│   └── control/
-│       ├── SignalBus.h        # Signal routing
-│       └── ControlKernel.h    # PID/LQR controllers
+│   ├── control/
+│   │   ├── SignalBus.h        # Signal routing
+│   │   └── ControlKernel.h    # PID/LQR controllers
+│   └── hal/                   # Hardware Abstraction Layer
+│       ├── Hal.h              # Unified HAL header + HalContext
+│       ├── IGpio.h            # GPIO interface
+│       ├── IPwm.h             # PWM interface
+│       ├── II2c.h             # I2C interface
+│       ├── ITimer.h           # Timer interface
+│       ├── IWatchdog.h        # Watchdog interface
+│       ├── drivers/           # HAL-based device drivers
+│       │   └── Vl53l0x.h      # VL53L0X ToF sensor
+│       └── esp32/             # ESP32 HAL implementation
+│           ├── Esp32Hal.h     # Storage + buildContext()
+│           ├── Esp32Gpio.h
+│           ├── Esp32Pwm.h
+│           ├── Esp32I2c.h
+│           ├── Esp32Timer.h
+│           └── Esp32Watchdog.h
 ├── src/
 │   ├── main.cpp               # Entry point (~150 lines)
 │   ├── core/
@@ -1613,6 +1740,15 @@ ESP32 MCU Host/
 │   │   └── TransportRegistry.cpp # Transport registry impl
 │   ├── motor/
 │   │   └── ActuatorRegistry.cpp # Actuator registry impl
+│   ├── hal/
+│   │   ├── drivers/
+│   │   │   └── Vl53l0x.cpp    # HAL-based VL53L0X driver
+│   │   └── esp32/             # ESP32 HAL implementations
+│   │       ├── Esp32Gpio.cpp
+│   │       ├── Esp32Pwm.cpp
+│   │       ├── Esp32I2c.cpp
+│   │       ├── Esp32Timer.cpp
+│   │       └── Esp32Watchdog.cpp
 │   ├── setup/                 # Modular setup
 │   │   ├── SetupManifest.cpp  # Central module manifest
 │   │   ├── SetupWifi.cpp
@@ -1637,6 +1773,7 @@ ESP32 MCU Host/
 
 | Version | Changes |
 |---------|---------|
+| 2.9 | Hardware Abstraction Layer (HAL): IGpio, IPwm, II2c, ITimer, IWatchdog interfaces. ESP32 implementations. HAL-based VL53L0X driver. Managers migrated to use HAL (EncoderManager, StepperManager, ModeManager, ImuManager, LidarManager). Enables porting to STM32, RP2040. |
 | 2.8 | Unified extensibility: SensorRegistry, TransportRegistry, ActuatorRegistry with self-registration (REGISTER_SENSOR, REGISTER_TRANSPORT, REGISTER_ACTUATOR). Deferred init pattern. All components now 1+1 files to add. Grade upgraded to A+. |
 | 2.7 | RT_SAFE annotations, IntentBuffer boundary, HandlerCap gating, RobotConfig, header hygiene (mcu.h, Fwd.h), ServiceStorage.cpp split, golden path tests (72 total), registries via ServiceContext |
 | 2.6 | Central manifest (SetupManifest.cpp), registerStringHandler() API for module self-registration |
